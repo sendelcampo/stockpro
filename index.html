@@ -1145,6 +1145,8 @@ async function persist(){
 async function persistMov(m){LS.set('m',movements);if(cloudMode&&sb)await cloudUpsert('movements',[m]);}
 async function persistSale(s){LS.set('s',sales);if(!cloudMode||!sb)return;showSync('⏳ Guardando...',true);await cloudUpsert('sales',[s]);showSync('☁️ Guardado',true);}
 async function persistDelProd(id){LS.set('p',products);if(cloudMode&&sb)await cloudDelete('products',id);}
+async function persistDelSale(id){LS.set('s',sales);if(cloudMode&&sb)await cloudDelete('sales',id);}
+async function persistDelUser(id){LS.set('u',users);if(cloudMode&&sb)await cloudDelete('users',id);}
 async function persistDelContact(id,movIds){LS.set('ct',contacts);LS.set('cm',ctaMovs);if(cloudMode&&sb){await cloudDelete('contacts',id);await Promise.all(movIds.map(mid=>cloudDelete('cta_movs',mid)));}}
 async function persistDelCtaMov(id){LS.set('cm',ctaMovs);if(cloudMode&&sb)await cloudDelete('cta_movs',id);}
 async function persistDelEgreso(id){LS.set('eg',egresos);if(cloudMode&&sb)await cloudDelete('egresos',id);}
@@ -1731,7 +1733,12 @@ function clearSelection(){selectedIds.clear();updBulkBar();renderTbl();}
 function bulkDelete(){
   if(!selectedIds.size)return;const n=selectedIds.size;
   $i('confirm-msg').textContent='¿Eliminar '+n+' producto'+(n!==1?'s':'')+' seleccionado'+(n!==1?'s':'')+' ?';
-  $i('confirm-ok').onclick=function(){products=products.filter(p=>!selectedIds.has(p.id));selectedIds.clear();persist();refreshAll();closeO('m-confirm');toast('Productos eliminados','err');};
+  $i('confirm-ok').onclick=async function(){
+    const ids=[...selectedIds];
+    products=products.filter(p=>!selectedIds.has(p.id));selectedIds.clear();
+    if(cloudMode&&sb)await Promise.all(ids.map(id=>cloudDelete('products',id)));
+    persist();refreshAll();closeO('m-confirm');toast('Productos eliminados','err');
+  };
   openO('m-confirm');
 }
 function calcBkMargin(){const cost=parseFloat($i('bk-cost').value)||0,price=parseFloat($i('bk-price').value)||0,info=$i('bk-margin-info');if(cost>0&&price>0){const g=price-cost,m=mg(cost,price),mu=mk(cost,price),cls=g>=0?'var(--ok)':'var(--err)';$i('bk-mg-gain').textContent='$'+fn(g);$i('bk-mg-gain').style.color=cls;$i('bk-mg-pct').textContent=m.toFixed(1)+'%';$i('bk-mg-pct').style.color=cls;$i('bk-mg-mk').textContent=mu.toFixed(1)+'%';$i('bk-mg-mk').style.color=cls;info.style.display='';}else info.style.display='none';}
@@ -1835,7 +1842,7 @@ function saveEditedSale(){
 function deleteSale(){if(!editingSaleId)return;quickDeleteSale(editingSaleId,true);}
 function quickDeleteSale(id,fromModal){
   $i('confirm-msg').textContent='¿Eliminar esta venta? No se repondrá el stock.';
-  $i('confirm-ok').onclick=function(){sales=sales.filter(x=>x.id!==id);persist();if(fromModal)closeO('m-sale-detail');closeO('m-confirm');renderSales();renderDash();toast('Venta eliminada','err');};
+  $i('confirm-ok').onclick=function(){sales=sales.filter(x=>x.id!==id);persistDelSale(id);persist();if(fromModal)closeO('m-sale-detail');closeO('m-confirm');renderSales();renderDash();toast('Venta eliminada','err');};
   openO('m-confirm');
 }
 function toggleSaleEdit(){}
@@ -1928,7 +1935,7 @@ function saveCat(){const name=$i('c-name').value.trim();if(!name){toast('Nombre 
 function renderUsers(){$i('users-tb').innerHTML=users.map(u=>'<tr><td>'+(u.avatar||'👤')+' <strong>'+u.name+'</strong></td><td><span class="ctag">'+roleL(u.role)+'</span></td><td><span style="letter-spacing:.18em">••••</span></td><td><button class="btn bg bs bic" onclick="openUserM(\''+u.id+'\')">✏️</button> <button class="btn bg bs bic" onclick="delUser(\''+u.id+'\')">🗑️</button></td></tr>').join('');}
 function openUserM(id){editUserId=id;['name','pin','av'].forEach(f=>$i('u-'+f).value='');$i('u-role').value='vendedor';if(id){const u=users.find(x=>x.id===id);if(u){$i('u-name').value=u.name;$i('u-role').value=u.role;$i('u-pin').value=u.pin;$i('u-av').value=u.avatar||'';}}openO('m-user');}
 function saveUser(){const name=$i('u-name').value.trim(),pin=$i('u-pin').value.trim();if(!name||!pin){toast('Nombre y PIN obligatorios','err');return;}if(editUserId){const idx=users.findIndex(x=>x.id===editUserId);if(idx>-1)users[idx]={...users[idx],name,role:$i('u-role').value,pin,avatar:$i('u-av').value.trim()||'👤'};toast('Usuario actualizado ✓');}else{users.push({id:uid(),name,role:$i('u-role').value,pin,avatar:$i('u-av').value.trim()||'👤'});toast('Usuario creado ✓');}persist();closeO('m-user');renderUsers();}
-function delUser(id){if(id===currentUser?.id){toast('No podés eliminarte','err');return;}$i('confirm-msg').textContent='¿Eliminar usuario?';$i('confirm-ok').onclick=function(){users=users.filter(x=>x.id!==id);persist();renderUsers();closeO('m-confirm');toast('Eliminado','err');};openO('m-confirm');}
+function delUser(id){if(id===currentUser?.id){toast('No podés eliminarte','err');return;}$i('confirm-msg').textContent='¿Eliminar usuario?';$i('confirm-ok').onclick=function(){users=users.filter(x=>x.id!==id);persistDelUser(id);persist();renderUsers();closeO('m-confirm');toast('Eliminado','err');};openO('m-confirm');}
 
 // ══ PRODUCTOS CRUD ══
 function openProd(id){
