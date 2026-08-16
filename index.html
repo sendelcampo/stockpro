@@ -493,8 +493,8 @@ tr:hover td{background:rgba(255,255,255,.012);}
 
     <!-- EGRESOS -->
     <div class="view" id="view-egresos">
-      <div class="sec-hdr"><div class="sec-t">Egresos / Compras a proveedores</div><button class="btn bp bs" onclick="openEgresoM()">+ Nueva compra</button></div>
-      <div class="tblw"><table><thead><tr><th>Fecha</th><th>Proveedor</th><th>Productos</th><th>Cant.</th><th>Total</th><th>Pago</th><th></th></tr></thead><tbody id="egresos-tb"></tbody></table></div>
+      <div class="sec-hdr"><div class="sec-t">Egresos</div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn bg bs" onclick="openGastoM()">+ Nuevo gasto</button><button class="btn bp bs" onclick="openEgresoM()">+ Nueva compra</button></div></div>
+      <div class="tblw"><table><thead><tr><th>Fecha</th><th>Proveedor / Concepto</th><th>Detalle</th><th>Total</th><th>Pago</th><th></th></tr></thead><tbody id="egresos-tb"></tbody></table></div>
     </div>
 
     <!-- CATEGORÍAS -->
@@ -556,6 +556,13 @@ tr:hover td{background:rgba(255,255,255,.012);}
         <div class="cfg-title">💳 Medios de pago</div>
         <div style="font-size:.78rem;color:var(--mu);margin-bottom:12px">Activá los medios que aceptás.</div>
         <div id="cfg-pay-methods" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
+        <div style="margin-top:12px;border-top:1px solid var(--bd);padding-top:12px">
+          <div class="cfg-label" style="margin-bottom:8px">Agregar medio de pago personalizado</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <input type="text" id="cfg-pay-new-label" placeholder="Ej: QR Mercadopago Fer" style="flex:1;min-width:180px">
+            <button class="btn bg bs" onclick="addPayMethod()">+ Agregar</button>
+          </div>
+        </div>
         <div style="margin-top:12px;border-top:1px solid var(--bd);padding-top:12px">
           <div class="cfg-row" style="margin-bottom:0">
             <div><div class="cfg-label">Permitir pago con dos medios</div><div class="cfg-sub">Ej: parte efectivo, parte QR</div></div>
@@ -719,11 +726,31 @@ tr:hover td{background:rgba(255,255,255,.012);}
 </div>
 
 <!-- MODAL EGRESO / COMPRA A PROVEEDOR -->
+<!-- MODAL NUEVO GASTO GENERAL -->
+<div class="overlay" id="m-gasto">
+  <div class="modal" style="max-width:420px">
+    <div class="mt">📤 Nuevo gasto</div>
+    <input type="hidden" id="gasto-editing-id">
+    <div class="fgrid">
+      <div class="fg full"><label class="fl">Categoría *</label><select id="gasto-cat"><option value="Insumos">Insumos</option><option value="Sueldos">Sueldos</option><option value="Alquiler">Alquiler</option><option value="Servicios">Servicios (luz, agua, internet)</option><option value="Impuestos">Impuestos</option><option value="Mantenimiento">Mantenimiento</option><option value="Otro">Otro</option></select></div>
+      <div class="fg full"><label class="fl">Monto ($) *</label><input type="number" id="gasto-amount" min="0" step="0.01" placeholder="0"></div>
+      <div class="fg full"><label class="fl">Descripción</label><input type="text" id="gasto-note" placeholder="Ej: Sueldo de Marzo — Juan"></div>
+      <div class="fg full"><label class="fl">Estado</label><select id="gasto-pay"><option value="pagado">Pagado</option><option value="pendiente">Pendiente</option></select></div>
+    </div>
+    <div class="mfoot"><button class="btn bg" onclick="closeO(&#39;m-gasto&#39;)">Cancelar</button><button class="btn bp" onclick="saveGasto()">Guardar gasto</button></div>
+  </div>
+</div>
+
 <div class="overlay" id="m-egreso">
   <div class="modal" style="max-width:900px;width:100%">
     <div class="mt" id="eg-modal-title">📤 Nueva compra a proveedor</div>
     <div class="fgrid" style="margin-bottom:10px">
-      <div class="fg"><label class="fl">Proveedor / Cliente *</label><select id="eg-prov" onchange="onEgProvChange()"></select><div id="eg-prov-hint" style="font-size:.7rem;color:var(--ac);margin-top:4px"></div></div>
+      <div class="fg"><label class="fl">Proveedor / Cliente *</label><div style="display:flex;gap:6px"><select id="eg-prov" onchange="onEgProvChange()" style="flex:1"></select><button class="btn bg bs" onclick="toggleEgNewProvForm()" title="Nuevo proveedor" type="button">+</button></div><div id="eg-prov-hint" style="font-size:.7rem;color:var(--ac);margin-top:4px"></div>
+        <div id="eg-new-prov-form" style="display:none;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:10px;margin-top:8px">
+          <input type="text" id="egnp-prov-name" placeholder="Nombre del proveedor" style="width:100%;margin-bottom:6px">
+          <div style="display:flex;gap:6px;justify-content:flex-end"><button class="btn bg bs" onclick="toggleEgNewProvForm()">Cancelar</button><button class="btn bp bs" onclick="addEgNewProv()">Agregar</button></div>
+        </div>
+      </div>
       <div class="fg"><label class="fl">Forma de pago</label><select id="eg-pay"><option value="pagado">Pagado ahora</option><option value="cuenta">A cuenta corriente (queda pendiente)</option></select></div>
       <div class="fg"><label class="fl">Redondeo precio venta</label><select id="eg-round"><option value="1">Sin redondeo</option><option value="10">Al $10</option><option value="50">Al $50</option><option value="100">Al $100</option></select></div>
     </div>
@@ -1250,13 +1277,29 @@ function loadConfig(){
   else{$i('cfg-pw').value='custom';$i('cfg-pw-custom').style.display='';$i('cfg-pw-custom').value=pw;}
   $i('cfg-pw').onchange=function(){$i('cfg-pw-custom').style.display=this.value==='custom'?'':'none';updateTicketPreview();};
   const methods=c.payMethods||DEFAULT_PAY_METHODS;
-  $i('cfg-pay-methods').innerHTML=methods.map(m=>'<label style="display:flex;align-items:center;gap:8px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:9px 12px;cursor:pointer"><input type="checkbox" data-pay="'+m.id+'" '+(m.active?'checked':'')+' style="width:16px;height:16px;cursor:pointer"><span style="font-size:.85rem">'+m.icon+' '+m.label+'</span></label>').join('');
+  $i('cfg-pay-methods').innerHTML=methods.map(m=>'<label style="display:flex;align-items:center;gap:8px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:9px 12px;cursor:pointer"><input type="checkbox" data-pay="'+m.id+'" '+(m.active?'checked':'')+' style="width:16px;height:16px;cursor:pointer"><span style="font-size:.85rem;flex:1">'+m.icon+' '+m.label+'</span>'+(m.custom?'<span onclick="event.preventDefault();delPayMethod(\''+m.id+'\')" style="cursor:pointer;color:var(--mu);padding:2px 4px" title="Eliminar">🗑️</span>':'')+'</label>').join('');
   renderDiscPresetsCfg();
   updateTicketPreview();
 }
 function renderDiscPresetsCfg(){
   const presets=cfg().discPresets||[];
   $i('cfg-disc-presets').innerHTML=presets.length?presets.map((p,i)=>'<div style="display:flex;align-items:center;gap:8px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:8px 12px"><span style="flex:1;font-size:.85rem">'+p.label+' — '+p.value+(p.type==='pct'?'%':'$')+'</span><button class="btn bg bs bic" onclick="delDiscPreset('+i+')" title="Eliminar">🗑️</button></div>').join('') : '<div style="font-size:.8rem;color:var(--mu)">Sin descuentos rápidos configurados.</div>';
+}
+function addPayMethod(){
+  const label=$i('cfg-pay-new-label').value.trim();
+  if(!label){toast('Escribí una descripción para el medio de pago','err');return;}
+  const c=cfg();const methods=c.payMethods||DEFAULT_PAY_METHODS;
+  c.payMethods=[...methods,{id:uid(),label,icon:'💰',active:true,custom:true}];
+  saveCfg(c);
+  $i('cfg-pay-new-label').value='';
+  loadConfig();
+  toast('✅ Medio de pago agregado');
+}
+function delPayMethod(id){
+  const c=cfg();const methods=c.payMethods||DEFAULT_PAY_METHODS;
+  c.payMethods=methods.filter(m=>m.id!==id);
+  saveCfg(c);
+  loadConfig();
 }
 function addDiscPreset(){
   const label=$i('dp-label').value.trim(),value=parseFloat($i('dp-value').value)||0,type=$i('dp-type').value;
@@ -1455,7 +1498,7 @@ function renderCart(resetScroll){
     var qtyType=isKg?'text':'number';
     var qtyExtra=isKg?'inputmode="decimal"':'min="1" step="1"';
     var qtyDelta=isKg?0.1:1;
-    var focusA='onfocus="cartQtyEditing=true" onblur="setTimeout(function(){cartQtyEditing=false;},150)"';
+    var focusA='onfocus="cartQtyEditing=true;this.select()" onblur="setTimeout(function(){cartQtyEditing=false;},150)"';
     var row='<div class="ci-row cart-item">';
     row+='<div class="ci-name ci-col-name" title="'+it.name+'">'+it.name+'<span style="font-size:.72rem;color:var(--mu);margin-left:4px">'+(isKg?'⚖️ kg':'📦')+'</span></div>';
     row+='<div class="ci-col-qty" style="display:flex;align-items:center;gap:4px;justify-content:center">';
@@ -2288,6 +2331,22 @@ function fillCartClientes(){
 // ══ EGRESOS ══
 let egCart=[];
 let egEditingId=null;
+function toggleEgNewProvForm(){
+  const f=$i('eg-new-prov-form');const show=f.style.display==='none';
+  f.style.display=show?'':'none';
+  if(show)$i('egnp-prov-name').value='';
+}
+function addEgNewProv(){
+  const name=$i('egnp-prov-name').value.trim();
+  if(!name){toast('Ingresá el nombre del proveedor','err');return;}
+  const nc={id:uid(),type:'proveedor',name,phone:'',notes:'',createdAt:Date.now()};
+  contacts.push(nc);
+  persist();
+  fillEgSelects();
+  $i('eg-prov').value=nc.id;onEgProvChange();
+  toggleEgNewProvForm();
+  toast('✅ Proveedor agregado');
+}
 function fillEgSelects(){
   const provs=contacts.filter(c=>c.type==='proveedor').map(c=>'<option value="'+c.id+'" data-type="proveedor">🚚 '+c.name+'</option>').join('');
   const clis=contacts.filter(c=>c.type==='cliente').map(c=>'<option value="'+c.id+'" data-type="cliente">👤 '+c.name+' (cliente)</option>').join('');
@@ -2302,9 +2361,8 @@ function onEgProvChange(){
   $i('eg-prov-hint').textContent=isCliente?'Este cliente te trae mercadería — se puede descontar del saldo que te debe.':'';
 }
 function openEgresoM(){
-  if(!contacts.some(c=>c.type==='proveedor'||c.type==='cliente')){toast('Primero cargá un proveedor o cliente en Fichas','err');return;}
   egEditingId=null;
-  egCart=[];fillEgSelects();$i('eg-search').value='';$i('eg-search-results').style.display='none';$i('eg-new-prod-form').style.display='none';$i('eg-pay').value='pagado';$i('eg-note').value='';$i('eg-round').value='1';
+  egCart=[];fillEgSelects();$i('eg-search').value='';$i('eg-search-results').style.display='none';$i('eg-new-prod-form').style.display='none';$i('eg-new-prov-form').style.display='none';$i('eg-pay').value='pagado';$i('eg-note').value='';$i('eg-round').value='1';
   $i('eg-modal-title').textContent='📤 Nueva compra a proveedor';$i('eg-save-btn').textContent='✅ Guardar compra';
   renderEgCart();openO('m-egreso');
 }
@@ -2427,7 +2485,38 @@ function saveEgreso(){
 }
 function renderEgresos(){
   if(!$i('egresos-tb'))return;
-  $i('egresos-tb').innerHTML=egresos.length?egresos.map(e=>'<tr><td>'+fd(e.ts)+'</td><td>'+e.providerName+'</td><td>'+e.items.map(i=>i.qty+'x '+i.name).join(', ')+'</td><td>'+e.items.reduce((a,i)=>a+i.qty,0)+'</td><td>$'+fn(e.total)+'</td><td>'+(e.paid?'Pagado':'A cta. cte.')+'</td><td style="white-space:nowrap"><button class="btn bg bs bic" onclick="editEgreso(\''+e.id+'\')" title="Ver / editar">✏️</button><button class="btn bg bs bic" onclick="delEgreso(\''+e.id+'\')" title="Eliminar">🗑️</button></td></tr>').join('') : '<tr><td colspan="7" style="text-align:center;color:var(--mu);padding:16px">Sin egresos registrados</td></tr>';
+  $i('egresos-tb').innerHTML=egresos.length?egresos.map(e=>{
+    const isGasto=e.type==='gasto';
+    const concepto=isGasto?('📋 '+e.category):e.providerName;
+    const detalle=isGasto?(e.note||'—'):e.items.map(i=>i.qty+'x '+i.name).join(', ');
+    const editBtn=isGasto?('editGasto(\''+e.id+'\')'):('editEgreso(\''+e.id+'\')');
+    return '<tr><td>'+fd(e.ts)+'</td><td>'+concepto+'</td><td>'+detalle+'</td><td>$'+fn(e.total)+'</td><td>'+(e.paid?'Pagado':(isGasto?'Pendiente':'A cta. cte.'))+'</td><td style="white-space:nowrap"><button class="btn bg bs bic" onclick="'+editBtn+'" title="Ver / editar">✏️</button><button class="btn bg bs bic" onclick="delEgreso(\''+e.id+'\')" title="Eliminar">🗑️</button></td></tr>';
+  }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:16px">Sin egresos registrados</td></tr>';
+}
+function openGastoM(){
+  $i('gasto-cat').value='Insumos';$i('gasto-amount').value='';$i('gasto-note').value='';$i('gasto-pay').value='pagado';$i('gasto-editing-id').value='';
+  openO('m-gasto');
+}
+function saveGasto(){
+  const category=$i('gasto-cat').value;
+  const amount=parseFloat($i('gasto-amount').value)||0;
+  if(!amount){toast('Ingresá un monto','err');return;}
+  const note=$i('gasto-note').value.trim();
+  const paid=$i('gasto-pay').value==='pagado';
+  const editId=$i('gasto-editing-id').value;
+  if(editId){
+    const g=egresos.find(x=>x.id===editId);
+    if(g)Object.assign(g,{category,total:amount,note,paid});
+  } else {
+    egresos.unshift({id:uid(),ts:Date.now(),type:'gasto',category,providerName:category,items:[],total:amount,note,paid});
+  }
+  persist();refreshAll();closeO('m-gasto');toast('✅ Gasto registrado');
+}
+function editGasto(id){
+  const g=egresos.find(x=>x.id===id);if(!g)return;
+  $i('gasto-cat').value=g.category||'Otro';$i('gasto-amount').value=g.total;$i('gasto-note').value=g.note||'';$i('gasto-pay').value=g.paid?'pagado':'pendiente';
+  $i('gasto-editing-id').value=id;
+  openO('m-gasto');
 }
 function editEgreso(id){
   const e=egresos.find(x=>x.id===id);if(!e)return;
