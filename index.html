@@ -1593,22 +1593,21 @@ function decodePLU(code){
   if(code[0]!=='2')return null;
   
   const fmt=cfg().pluFmt||'2x5p5v';
-  const div=Math.pow(10,cfg().pluDecimals!=null?cfg().pluDecimals:2);
-  let pluCode=null,pluPrice=null;
+  let pluCode=null,pluWeight=null;
   
-  // Formato: 2 + 00200 (PLU 5 dig) + 00035 (precio/peso 5 dig)
+  // Formato: 20 (2 dígitos ID) + 00200 (5 PLU) + 00355 (5 PESO ÷1000 = kg)
   if(code.length===12){
-    pluCode=code.slice(1,6);
-    pluPrice=parseInt(code.slice(6,11))/div;
+    pluCode=code.slice(2,7);    // Índice 2-6 = PLU (00200)
+    pluWeight=parseInt(code.slice(7,12))/1000;  // Índice 7-11 = peso (00355 = 0.355kg)
   }
   else if(code.length===13){
-    // Con dígito: 21 + 5 + 5 + 1
-    if(fmt==='2x5p5v'){pluCode=code.slice(2,7);pluPrice=parseInt(code.slice(7,12))/div;}
-    else if(fmt==='2x5p4v'){pluCode=code.slice(2,7);pluPrice=parseInt(code.slice(7,11))/div;}
-    else if(fmt==='2x6p5v'){pluCode=code.slice(2,8);pluPrice=parseInt(code.slice(8,13))/div;}
+    // Con check digit: 20 + 5 PLU + 5 PESO + 1 CHECK
+    if(fmt==='2x5p5v'){pluCode=code.slice(2,7);pluWeight=parseInt(code.slice(7,12))/1000;}
+    else if(fmt==='2x5p4v'){pluCode=code.slice(2,7);pluWeight=parseInt(code.slice(7,11))/1000;}
+    else if(fmt==='2x6p5v'){pluCode=code.slice(2,8);pluWeight=parseInt(code.slice(8,13))/1000;}
   }
   
-  if(!pluCode||!pluPrice)return null;
+  if(!pluCode||!pluWeight)return null;
   const pluNum=parseInt(pluCode,10);
   
   const p=products.find(x=>{
@@ -1633,13 +1632,38 @@ function decodePLU(code){
     return false;
   });
   
-  console.log('🔍 PLU Debug:',{code,len:code.length,pluCode,pluNum,pluPrice,producto:p?p.name:'NO ENCONTRADO'});
-  return{pluCode,pluPrice,product:p||null};
+  console.log('🔍 PLU Debug:',{code,len:code.length,pluCode,pluNum,pluWeight,producto:p?p.name:'NO ENCONTRADO'});
+  
+  // Calcular precio total = peso × precio por kg
+  const pluPrice=p?(pluWeight*p.price):null;
+  
+  return{pluCode,pluWeight,pluPrice,product:p||null};
 }
 
 // ══ BARCODE ══
 function handleBC(code){
   code=code.trim();if(!code)return;
+  
+  // PRIMERO: Intentar como BARCODE regular
+  if(scanTarget==='pos'){
+    let p=products.find(x=>x.barcode===code);
+    // Si no encuentra exacto, busca flexible
+    if(!p)p=products.find(x=>{
+      if(!x.barcode)return false;
+      const codeDigits=code.replace(/\D/g,'');
+      const bcDigits=x.barcode.replace(/\D/g,'');
+      return bcDigits===codeDigits;
+    });
+    // Si encuentra por barcode, agrega automático
+    if(p){
+      addToCart(p.id);
+      clearPosSearch();
+      toast('✅ '+p.name+' agregado');
+      return;
+    }
+  }
+  
+  // SEGUNDO: Intentar como PLU (si no encontró por barcode)
   const plu=decodePLU(code);
   if(plu&&(scanTarget==='pos'||scanTarget==='sd')){
     if(plu.product){
@@ -1656,24 +1680,13 @@ function handleBC(code){
     }else toast('PLU #'+plu.pluCode+' $'+fn(plu.pluPrice)+' — sin producto asignado','err');
     return;
   }
+  
+  // SI LLEGÓ AQUÍ, no encontró ni por barcode ni por PLU
   if(scanTarget==='search'||scanTarget===null){$i('pq').value=code;renderTbl();toast('Buscando: '+code);}
   else if(scanTarget==='prod'){$i('p-bc').value=code;const p=products.find(x=>x.barcode===code);if(p)toast('✓ '+p.name);else toast('Código registrado');}
   else if(scanTarget==='mov'){const p=products.find(x=>x.barcode===code);if(p){$i('m-prod-sel').value=p.id;updMovSt();toast('✓ '+p.name);}else toast('No encontrado','err');}
-  else if(scanTarget==='pos'){
-    // Primero busca por barcode exacto
-    let p=products.find(x=>x.barcode===code);
-    // Si no encuentra, busca por código numérico en barcode
-    if(!p)p=products.find(x=>{
-      if(!x.barcode)return false;
-      const codeDigits=code.replace(/\D/g,'');
-      const bcDigits=x.barcode.replace(/\D/g,'');
-      return bcDigits===codeDigits;
-    });
-    // Si encuentra el producto, lo agrega automático
-    if(p){addToCart(p.id);clearPosSearch();toast('✅ '+p.name+' agregado');}
-    else{$i('pos-q').value=code;renderPosSearch();toast('No encontrado','err');}
-  }
-  else if(scanTarget==='sd'){const p=products.find(x=>x.barcode===code);if(p)sdAddProduct(p.id);else{$i('sd-search').value=code;renderSdGrid();toast('No encontrado','err');}}
+  else if(scanTarget==='pos'){$i('pos-q').value=code;renderPosSearch();toast('No encontrado','err');}
+  else if(scanTarget==='sd'){$i('sd-search').value=code;renderSdGrid();toast('No encontrado','err');}
   else if(scanTarget==='quickstock'){const p=products.find(x=>x.barcode===code||x.sku===code);if(p){selectQsProduct(p.id);}else{$i('qs-search').value=code;renderQsSearch();toast('No encontrado','err');}}
   else if(scanTarget==='test'){toast('Código detectado: '+code);}
 }
