@@ -1598,12 +1598,11 @@ function decodePLU(code){
   
   // Formato: 2 + 00200 (PLU 5 dig) + 00035 (precio/peso 5 dig)
   if(code.length===12){
-    // Sin dígito inicial: 2 + 5 + 5
-    pluCode=code.slice(1,6);  // posición 1-5 = PLU
-    pluPrice=parseInt(code.slice(6,11))/div;  // posición 6-10 = precio/peso
+    pluCode=code.slice(1,6);
+    pluPrice=parseInt(code.slice(6,11))/div;
   }
   else if(code.length===13){
-    // Con dígito: 20 + 5 + 5 + 1
+    // Con dígito: 21 + 5 + 5 + 1
     if(fmt==='2x5p5v'){pluCode=code.slice(2,7);pluPrice=parseInt(code.slice(7,12))/div;}
     else if(fmt==='2x5p4v'){pluCode=code.slice(2,7);pluPrice=parseInt(code.slice(7,11))/div;}
     else if(fmt==='2x6p5v'){pluCode=code.slice(2,8);pluPrice=parseInt(code.slice(8,13))/div;}
@@ -1613,12 +1612,17 @@ function decodePLU(code){
   const pluNum=parseInt(pluCode,10);
   
   const p=products.find(x=>{
-    // Buscar por SKU
+    // Buscar por SKU EXACTO
     const skuDigits=x.sku?x.sku.replace(/\D/g,''):'';
     const skuNum=skuDigits?parseInt(skuDigits,10):NaN;
     if(skuNum===pluNum)return true;
+    
+    // Buscar por SKU que CONTENGA el PLU (ej: PLU=20 encuentra SKU=200)
+    if(skuDigits.includes(pluCode.toString()))return true;
+    
     // Buscar por pluCode
     if(x.pluCode&&parseInt(x.pluCode,10)===pluNum)return true;
+    
     // Buscar por barcode
     if(x.barcode){
       const barcodeSeg=x.barcode.slice(2,2+pluCode.length);
