@@ -1610,27 +1610,23 @@ function decodePLU(code){
   if(!pluCode||!pluWeight)return null;
   const pluNum=parseInt(pluCode,10);
   
-  const p=products.find(x=>{
-    // Buscar por SKU EXACTO
-    const skuDigits=x.sku?x.sku.replace(/\D/g,''):'';
-    const skuNum=skuDigits?parseInt(skuDigits,10):NaN;
-    if(skuNum===pluNum)return true;
-    
-    // Buscar por SKU que CONTENGA el PLU (ej: PLU=20 encuentra SKU=200)
-    if(skuDigits.includes(pluCode.toString()))return true;
-    
-    // Buscar por pluCode
-    if(x.pluCode&&parseInt(x.pluCode,10)===pluNum)return true;
-    
-    // Buscar por barcode
-    if(x.barcode){
-      const barcodeSeg=x.barcode.slice(2,2+pluCode.length);
-      const barcodeNum=barcodeSeg?parseInt(barcodeSeg,10):NaN;
-      if(barcodeNum===pluNum)return true;
-      if(x.barcode===code)return true;
-    }
-    return false;
+  // PRIMERO: Buscar por CÓDIGO DE BARRAS
+  let p=products.find(x=>{
+    if(!x.barcode)return false;
+    return x.barcode.includes(pluCode.toString());
   });
+  
+  // SEGUNDO: Si no encontró por barcode, buscar por SKU
+  if(!p){
+    p=products.find(x=>{
+      const skuDigits=x.sku?x.sku.replace(/\D/g,''):'';
+      const skuNum=skuDigits?parseInt(skuDigits,10):NaN;
+      if(skuNum===pluNum)return true;
+      if(skuDigits.includes(pluCode.toString()))return true;
+      if(x.pluCode&&parseInt(x.pluCode,10)===pluNum)return true;
+      return false;
+    });
+  }
   
   console.log('🔍 PLU Debug:',{code,len:code.length,pluCode,pluNum,pluWeight,producto:p?p.name:'NO ENCONTRADO'});
   
@@ -1828,7 +1824,7 @@ function renderPosSearch(){
   const c=cfg();
   const list=products.filter(p=>p.name.toLowerCase().includes(q)||(p.barcode||'').includes(q)||(p.sku||'').toLowerCase().includes(q)||(p.pluCode||'').includes(q)).slice(0,30);
   if(!list.length){box.innerHTML='<div style="padding:14px;text-align:center;color:var(--mu);font-size:.85rem">Sin resultados</div>';box.style.display='block';return;}
-  box.innerHTML=list.map(p=>{const out=p.stock<=0&&!c.sellNoStock;return '<div onmousedown="addToCart(\''+p.id+'\');clearPosSearch();" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--bd);cursor:pointer;'+(out?'opacity:.5':'')+'" onmouseover="this.style.background=\'var(--s3)\'" onmouseout="this.style.background=\'\'">'+'<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.name+'</div><div style="font-size:.72rem;color:var(--mu)">'+(p.tipo=='kg'?'⚖️ ':'📦 ')+fn(p.stock)+(p.tipo=='kg'?' kg':' uds')+(out?' · Sin stock':'')+'</div></div>'+'<div style="font-family:var(--fh);font-weight:700;color:var(--ac)">'+(c.currency||'$')+fn(p.price)+(p.tipo=='kg'?'/kg':'')+'</div>'+'</div>';}).join('');
+  box.innerHTML=list.map(p=>{const out=p.stock<=0&&!c.sellNoStock;return '<div onclick="addToCart(\''+p.id+'\');clearPosSearch();" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--bd);cursor:pointer;'+(out?'opacity:.5':'')+'" onmouseover="this.style.background=\'var(--s3)\'" onmouseout="this.style.background=\'\'">'+'<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.name+'</div><div style="font-size:.72rem;color:var(--mu)">'+(p.tipo=='kg'?'⚖️ ':'📦 ')+fn(p.stock)+(p.tipo=='kg'?' kg':' uds')+(out?' · Sin stock':'')+'</div></div>'+'<div style="font-family:var(--fh);font-weight:700;color:var(--ac)">'+(c.currency||'$')+fn(p.price)+(p.tipo=='kg'?'/kg':'')+'</div>'+'</div>';}).join('');
   box.style.display='block';
 }
 function clearPosSearch(){$i('pos-q').value='';hidePosSearch();}
