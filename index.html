@@ -292,7 +292,7 @@ tr:hover td{background:rgba(255,255,255,.012);}
         <div class="pos-right">
           <div style="display:flex;gap:8px;padding:12px 14px 0 14px;flex-shrink:0;position:relative">
             <div style="flex:1;position:relative">
-              <input type="text" id="pos-q" placeholder="🔍 Buscar o escanear producto..." oninput="renderPosSearch()" onfocus="renderPosSearch()" onblur="setTimeout(hidePosSearch,180)" onkeypress="if(event.key==='Enter'){handleBC(this.value);this.value='';event.preventDefault();}" style="width:100%;font-size:1.1rem;padding:14px 16px;box-sizing:border-box" autofocus="">
+              <input type="text" id="pos-q" placeholder="🔍 Buscar o escanear producto..." oninput="scanTarget='pos';const code=this.value.trim().replace(/\s+/g,'');if(/^\d{12,13}$/.test(code)){handleBC(code);this.value='';}else{renderPosSearch();}" onfocus="scanTarget='pos';renderPosSearch()" onblur="setTimeout(hidePosSearch,180)" style="width:100%;font-size:1.1rem;padding:14px 16px;box-sizing:border-box" autofocus="">
               <div id="pos-search-results" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.35);max-height:360px;overflow-y:auto;z-index:50"></div>
             </div>
             <button class="btn bg" onclick="openScan(&#39;pos&#39;)" title="Cámara" style="font-size:1.2rem;padding:0 18px">📷</button>
