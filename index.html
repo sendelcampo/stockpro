@@ -1610,10 +1610,11 @@ function decodePLU(code){
   if(!pluCode||!pluWeight)return null;
   const pluNum=parseInt(pluCode,10);
   
-  // PRIMERO: Buscar por CÓDIGO DE BARRAS
+  // PRIMERO: Buscar por CÓDIGO DE BARRAS (comparar como números)
   let p=products.find(x=>{
     if(!x.barcode)return false;
-    return x.barcode.includes(pluCode.toString());
+    const bcNum=parseInt(x.barcode.replace(/\D/g,''),10);
+    return bcNum===pluNum;
   });
   
   // SEGUNDO: Si no encontró por barcode, buscar por SKU
@@ -1654,6 +1655,8 @@ function handleBC(code){
     if(p){
       addToCart(p.id);
       clearPosSearch();
+      $i('pos-q').value='';  // Limpiar para próximo escaneo
+      $i('pos-q').focus();   // Mantener focus
       toast('✅ '+p.name+' agregado');
       return;
     }
@@ -1670,6 +1673,8 @@ function handleBC(code){
         if(it){it.qty=kgQty;it.pricePerKg=pricePerKg;it.price=plu.pluPrice;}
         else cart.push({pid:plu.product.id,name:plu.product.name,price:plu.pluPrice,pricePerKg,qty:kgQty,tipo:'kg',plu:true});
         renderCart(true);renderPosGrid();clearPosSearch();
+        $i('pos-q').value='';  // Limpiar input para próximo escaneo
+        $i('pos-q').focus();   // Mantener focus en el campo
       }
       else sdAddProduct(plu.product.id,plu.pluPrice);
       beep();toast('⚖️ PLU: '+plu.product.name+' $'+fn(plu.pluPrice));
