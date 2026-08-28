@@ -1639,7 +1639,8 @@ function decodePLU(code){
 
 // ══ BARCODE ══
 function handleBC(code){
-  code=code.trim();if(!code)return;
+  code=code.trim().replace(/\s+/g,'');  // Limpiar espacios en blanco
+  if(!code)return;
   
   // PRIMERO: Intentar como BARCODE regular
   if(scanTarget==='pos'){
