@@ -1651,9 +1651,13 @@ function decodePLU(code){
 }
 
 // ══ BARCODE ══
+let bcProcessing=false;  // Flag para evitar procesamientos simultáneos
 function handleBC(code){
+  if(bcProcessing)return;  // Si ya está procesando, no hacer nada
+  bcProcessing=true;  // Marcar como en proceso
+  try{
   code=code.trim().replace(/\s+/g,'');  // Limpiar espacios en blanco
-  if(!code)return;
+  if(!code){bcProcessing=false;return;}
   
   // PRIMERO: Intentar como BARCODE regular
   if(scanTarget==='pos'){
@@ -1704,6 +1708,7 @@ function handleBC(code){
   else if(scanTarget==='sd'){$i('sd-search').value=code;renderSdGrid();toast('No encontrado','err');}
   else if(scanTarget==='quickstock'){const p=products.find(x=>x.barcode===code||x.sku===code);if(p){selectQsProduct(p.id);}else{$i('qs-search').value=code;renderQsSearch();toast('No encontrado','err');}}
   else if(scanTarget==='test'){toast('Código detectado: '+code);}
+  }finally{bcProcessing=false;}
 }
 
 async function openScan(target){
