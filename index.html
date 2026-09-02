@@ -298,13 +298,9 @@ const code=this.value.trim().replace(/\s+/g,'');
 if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
   // Es PLU (12-13 dígitos empezando con 2)
   handleBC(code);
-  this.value='';
-  this.focus();
 }else if(/^\d{13}$/.test(code)){
   // Es Barcode EAN (13 dígitos exactos)
   handleBC(code);
-  this.value='';
-  this.focus();
 }else{
   // Es búsqueda manual
   renderPosSearch();
@@ -542,7 +538,7 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
       <div class="cfg-section">
         <div class="cfg-title">🖨️ Ticket e impresora</div>
         <div class="cfg-row"><div><div class="cfg-label">Ancho del papel</div></div>
-          <div class="cfg-ctrl"><select id="cfg-pw" onchange="updateTicketPreview()"><option value="44">44mm</option><option value="48">48mm</option><option value="57">57mm</option><option value="58">58mm</option><option value="76">76mm</option><option value="80" selected="">80mm</option><option value="custom">Personalizado</option></select>
+          <div class="cfg-ctrl"><select id="cfg-pw" onchange="updateTicketPreview()"><option value="44">44mm</option><option value="46">46mm</option><option value="48">48mm</option><option value="57">57mm</option><option value="58">58mm</option><option value="76">76mm</option><option value="80" selected="">80mm</option><option value="custom">Personalizado</option></select>
           <input type="number" id="cfg-pw-custom" placeholder="mm" style="width:70px;display:none" oninput="updateTicketPreview()"></div></div>
         <div class="cfg-row"><div class="cfg-label">Tamaño de letra</div><div class="cfg-ctrl"><select id="cfg-fs" onchange="updateTicketPreview()"><option value="7">7pt</option><option value="8" selected="">8pt</option><option value="9">9pt</option><option value="10">10pt</option></select></div></div>
         <div class="cfg-row"><div class="cfg-label">Logo/Emoji</div><div class="cfg-ctrl"><input type="text" id="cfg-logo" maxlength="4" placeholder="🌿" style="width:60px;text-align:center;font-size:1.2rem" oninput="updateTicketPreview()"></div></div>
@@ -2460,7 +2456,7 @@ function openEgresoM(){
   egEditingId=null;
   egCart=[];fillEgSelects();$i('eg-search').value='';$i('eg-search-results').style.display='none';$i('eg-new-prod-form').style.display='none';$i('eg-new-prov-form').style.display='none';$i('eg-pay').value='pagado';$i('eg-note').value='';$i('eg-round').value='1';
   $i('eg-modal-title').textContent='📤 Nueva compra a proveedor';$i('eg-save-btn').textContent='✅ Guardar compra';
-  renderEgCart();openO('m-egreso');
+  renderEgProvList();renderEgCart();openO('m-egreso');
 }
 function renderEgSearch(){
   const q=$i('eg-search').value.trim().toLowerCase();const res=$i('eg-search-results');
@@ -2629,7 +2625,7 @@ function editEgreso(id){
   });
   $i('eg-search').value='';$i('eg-search-results').style.display='none';$i('eg-new-prod-form').style.display='none';
   $i('eg-modal-title').textContent='✏️ Editar compra';$i('eg-save-btn').textContent='✅ Guardar cambios';
-  renderEgCart();openO('m-egreso');
+  renderEgProvList();renderEgCart();openO('m-egreso');
 }
 function delEgreso(id){$i('confirm-msg').textContent='¿Eliminar este egreso? (no revierte stock ni cuenta corriente)';$i('confirm-ok').onclick=function(){egresos=egresos.filter(e=>e.id!==id);persistDelEgreso(id);persist();closeO('m-confirm');renderEgresos();toast('Eliminado','err');};openO('m-confirm');}
 
@@ -2661,7 +2657,49 @@ function refreshAll(){
     if(!users.length)initUsers();if(!products.length)loadDemo();renderLoginUsers();
   }catch(e){console.error('Init error:',e);users=[{id:'u1',name:'Administrador',role:'admin',pin:'1234',avatar:'👨\u200d💼'},{id:'u2',name:'Vendedor',role:'vendedor',pin:'0000',avatar:'🧑\u200d💼'}];$i('login-screen').style.display='flex';renderLoginUsers();}
 })();
-</script>
 
+
+// ══ EDICIÓN PROVEEDORES ══
+
+// Edición de proveedores
+let egProvEditing=null;
+
+function renderEgProvList(){
+  const provs=(contacts.filter(c=>c.type==='proveedor')||[]).sort((a,b)=>a.name.localeCompare(b.name));
+  const list=$i('eg-prov-list');
+  if(!list)return;
+  list.innerHTML=provs.length?provs.map(p=>'<button class="btn bg bs" data-pid="'+p.id+'" onclick="selectEgProv(this.dataset.pid)" style="cursor:pointer;padding:6px 10px;font-size:.85rem">'+p.name.slice(0,14)+' ✎</button>').join(''):'<span style="color:var(--mu)">Sin proveedores</span>';
+}
+
+function selectEgProv(id){
+  const prov=contacts.find(c=>c.id===id);
+  if(!prov)return;
+  egProvEditing=id;
+  const el=$i('eg-prov-edit-name');
+  if(!el)return;
+  el.value=prov.name;
+  $i('eg-prov-edit-form').style.display='block';
+  setTimeout(()=>{el.focus();el.select();},50);
+}
+
+function closeEgProvEditForm(){
+  egProvEditing=null;
+  $i('eg-prov-edit-form').style.display='none';
+}
+
+function saveEgProvEditForm(){
+  const newName=$i('eg-prov-edit-name').value.trim();
+  if(!newName){toast('Nombre vacío','err');return;}
+  const prov=contacts.find(c=>c.id===egProvEditing);
+  if(prov){
+    prov.name=newName;
+    persist();
+    toast('✅ Guardado');
+    closeEgProvEditForm();
+    renderEgProvList();
+  }
+}
+
+</script>
 
 </body></html>
