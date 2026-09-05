@@ -308,8 +308,8 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
   // Es búsqueda manual
   renderPosSearch();
 }
-" onfocus="scanTarget='pos';renderPosSearch()" onblur="setTimeout(hidePosSearch,180)" style="width:100%;font-size:1.1rem;padding:14px 16px;box-sizing:border-box" autofocus="">
-              <div id="pos-search-results" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.35);max-height:360px;overflow-y:auto;z-index:50"></div>
+" onfocus="scanTarget='pos';renderPosSearch()" onblur="setTimeout(()=>hidePosSearch(),200)" style="width:100%;font-size:1.1rem;padding:14px 16px;box-sizing:border-box" autofocus="">
+              <div id="pos-search-results" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.35);max-height:280px;overflow-y:auto;z-index:5;max-width:100%"></div>
             </div>
             <button class="btn bg" onclick="openScan(&#39;pos&#39;)" title="Cámara" style="font-size:1.2rem;padding:0 18px">📷</button>
             <button class="btn bg" onclick="clearCart()" title="Limpiar carrito" style="font-size:1.2rem;padding:0 18px">🗑</button>
@@ -1404,6 +1404,7 @@ function cartDisc2(){const el2=$i('disc2-val');if(!el2)return 0;const v=parseFlo
 function cartTotal(){return Math.max(0,cartSub()-cartDisc()-cartDisc2());}
 function renderCartTotals(){$i('ct-sub').textContent='$'+fn(cartSub());$i('ct-disc').textContent='-$'+fn(cartDisc());$i('ct-total').textContent='$'+fn(cartTotal());}
 function addToCart(pid){
+  hidePosSearch();  // Cerrar búsqueda cuando se agrega producto
   const p=products.find(x=>x.id===pid);
   const allowNoStock=cfg().sellNoStock;
   if(!p){toast('Producto no encontrado','err');return;}
