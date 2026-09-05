@@ -1678,8 +1678,7 @@ function handleBC(code){
     if(p){
       addToCart(p.id);
       clearPosSearch();
-      setTimeout(()=>{ $i('pos-q').value=''; $i('pos-q').focus(); }, 150); // Limpiar con delay
-      $i('pos-q').focus();   // Mantener focus
+      $i('pos-q').value='';  // Limpiar directo, sin setTimeout
       toast('✅ '+p.name+' agregado');
       return;
     }
@@ -1696,8 +1695,7 @@ function handleBC(code){
         if(it){it.qty=kgQty;it.pricePerKg=pricePerKg;it.price=plu.pluPrice;}
         else cart.push({pid:plu.product.id,name:plu.product.name,price:plu.pluPrice,pricePerKg,qty:kgQty,tipo:'kg',plu:true});
         renderCart(true);renderPosGrid();clearPosSearch();
-        setTimeout(()=>{ $i('pos-q').value=''; $i('pos-q').focus(); }, 150); // Limpiar con delay
-        $i('pos-q').focus();   // Mantener focus en el campo
+        $i('pos-q').value='';  // Limpiar directo, sin setTimeout
       }
       else sdAddProduct(plu.product.id,plu.pluPrice);
       beep();toast('⚖️ PLU: '+plu.product.name+' $'+fn(plu.pluPrice));
