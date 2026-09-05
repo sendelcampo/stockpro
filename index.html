@@ -188,6 +188,8 @@ tr:hover td{background:rgba(255,255,255,.012);}
 @media(max-width:768px){.layout{grid-template-columns:1fr;}.main{grid-column:1;}.sidebar{position:fixed;left:-232px;top:0;height:100vh;z-index:90;transition:left .25s;padding-top:65px;width:220px;}.sidebar.open{left:0;}.sbo.open{display:block;}.hburg{display:block;}#sb-collapse-btn{display:none;}.main{padding:12px;}.fgrid{grid-template-columns:1fr;}th:nth-child(4),td:nth-child(4){display:none;}.pos-grid{grid-template-columns:repeat(auto-fill,minmax(88px,1fr));}}
 @media(max-width:420px){.stats-grid{grid-template-columns:1fr 1fr;}th:nth-child(5),td:nth-child(5){display:none;}}
 </style>
+    <meta name="theme-color" content="#667eea">
+    <link rel="manifest" href="/manifest.json">
 </head>
 <body>
 
@@ -295,6 +297,7 @@ tr:hover td{background:rgba(255,255,255,.012);}
               <input type="text" id="pos-q" placeholder="🔍 Buscar o escanear producto..." oninput="
 scanTarget='pos';
 const code=this.value.trim().replace(/\s+/g,'');
+if(!code)return;  // Ignorar si está vacío
 if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
   // Es PLU (12-13 dígitos empezando con 2)
   handleBC(code);
@@ -353,7 +356,7 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
 
     <!-- DASHBOARD -->
     <div class="view" id="view-dashboard">
-      <div class="sec-hdr"><div class="sec-t">Resumen</div><button class="btn bp bs" onclick="openProd(null)">+ Nuevo producto</button></div>
+      <div class="sec-hdr"><div class="sec-t">Resumen</div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn bg bs" onclick="exportSalesReportPDF()">📥 Descargar PDF hoy</button><button class="btn bg bs" onclick="exportSalesReportPDF(prompt('Fecha (YYYY-MM-DD):', new Date().toISOString().split(\"T\")[0]))">📅 PDF fecha</button><button class="btn bp bs" onclick="openProd(null)">+ Nuevo producto</button></div></div>
       <div class="stats-grid">
         <div class="stat" data-i="📦"><div class="sl">Productos</div><div class="sv cy" id="s-tot">0</div></div>
         <div class="stat" data-i="✅"><div class="sl">En stock</div><div class="sv cg" id="s-ok">0</div></div>
@@ -375,6 +378,7 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn bg bs" onclick="openScan(&#39;search&#39;)">📷 Escanear</button>
           <button class="btn bg bs" onclick="triggerImport()">📤 Importar</button>
+          <button class="btn bg bs" onclick="exportInventoryExcel()">📊 Exportar Excel</button>
           <button class="btn bg bs" onclick="exportPluCsv()">⚖️ Exportar PLU (balanza)</button>
           <button class="btn bg bs" onclick="openQuickStock()">📋 Actualizar stock rápido</button>
           <button class="btn bp bs" onclick="openProd(null)">+ Agregar</button>
@@ -1673,7 +1677,7 @@ function handleBC(code){
     if(p){
       addToCart(p.id);
       clearPosSearch();
-      $i('pos-q').value='';  // Limpiar para próximo escaneo
+      setTimeout(()=>{ $i('pos-q').value=''; $i('pos-q').focus(); }, 150); // Limpiar con delay
       $i('pos-q').focus();   // Mantener focus
       toast('✅ '+p.name+' agregado');
       return;
@@ -1691,7 +1695,7 @@ function handleBC(code){
         if(it){it.qty=kgQty;it.pricePerKg=pricePerKg;it.price=plu.pluPrice;}
         else cart.push({pid:plu.product.id,name:plu.product.name,price:plu.pluPrice,pricePerKg,qty:kgQty,tipo:'kg',plu:true});
         renderCart(true);renderPosGrid();clearPosSearch();
-        $i('pos-q').value='';  // Limpiar input para próximo escaneo
+        setTimeout(()=>{ $i('pos-q').value=''; $i('pos-q').focus(); }, 150); // Limpiar con delay
         $i('pos-q').focus();   // Mantener focus en el campo
       }
       else sdAddProduct(plu.product.id,plu.pluPrice);
@@ -1708,7 +1712,7 @@ function handleBC(code){
   else if(scanTarget==='sd'){$i('sd-search').value=code;renderSdGrid();toast('No encontrado','err');}
   else if(scanTarget==='quickstock'){const p=products.find(x=>x.barcode===code||x.sku===code);if(p){selectQsProduct(p.id);}else{$i('qs-search').value=code;renderQsSearch();toast('No encontrado','err');}}
   else if(scanTarget==='test'){toast('Código detectado: '+code);}
-  }finally{bcProcessing=false;}
+  }finally{ setTimeout(()=>{ bcProcessing=false; }, 200); }
 }
 
 async function openScan(target){
@@ -2704,6 +2708,113 @@ function saveEgProvEditForm(){
     renderEgProvList();
   }
 }
+
+// ════════════════════════════════════════════════════════════════
+// ✨ FEATURES v9 - Reportes PDF/Excel, PWA, QR
+// ════════════════════════════════════════════════════════════════
+
+// ══ 1. EXPORTAR PDF VENTAS DIARIAS ══
+async function exportSalesReportPDF(dateStr) {
+  if(!window.html2pdf){
+    const script=document.createElement('script');
+    script.src='https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+    script.onload=()=>exportSalesReportPDF(dateStr);
+    document.head.appendChild(script);
+    return;
+  }
+  
+  const date=dateStr||new Date().toISOString().split('T')[0];
+  const dayVentas=ventas.filter(v=>v.fecha&&v.fecha.startsWith(date));
+  
+  if(!dayVentas.length){toast('Sin ventas para este día','err');return;}
+  
+  const total=dayVentas.reduce((sum,v)=>sum+(v.total||0),0);
+  const descuentos=dayVentas.reduce((sum,v)=>sum+(v.descuento||0),0);
+  const porProducto={};
+  
+  dayVentas.forEach(v=>{
+    if(v.items)v.items.forEach(item=>{
+      if(!porProducto[item.name]){porProducto[item.name]={qty:0,total:0};}
+      porProducto[item.name].qty+=(item.qty||1);
+      porProducto[item.name].total+=(item.price||0)*(item.qty||1);
+    });
+  });
+  
+  const topProductos=Object.entries(porProducto)
+    .sort((a,b)=>b[1].total-a[1].total)
+    .slice(0,10)
+    .map(([name,data])=>'<tr><td style="padding:8px">'+name+'</td><td style="padding:8px;text-align:right">'+data.qty+'</td><td style="padding:8px;text-align:right">$'+data.total.toFixed(2)+'</td></tr>')
+    .join('');
+  
+  const html='<div style="font-family:Arial;padding:20px"><h1 style="text-align:center;color:#2c3e50">REPORTE DE VENTAS</h1><p style="text-align:center">Sen del Campo | '+date+'</p><hr style="margin:20px 0"><h3>RESUMEN</h3><table style="width:100%;border-collapse:collapse"><tr style="background:#667eea;color:white"><td style="padding:10px"><b>Transacciones</b></td><td style="text-align:right"><b>'+dayVentas.length+'</b></td></tr><tr><td style="padding:10px">Total ventas</td><td style="text-align:right"><b>$'+total.toFixed(2)+'</b></td></tr><tr><td style="padding:10px">Descuentos</td><td style="text-align:right">-$'+descuentos.toFixed(2)+'</td></tr><tr style="background:#e8f5e9"><td style="padding:10px"><b>Ganancia neta</b></td><td style="text-align:right"><b>$'+(total-descuentos).toFixed(2)+'</b></td></tr></table><h3 style="margin-top:20px">TOP 10 PRODUCTOS</h3><table style="width:100%;border-collapse:collapse"><tr style="background:#667eea;color:white"><td style="padding:8px"><b>Producto</b></td><td style="text-align:right"><b>Cantidad</b></td><td style="text-align:right"><b>Total</b></td></tr>'+topProductos+'</table><hr style="margin:20px 0"><p style="color:#999;text-align:center">Generado: '+new Date().toLocaleString('es-AR')+'</p></div>';
+  
+  const element=document.createElement('div');
+  element.innerHTML=html;
+  html2pdf().set({margin:10,filename:'ventas-'+date+'.pdf',image:{type:'jpeg',quality:0.98},html2canvas:{scale:2},jsPDF:{orientation:'portrait',unit:'mm',format:'a4'}}).from(element).save();
+  toast('✅ PDF descargado','ok');
+}
+
+// ══ 2. EXPORTAR EXCEL INVENTARIO ══
+function exportInventoryExcel(){
+  if(!window.XLSX){
+    const script=document.createElement('script');
+    script.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js';
+    script.onload=()=>exportInventoryExcel();
+    document.head.appendChild(script);
+    return;
+  }
+  
+  const data=products.map(p=>({'Nombre':p.name||'','SKU':p.sku||'','Código Barras':p.barcode||'','Categoría':p.category||'','Marca':p.brand||'','Proveedor':p.provider||'','Precio Costo':p.costPrice||0,'Precio Venta':p.price||0,'Stock Actual':p.stock||0,'Stock Mínimo':p.minStock||0,'Vencimiento':p.expiry||'','Valor Total':((p.stock||0)*(p.price||0)).toFixed(2)}));
+  const ws=XLSX.utils.json_to_sheet(data);
+  ws['!cols']=[{wch:20},{wch:10},{wch:15},{wch:15},{wch:15},{wch:15},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Inventario');
+  XLSX.writeFile(wb,'inventario-'+new Date().toISOString().split('T')[0]+'.xlsx');
+  toast('✅ Excel descargado','ok');
+}
+
+// ══ 3. PWA - Service Worker (Opcional) ══
+function registerServiceWorker(){
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('/service-worker.js')
+      .then(reg=>console.log('✅ PWA habilitado - Funciona offline'))
+      .catch(()=>{
+        // Intentar ruta relativa
+        navigator.serviceWorker.register('./service-worker.js')
+          .then(reg=>console.log('✅ PWA habilitado - Funciona offline'))
+          .catch(()=>{
+            // Si ambas fallan, simplemente ignorar (no es crítico)
+            console.log('ℹ️ PWA no disponible (opcional - app funciona normalmente)');
+          });
+      });
+  }
+}
+
+// ══ 4. QR - Generar código para producto ══
+async function generateProductQR(productId){
+  if(!window.QRCode){
+    const script=document.createElement('script');
+    script.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+    script.onload=()=>generateProductQR(productId);
+    document.head.appendChild(script);
+    return;
+  }
+  
+  const product=products.find(p=>p.id===productId);
+  if(!product){toast('Producto no encontrado','err');return;}
+  
+  const qrData=JSON.stringify({id:productId,name:product.name,sku:product.sku,price:product.price});
+  const div=document.createElement('div');
+  new QRCode(div,{text:qrData,width:200,height:200});
+  
+  setTimeout(()=>{
+    const canvas=div.querySelector('canvas');
+    if(canvas){canvas.toBlob(blob=>{const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='qr-'+product.sku+'.png';a.click();toast('✅ QR descargado','ok');});}
+  },500);
+}
+
+// ══ Inicializar features v9 ══
+window.addEventListener('load',()=>{registerServiceWorker();console.log('✅ StockPro v9 Features cargadas');});
 
 </script>
 
