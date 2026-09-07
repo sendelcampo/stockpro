@@ -295,6 +295,7 @@ tr:hover td{background:rgba(255,255,255,.012);}
           <div style="display:flex;gap:8px;padding:12px 14px 0 14px;flex-shrink:0;position:relative">
             <div style="flex:1;position:relative">
               <input type="text" id="pos-q" placeholder="🔍 Buscar o escanear producto..." oninput="
+if(bcProcessing)return;  // Bloquear si está escaneando
 scanTarget='pos';
 const code=this.value.trim().replace(/\s+/g,'');
 if(!code)return;  // Ignorar si está vacío
@@ -1678,7 +1679,7 @@ function handleBC(code){
     if(p){
       addToCart(p.id);
       clearPosSearch();
-      setTimeout(()=>{ $i('pos-q').value=''; }, 150);  // Limpiar con delay, SIN focus()
+      setTimeout(()=>{ $i('pos-q').value=''; hidePosSearch(); }, 150);  // Limpiar con delay, SIN focus()
       toast('✅ '+p.name+' agregado');
       return;
     }
@@ -1695,7 +1696,7 @@ function handleBC(code){
         if(it){it.qty=kgQty;it.pricePerKg=pricePerKg;it.price=plu.pluPrice;}
         else cart.push({pid:plu.product.id,name:plu.product.name,price:plu.pluPrice,pricePerKg,qty:kgQty,tipo:'kg',plu:true});
         renderCart(true);renderPosGrid();clearPosSearch();
-        setTimeout(()=>{ $i('pos-q').value=''; }, 150);  // Limpiar con delay, SIN focus()
+        setTimeout(()=>{ $i('pos-q').value=''; hidePosSearch(); }, 150);  // Limpiar con delay, SIN focus()
       }
       else sdAddProduct(plu.product.id,plu.pluPrice);
       beep();toast('⚖️ PLU: '+plu.product.name+' $'+fn(plu.pluPrice));
@@ -1711,7 +1712,7 @@ function handleBC(code){
   else if(scanTarget==='sd'){$i('sd-search').value=code;renderSdGrid();toast('No encontrado','err');}
   else if(scanTarget==='quickstock'){const p=products.find(x=>x.barcode===code||x.sku===code);if(p){selectQsProduct(p.id);}else{$i('qs-search').value=code;renderQsSearch();toast('No encontrado','err');}}
   else if(scanTarget==='test'){toast('Código detectado: '+code);}
-  }finally{ setTimeout(()=>{ bcProcessing=false; }, 200); }
+  }finally{ setTimeout(()=>{ bcProcessing=false; }, 250); }
 }
 
 async function openScan(target){
