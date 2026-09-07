@@ -159,7 +159,7 @@ tr:hover td{background:rgba(255,255,255,.012);}
 .discount-row{display:flex;gap:6px;align-items:center;margin-bottom:4px;}
 @media print{body *{visibility:hidden!important;}#ticket-print,#ticket-print *{visibility:visible!important;}#ticket-print{position:fixed!important;inset:0!important;display:block!important;background:#fff!important;padding:0!important;margin:0!important;}@page{margin:0;padding:0;}}
 #ticket-print{display:none;}
-.ticket{background:#fff;color:#000;font-family:'Courier New',Courier,monospace;line-height:1.35;word-break:break-word;}
+.ticket{background:#fff;color:#000;font-family:'Courier New',Courier,monospace;line-height:1.35;word-break:break-word;width:100%;max-width:100%;font-weight:600;}
 .tk-logo{text-align:center;font-weight:700;margin-bottom:1mm;}.tk-sub{text-align:center;color:#333;margin-bottom:1.5mm;}
 .tk-sep{border:none;border-top:1px dashed #000;margin:1.5mm 0;}
 .tk-row{display:flex;justify-content:space-between;gap:2mm;}.tk-row span:first-child{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -309,7 +309,7 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
   // Es búsqueda manual
   renderPosSearch();
 }
-" onfocus="scanTarget='pos';renderPosSearch()" onblur="setTimeout(()=>hidePosSearch(),200)" style="width:100%;font-size:1.1rem;padding:14px 16px;box-sizing:border-box" autofocus="">
+" onfocus="scanTarget='pos';renderPosSearch()" onchange="renderPosSearch()" onblur="setTimeout(()=>hidePosSearch(),200)" style="width:100%;font-size:1.1rem;padding:14px 16px;box-sizing:border-box" autofocus="">
               <div id="pos-search-results" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.35);max-height:280px;overflow-y:auto;z-index:5;max-width:100%"></div>
             </div>
             <button class="btn bg" onclick="openScan(&#39;pos&#39;)" title="Cámara" style="font-size:1.2rem;padding:0 18px">📷</button>
@@ -1404,6 +1404,17 @@ function cartDisc(){const v=parseFloat($i('disc-val').value)||0,t=$i('disc-type'
 function cartDisc2(){const el2=$i('disc2-val');if(!el2)return 0;const v=parseFloat(el2.value)||0,t=$i('disc2-type').value,pay2amt=parseFloat(($i('co-pay2-amount')||{}).value)||0;if(!v||!pay2amt)return 0;return t==='pct'?pay2amt*v/100:Math.min(v,pay2amt);}
 function cartTotal(){return Math.max(0,cartSub()-cartDisc()-cartDisc2());}
 function renderCartTotals(){$i('ct-sub').textContent='$'+fn(cartSub());$i('ct-disc').textContent='-$'+fn(cartDisc());$i('ct-total').textContent='$'+fn(cartTotal());}
+
+function setItemIVA(idx,ivaPercent){
+  if(idx>=0&&idx<cart.length){
+    cart[idx].iva=parseFloat(ivaPercent)||0;
+    cart[idx].price=cart[idx].basePrice||cart[idx].price;
+    cart[idx].price=cart[idx].price*(1+cart[idx].iva/100);
+    if(cart[idx].tipo==='kg')cart[idx].price=cart[idx].pricePerKg*cart[idx].qty;
+    renderCart(true);
+  }
+}
+
 function addToCart(pid){
   hidePosSearch();  // Cerrar búsqueda cuando se agrega producto
   const p=products.find(x=>x.id===pid);
@@ -1411,7 +1422,8 @@ function addToCart(pid){
   if(!p){toast('Producto no encontrado','err');return;}
   if(p.stock<=0&&!allowNoStock){toast('Sin stock disponible','err');return;}
   const isKg=(p.tipo==='kg');
-  const combine=cfg().combineCartItems!==false;
+  const isPlu=p.pluCode;  // Es PLU si tiene pluCode
+  const combine=cfg().combineCartItems!==false && !isPlu;  // No combinar si es PLU
   // Check if already in cart
   const exIdx=combine?cart.findIndex(x=>x.pid===pid&&!x._custom):-1;
   if(exIdx>-1){
@@ -1845,12 +1857,22 @@ function renderPosGrid(){
   if(!list.length){grid.innerHTML='<div class="empty"><div class="eic">🔍</div>Sin resultados</div>';return;}
   grid.innerHTML=list.map(p=>{const out=p.stock<=0;const sold=rank[p.id]||0;const hot=sold>0?'<span style="position:absolute;top:5px;left:5px;background:var(--ac);color:#000;border-radius:4px;font-size:.58rem;padding:1px 5px;font-weight:700">🔥'+sold+'</span>':'';return '<div class="prod-card'+(out&&!allowNoStock?' out-of-stock':'')+'" onclick="addToCart(\''+p.id+'\')">'+hot+(out?'<span class="pc-out">'+(allowNoStock?'⚠️0':'SIN STOCK')+'</span>':'')+'<div class="pc-name">'+p.name+'</div>'+'<div class="pc-price">'+(c.currency||'$')+fn(p.price)+(p.tipo=='kg'?'/kg':'')+'</div>'+'<div class="pc-stock">'+(p.tipo=='kg'?'⚖️ ':'📦 ')+p.stock+(p.tipo=='kg'?' kg':' uds')+'</div></div>';}).join('');
 }
+
+function normalizeStr(str){
+  return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+}
+
 function renderPosSearch(){
-  const q=($i('pos-q').value||'').trim().toLowerCase();
+  const q=($i('pos-q').value||'').trim();
   const box=$i('pos-search-results');
   if(!q){box.style.display='none';box.innerHTML='';return;}
   const c=cfg();
-  const list=products.filter(p=>p.name.toLowerCase().includes(q)||(p.barcode||'').includes(q)||(p.sku||'').toLowerCase().includes(q)||(p.pluCode||'').includes(q)).slice(0,30);
+  const qNorm=normalizeStr(q);
+  const list=products.filter(p=>{
+    const nameNorm=normalizeStr(p.name);
+    const skuNorm=normalizeStr(p.sku||'');
+    return nameNorm.includes(qNorm) || (p.barcode||'').includes(q) || skuNorm.includes(qNorm) || (p.pluCode||'').includes(q);
+  }).slice(0,30);
   if(!list.length){box.innerHTML='<div style="padding:14px;text-align:center;color:var(--mu);font-size:.85rem">Sin resultados</div>';box.style.display='block';return;}
   box.innerHTML=list.map(p=>{const out=p.stock<=0&&!c.sellNoStock;return '<div onclick="addToCart(\''+p.id+'\');clearPosSearch();" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--bd);cursor:pointer;'+(out?'opacity:.5':'')+'" onmouseover="this.style.background=\'var(--s3)\'" onmouseout="this.style.background=\'\'">'+'<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.name+'</div><div style="font-size:.72rem;color:var(--mu)">'+(p.tipo=='kg'?'⚖️ ':'📦 ')+fn(p.stock)+(p.tipo=='kg'?' kg':' uds')+(out?' · Sin stock':'')+'</div></div>'+'<div style="font-family:var(--fh);font-weight:700;color:var(--ac)">'+(c.currency||'$')+fn(p.price)+(p.tipo=='kg'?'/kg':'')+'</div>'+'</div>';}).join('');
   box.style.display='block';
