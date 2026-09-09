@@ -5,9 +5,765 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>StockPro POS</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js">
+// ════════════════════════════════════════════════════════════════════════════════
+// MÓDULO: COMPRAS A PROVEEDORES
+// ════════════════════════════════════════════════════════════════════════════════
+
+let purchases = JSON.parse(localStorage.getItem('stockpro_purchases')) || [];
+let paymentLog = JSON.parse(localStorage.getItem('stockpro_paymentlog')) || [];
+
+function savePurchasesData(){
+  localStorage.setItem('stockpro_purchases', JSON.stringify(purchases));
+  localStorage.setItem('stockpro_paymentlog', JSON.stringify(paymentLog));
+}
+
+function showComprasTab(tabName){
+  document.querySelectorAll('[id^="compras-tab-"]').forEach(t => t.style.display = 'none');
+  document.querySelectorAll('[id^="tab-compras-"]').forEach(b => b.classList.remove('bg'));
+  document.getElementById('compras-tab-' + tabName).style.display = 'block';
+  document.getElementById('tab-compras-' + tabName).classList.add('bg');
+  
+  if(tabName === 'lista') renderPurchasesList();
+  if(tabName === 'pagos') populatePaymentSelect();
+  if(tabName === 'reportes') renderReports();
+}
+
+function renderPurchasesList(){
+  const list = document.getElementById('purchases-list');
+  if(!purchases.length){
+    list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--mu)"><div style="font-size:48px;margin-bottom:16px">📦</div>Sin órdenes de compra</div>';
+    return;
+  }
+  
+  list.innerHTML = purchases.sort((a,b) => b.date-a.date).map(p => {
+    const pending = Math.max(0, (p.totalCost || 0) - (p.paid || 0));
+    const statusClass = p.status === 'pagado' ? 'status-pagado' : (p.status === 'parcial' ? 'status-parcial' : 'status-pending');
+    const statusText = p.status === 'pagado' ? '✓ Pagado' : (p.status === 'parcial' ? '⚠ Parcial' : '🔴 Pendiente');
+    
+    return '<div style="border:1px solid var(--bd);border-radius:8px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.1)">'+
+      '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px">'+
+        '<div>'+
+          '<div style="font-weight:700;font-size:18px">'+p.supplier+'</div>'+
+          '<div style="font-size:12px;color:var(--mu)">'+new Date(p.date).toLocaleDateString()+'</div>'+
+        '</div>'+
+        '<div style="text-align:right">'+
+          '<div style="font-weight:700;font-size:18px">$'+(p.totalCost||0).toFixed(2)+'</div>'+
+          '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;margin-top:4px;background:'+(p.status==='pagado'?'#d4edda;color:#155724':'#ffe5e5;color:#c0392b')+'">'+(p.status==='pagado'?'✓ Pagado':'Pendiente')+'</span>'+
+        '</div>'+
+      '</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:12px 0;font-size:14px">'+
+        '<div style="background:var(--s2);padding:8px;border-radius:4px">'+
+          '<div style="font-size:11px;color:var(--mu);text-transform:uppercase">Total</div>'+
+          '<div style="font-weight:700">$'+(p.totalCost||0).toFixed(2)+'</div>'+
+        '</div>'+
+        '<div style="background:var(--s2);padding:8px;border-radius:4px">'+
+          '<div style="font-size:11px;color:var(--mu);text-transform:uppercase">Pagado</div>'+
+          '<div style="font-weight:700;color:var(--ok)">$'+(p.paid||0).toFixed(2)+'</div>'+
+        '</div>'+
+        '<div style="background:var(--s2);padding:8px;border-radius:4px">'+
+          '<div style="font-size:11px;color:var(--mu);text-transform:uppercase">Pendiente</div>'+
+          '<div style="font-weight:700;color:var(--err)">$'+pending.toFixed(2)+'</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="font-size:13px;color:var(--mu);margin:12px 0">'+(p.items?p.items.length:0)+' producto'+(p.items && p.items.length !== 1 ? 's' : '')+(p.notes?' · '+p.notes:'')+'</div>'+
+      '<div style="display:flex;gap:8px">'+
+        '<button class="btn bg bs" onclick="viewPurchaseDetail(\''+p.id+'\')" style="flex:1">Ver Detalles</button>'+
+        '<button class="btn bg bs" onclick="openPaymentForm(\''+p.id+'\')" style="flex:1" '+(pending<=0?'disabled':'')+'>'+( pending>0?'Pagar':'Cerrado')+'</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function addItemRow(){
+  const tbody = document.getElementById('newpur-items');
+  const row = document.createElement('tr');
+  row.innerHTML = '<td style="padding:10px"><input type="text" class="item-name" placeholder="Nombre" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px"></td>'+
+    '<td style="padding:10px"><input type="number" class="item-qty" value="1" min="0.1" step="0.1" oninput="calcItemSubtotal(this)" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px;text-align:center"></td>'+
+    '<td style="padding:10px"><input type="number" class="item-cost" value="0" step="0.01" oninput="calcItemSubtotal(this)" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px;text-align:center"></td>'+
+    '<td style="padding:10px;text-align:right"><span class="item-subtotal">0.00</span></td>'+
+    '<td style="padding:10px"><button class="btn bg bs" onclick="removeItemRow(this)" style="font-size:1rem">✕</button></td>';
+  tbody.appendChild(row);
+}
+
+function removeItemRow(btn){
+  btn.closest('tr').remove();
+  calcTotalCost();
+}
+
+function calcItemSubtotal(input){
+  const row = input.closest('tr');
+  const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+  const cost = parseFloat(row.querySelector('.item-cost').value) || 0;
+  row.querySelector('.item-subtotal').textContent = (qty*cost).toFixed(2);
+  calcTotalCost();
+}
+
+function calcTotalCost(){
+  let total = 0;
+  document.querySelectorAll('#newpur-items tr').forEach(row => {
+    const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+    const cost = parseFloat(row.querySelector('.item-cost').value) || 0;
+    total += qty*cost;
+  });
+  document.getElementById('newpur-total').textContent = '$'+total.toFixed(2);
+}
+
+function saveNewPurchase(){
+  const supplier = document.getElementById('newpur-supplier').value.trim();
+  const date = document.getElementById('newpur-date').value;
+  const notes = document.getElementById('newpur-notes').value.trim();
+  
+  if(!supplier || !date){alert('Completa: Proveedor y Fecha');return;}
+  
+  const items = [];
+  document.querySelectorAll('#newpur-items tr').forEach(row => {
+    const name = row.querySelector('.item-name').value.trim();
+    if(name){
+      items.push({
+        name,
+        qty: parseFloat(row.querySelector('.item-qty').value) || 0,
+        cost: parseFloat(row.querySelector('.item-cost').value) || 0
+      });
+    }
+  });
+  
+  const totalCost = parseFloat(document.getElementById('newpur-total').textContent.replace('$','')) || 0;
+  
+  purchases.push({
+    id: 'pur_'+Date.now(),
+    date: new Date(date).getTime(),
+    supplier, items, totalCost, notes,
+    paid: 0, status: 'pendiente'
+  });
+  
+  savePurchasesData();
+  alert('Orden guardada');
+  
+  document.getElementById('newpur-supplier').value = '';
+  document.getElementById('newpur-date').value = '';
+  document.getElementById('newpur-notes').value = '';
+  document.getElementById('newpur-items').innerHTML = '<tr><td style="padding:10px"><input type="text" class="item-name" placeholder="Nombre" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px"></td><td style="padding:10px"><input type="number" class="item-qty" value="1" min="0.1" step="0.1" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px;text-align:center"></td><td style="padding:10px"><input type="number" class="item-cost" value="0" step="0.01" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px;text-align:center"></td><td style="padding:10px;text-align:right"><span class="item-subtotal">0.00</span></td><td style="padding:10px"><button class="btn bg bs" onclick="removeItemRow(this)" style="font-size:1rem">✕</button></td></tr>';
+  calcTotalCost();
+  renderPurchasesList();
+}
+
+function populatePaymentSelect(){
+  const select = document.getElementById('pay-purchase');
+  select.innerHTML = '<option value="">-- Seleccionar orden --</option>';
+  
+  purchases.filter(p => (p.paid||0) < p.totalCost).forEach(p => {
+    const pending = p.totalCost - (p.paid||0);
+    select.innerHTML += '<option value="'+p.id+'" data-pending="'+pending+'">'+p.supplier+' - $'+pending.toFixed(2)+' pendiente</option>';
+  });
+}
+
+function updatePaymentBalance(){
+  const select = document.getElementById('pay-purchase');
+  const selected = select.options[select.selectedIndex];
+  
+  if(selected.value){
+    const pending = parseFloat(selected.dataset.pending) || 0;
+    document.getElementById('pay-balance-container').style.display = 'block';
+    document.getElementById('pay-balance').textContent = '$'+pending.toFixed(2);
+  } else {
+    document.getElementById('pay-balance-container').style.display = 'none';
+  }
+}
+
+function savePurchasePayment(){
+  const purchaseId = document.getElementById('pay-purchase').value;
+  const amount = parseFloat(document.getElementById('pay-amount').value) || 0;
+  const date = document.getElementById('pay-date').value;
+  const note = document.getElementById('pay-note').value.trim();
+  
+  if(!purchaseId || !amount || !date){alert('Completa: Orden, Monto y Fecha');return;}
+  
+  const purchase = purchases.find(p => p.id === purchaseId);
+  if(!purchase)return;
+  
+  purchase.paid = (purchase.paid||0) + amount;
+  purchase.status = purchase.paid >= purchase.totalCost ? 'pagado' : 'parcial';
+  
+  paymentLog.push({purchaseId, amount, date: new Date(date).getTime(), note});
+  
+  savePurchasesData();
+  alert('Pago registrado');
+  
+  document.getElementById('pay-amount').value = '';
+  document.getElementById('pay-date').value = '';
+  document.getElementById('pay-note').value = '';
+  populatePaymentSelect();
+  renderPurchasesList();
+}
+
+function renderReports(){
+  const total = purchases.reduce((a,p) => a+(p.totalCost||0), 0);
+  const paid = purchases.reduce((a,p) => a+(p.paid||0), 0);
+  const pending = total - paid;
+  
+  document.getElementById('report-summary').innerHTML = 
+    '<div style="background:var(--s2);padding:16px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1)"><div style="font-size:12px;color:var(--mu);text-transform:uppercase">Total Compras</div><div style="font-size:28px;font-weight:700">$'+total.toFixed(2)+'</div></div>'+
+    '<div style="background:var(--s2);padding:16px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1)"><div style="font-size:12px;color:var(--mu);text-transform:uppercase">Total Pagado</div><div style="font-size:28px;font-weight:700;color:var(--ok)">$'+paid.toFixed(2)+'</div></div>'+
+    '<div style="background:var(--s2);padding:16px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1)"><div style="font-size:12px;color:var(--mu);text-transform:uppercase">Total Deuda</div><div style="font-size:28px;font-weight:700;color:var(--err)">$'+pending.toFixed(2)+'</div></div>';
+  
+  const bySupplier = {};
+  purchases.forEach(p => {
+    const pending = p.totalCost - (p.paid||0);
+    if(!bySupplier[p.supplier]) bySupplier[p.supplier] = 0;
+    bySupplier[p.supplier] += pending;
+  });
+  
+  document.getElementById('report-suppliers').innerHTML = Object.entries(bySupplier)
+    .filter(([_,debt]) => debt > 0)
+    .map(([supplier,debt]) => '<div style="border:1px solid var(--bd);border-radius:8px;padding:12px;display:flex;justify-content:space-between"><div>'+supplier+'</div><div style="font-weight:700;color:var(--err)">$'+debt.toFixed(2)+'</div></div>')
+    .join('');
+  
+  document.getElementById('report-pending').innerHTML = purchases
+    .filter(p => p.status !== 'pagado')
+    .sort((a,b) => a.date-b.date)
+    .map(p => {
+      const pending = p.totalCost - (p.paid||0);
+      return '<div style="border:1px solid var(--bd);border-radius:8px;padding:12px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-weight:700">'+p.supplier+'</div><div style="font-size:12px;color:var(--mu)">'+new Date(p.date).toLocaleDateString()+'</div></div><div style="text-align:right"><div style="font-weight:700;color:var(--err)">$'+pending.toFixed(2)+'</div><div style="font-size:12px;color:var(--mu)">de $'+(p.totalCost).toFixed(2)+'</div></div></div>';
+    }).join('');
+}
+
+function viewPurchaseDetail(purchaseId){
+  const pur = purchases.find(p => p.id === purchaseId);
+  if(!pur)return;
+  
+  let msg = pur.supplier + '\nFecha: ' + new Date(pur.date).toLocaleDateString() + '\n\nProductos:\n';
+  pur.items.forEach(item => {
+    msg += '- '+item.name+': '+item.qty+' x $'+item.cost.toFixed(2)+' = $'+(item.qty*item.cost).toFixed(2)+'\n';
+  });
+  msg += '\nTotal: $'+(pur.totalCost).toFixed(2)+'\nPagado: $'+(pur.paid||0).toFixed(2)+'\nPendiente: $'+(pur.totalCost-(pur.paid||0)).toFixed(2);
+  
+  alert(msg);
+}
+
+function openPaymentForm(purchaseId){
+  nav('compras', document.querySelector('[onclick*="nav(\'compras\'"]'));
+  setTimeout(() => {
+    showComprasTab('pagos');
+    document.getElementById('pay-purchase').value = purchaseId;
+    updatePaymentBalance();
+  }, 100);
+}
+
+// Inicializar fechas
+document.addEventListener('DOMContentLoaded', () => {
+  if(document.getElementById('newpur-date')) document.getElementById('newpur-date').valueAsDate = new Date();
+  if(document.getElementById('pay-date')) document.getElementById('pay-date').valueAsDate = new Date();
+});
+
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js">
+// ════════════════════════════════════════════════════════════════════════════════
+// MÓDULO: COMPRAS A PROVEEDORES
+// ════════════════════════════════════════════════════════════════════════════════
+
+let purchases = JSON.parse(localStorage.getItem('stockpro_purchases')) || [];
+let paymentLog = JSON.parse(localStorage.getItem('stockpro_paymentlog')) || [];
+
+function savePurchasesData(){
+  localStorage.setItem('stockpro_purchases', JSON.stringify(purchases));
+  localStorage.setItem('stockpro_paymentlog', JSON.stringify(paymentLog));
+}
+
+function showComprasTab(tabName){
+  document.querySelectorAll('[id^="compras-tab-"]').forEach(t => t.style.display = 'none');
+  document.querySelectorAll('[id^="tab-compras-"]').forEach(b => b.classList.remove('bg'));
+  document.getElementById('compras-tab-' + tabName).style.display = 'block';
+  document.getElementById('tab-compras-' + tabName).classList.add('bg');
+  
+  if(tabName === 'lista') renderPurchasesList();
+  if(tabName === 'pagos') populatePaymentSelect();
+  if(tabName === 'reportes') renderReports();
+}
+
+function renderPurchasesList(){
+  const list = document.getElementById('purchases-list');
+  if(!purchases.length){
+    list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--mu)"><div style="font-size:48px;margin-bottom:16px">📦</div>Sin órdenes de compra</div>';
+    return;
+  }
+  
+  list.innerHTML = purchases.sort((a,b) => b.date-a.date).map(p => {
+    const pending = Math.max(0, (p.totalCost || 0) - (p.paid || 0));
+    const statusClass = p.status === 'pagado' ? 'status-pagado' : (p.status === 'parcial' ? 'status-parcial' : 'status-pending');
+    const statusText = p.status === 'pagado' ? '✓ Pagado' : (p.status === 'parcial' ? '⚠ Parcial' : '🔴 Pendiente');
+    
+    return '<div style="border:1px solid var(--bd);border-radius:8px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.1)">'+
+      '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px">'+
+        '<div>'+
+          '<div style="font-weight:700;font-size:18px">'+p.supplier+'</div>'+
+          '<div style="font-size:12px;color:var(--mu)">'+new Date(p.date).toLocaleDateString()+'</div>'+
+        '</div>'+
+        '<div style="text-align:right">'+
+          '<div style="font-weight:700;font-size:18px">$'+(p.totalCost||0).toFixed(2)+'</div>'+
+          '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;margin-top:4px;background:'+(p.status==='pagado'?'#d4edda;color:#155724':'#ffe5e5;color:#c0392b')+'">'+(p.status==='pagado'?'✓ Pagado':'Pendiente')+'</span>'+
+        '</div>'+
+      '</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:12px 0;font-size:14px">'+
+        '<div style="background:var(--s2);padding:8px;border-radius:4px">'+
+          '<div style="font-size:11px;color:var(--mu);text-transform:uppercase">Total</div>'+
+          '<div style="font-weight:700">$'+(p.totalCost||0).toFixed(2)+'</div>'+
+        '</div>'+
+        '<div style="background:var(--s2);padding:8px;border-radius:4px">'+
+          '<div style="font-size:11px;color:var(--mu);text-transform:uppercase">Pagado</div>'+
+          '<div style="font-weight:700;color:var(--ok)">$'+(p.paid||0).toFixed(2)+'</div>'+
+        '</div>'+
+        '<div style="background:var(--s2);padding:8px;border-radius:4px">'+
+          '<div style="font-size:11px;color:var(--mu);text-transform:uppercase">Pendiente</div>'+
+          '<div style="font-weight:700;color:var(--err)">$'+pending.toFixed(2)+'</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="font-size:13px;color:var(--mu);margin:12px 0">'+(p.items?p.items.length:0)+' producto'+(p.items && p.items.length !== 1 ? 's' : '')+(p.notes?' · '+p.notes:'')+'</div>'+
+      '<div style="display:flex;gap:8px">'+
+        '<button class="btn bg bs" onclick="viewPurchaseDetail(\''+p.id+'\')" style="flex:1">Ver Detalles</button>'+
+        '<button class="btn bg bs" onclick="openPaymentForm(\''+p.id+'\')" style="flex:1" '+(pending<=0?'disabled':'')+'>'+( pending>0?'Pagar':'Cerrado')+'</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function addItemRow(){
+  const tbody = document.getElementById('newpur-items');
+  const row = document.createElement('tr');
+  row.innerHTML = '<td style="padding:10px"><input type="text" class="item-name" placeholder="Nombre" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px"></td>'+
+    '<td style="padding:10px"><input type="number" class="item-qty" value="1" min="0.1" step="0.1" oninput="calcItemSubtotal(this)" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px;text-align:center"></td>'+
+    '<td style="padding:10px"><input type="number" class="item-cost" value="0" step="0.01" oninput="calcItemSubtotal(this)" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px;text-align:center"></td>'+
+    '<td style="padding:10px;text-align:right"><span class="item-subtotal">0.00</span></td>'+
+    '<td style="padding:10px"><button class="btn bg bs" onclick="removeItemRow(this)" style="font-size:1rem">✕</button></td>';
+  tbody.appendChild(row);
+}
+
+function removeItemRow(btn){
+  btn.closest('tr').remove();
+  calcTotalCost();
+}
+
+function calcItemSubtotal(input){
+  const row = input.closest('tr');
+  const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+  const cost = parseFloat(row.querySelector('.item-cost').value) || 0;
+  row.querySelector('.item-subtotal').textContent = (qty*cost).toFixed(2);
+  calcTotalCost();
+}
+
+function calcTotalCost(){
+  let total = 0;
+  document.querySelectorAll('#newpur-items tr').forEach(row => {
+    const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+    const cost = parseFloat(row.querySelector('.item-cost').value) || 0;
+    total += qty*cost;
+  });
+  document.getElementById('newpur-total').textContent = '$'+total.toFixed(2);
+}
+
+function saveNewPurchase(){
+  const supplier = document.getElementById('newpur-supplier').value.trim();
+  const date = document.getElementById('newpur-date').value;
+  const notes = document.getElementById('newpur-notes').value.trim();
+  
+  if(!supplier || !date){alert('Completa: Proveedor y Fecha');return;}
+  
+  const items = [];
+  document.querySelectorAll('#newpur-items tr').forEach(row => {
+    const name = row.querySelector('.item-name').value.trim();
+    if(name){
+      items.push({
+        name,
+        qty: parseFloat(row.querySelector('.item-qty').value) || 0,
+        cost: parseFloat(row.querySelector('.item-cost').value) || 0
+      });
+    }
+  });
+  
+  const totalCost = parseFloat(document.getElementById('newpur-total').textContent.replace('$','')) || 0;
+  
+  purchases.push({
+    id: 'pur_'+Date.now(),
+    date: new Date(date).getTime(),
+    supplier, items, totalCost, notes,
+    paid: 0, status: 'pendiente'
+  });
+  
+  savePurchasesData();
+  alert('Orden guardada');
+  
+  document.getElementById('newpur-supplier').value = '';
+  document.getElementById('newpur-date').value = '';
+  document.getElementById('newpur-notes').value = '';
+  document.getElementById('newpur-items').innerHTML = '<tr><td style="padding:10px"><input type="text" class="item-name" placeholder="Nombre" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px"></td><td style="padding:10px"><input type="number" class="item-qty" value="1" min="0.1" step="0.1" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px;text-align:center"></td><td style="padding:10px"><input type="number" class="item-cost" value="0" step="0.01" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px;text-align:center"></td><td style="padding:10px;text-align:right"><span class="item-subtotal">0.00</span></td><td style="padding:10px"><button class="btn bg bs" onclick="removeItemRow(this)" style="font-size:1rem">✕</button></td></tr>';
+  calcTotalCost();
+  renderPurchasesList();
+}
+
+function populatePaymentSelect(){
+  const select = document.getElementById('pay-purchase');
+  select.innerHTML = '<option value="">-- Seleccionar orden --</option>';
+  
+  purchases.filter(p => (p.paid||0) < p.totalCost).forEach(p => {
+    const pending = p.totalCost - (p.paid||0);
+    select.innerHTML += '<option value="'+p.id+'" data-pending="'+pending+'">'+p.supplier+' - $'+pending.toFixed(2)+' pendiente</option>';
+  });
+}
+
+function updatePaymentBalance(){
+  const select = document.getElementById('pay-purchase');
+  const selected = select.options[select.selectedIndex];
+  
+  if(selected.value){
+    const pending = parseFloat(selected.dataset.pending) || 0;
+    document.getElementById('pay-balance-container').style.display = 'block';
+    document.getElementById('pay-balance').textContent = '$'+pending.toFixed(2);
+  } else {
+    document.getElementById('pay-balance-container').style.display = 'none';
+  }
+}
+
+function savePurchasePayment(){
+  const purchaseId = document.getElementById('pay-purchase').value;
+  const amount = parseFloat(document.getElementById('pay-amount').value) || 0;
+  const date = document.getElementById('pay-date').value;
+  const note = document.getElementById('pay-note').value.trim();
+  
+  if(!purchaseId || !amount || !date){alert('Completa: Orden, Monto y Fecha');return;}
+  
+  const purchase = purchases.find(p => p.id === purchaseId);
+  if(!purchase)return;
+  
+  purchase.paid = (purchase.paid||0) + amount;
+  purchase.status = purchase.paid >= purchase.totalCost ? 'pagado' : 'parcial';
+  
+  paymentLog.push({purchaseId, amount, date: new Date(date).getTime(), note});
+  
+  savePurchasesData();
+  alert('Pago registrado');
+  
+  document.getElementById('pay-amount').value = '';
+  document.getElementById('pay-date').value = '';
+  document.getElementById('pay-note').value = '';
+  populatePaymentSelect();
+  renderPurchasesList();
+}
+
+function renderReports(){
+  const total = purchases.reduce((a,p) => a+(p.totalCost||0), 0);
+  const paid = purchases.reduce((a,p) => a+(p.paid||0), 0);
+  const pending = total - paid;
+  
+  document.getElementById('report-summary').innerHTML = 
+    '<div style="background:var(--s2);padding:16px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1)"><div style="font-size:12px;color:var(--mu);text-transform:uppercase">Total Compras</div><div style="font-size:28px;font-weight:700">$'+total.toFixed(2)+'</div></div>'+
+    '<div style="background:var(--s2);padding:16px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1)"><div style="font-size:12px;color:var(--mu);text-transform:uppercase">Total Pagado</div><div style="font-size:28px;font-weight:700;color:var(--ok)">$'+paid.toFixed(2)+'</div></div>'+
+    '<div style="background:var(--s2);padding:16px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1)"><div style="font-size:12px;color:var(--mu);text-transform:uppercase">Total Deuda</div><div style="font-size:28px;font-weight:700;color:var(--err)">$'+pending.toFixed(2)+'</div></div>';
+  
+  const bySupplier = {};
+  purchases.forEach(p => {
+    const pending = p.totalCost - (p.paid||0);
+    if(!bySupplier[p.supplier]) bySupplier[p.supplier] = 0;
+    bySupplier[p.supplier] += pending;
+  });
+  
+  document.getElementById('report-suppliers').innerHTML = Object.entries(bySupplier)
+    .filter(([_,debt]) => debt > 0)
+    .map(([supplier,debt]) => '<div style="border:1px solid var(--bd);border-radius:8px;padding:12px;display:flex;justify-content:space-between"><div>'+supplier+'</div><div style="font-weight:700;color:var(--err)">$'+debt.toFixed(2)+'</div></div>')
+    .join('');
+  
+  document.getElementById('report-pending').innerHTML = purchases
+    .filter(p => p.status !== 'pagado')
+    .sort((a,b) => a.date-b.date)
+    .map(p => {
+      const pending = p.totalCost - (p.paid||0);
+      return '<div style="border:1px solid var(--bd);border-radius:8px;padding:12px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-weight:700">'+p.supplier+'</div><div style="font-size:12px;color:var(--mu)">'+new Date(p.date).toLocaleDateString()+'</div></div><div style="text-align:right"><div style="font-weight:700;color:var(--err)">$'+pending.toFixed(2)+'</div><div style="font-size:12px;color:var(--mu)">de $'+(p.totalCost).toFixed(2)+'</div></div></div>';
+    }).join('');
+}
+
+function viewPurchaseDetail(purchaseId){
+  const pur = purchases.find(p => p.id === purchaseId);
+  if(!pur)return;
+  
+  let msg = pur.supplier + '\nFecha: ' + new Date(pur.date).toLocaleDateString() + '\n\nProductos:\n';
+  pur.items.forEach(item => {
+    msg += '- '+item.name+': '+item.qty+' x $'+item.cost.toFixed(2)+' = $'+(item.qty*item.cost).toFixed(2)+'\n';
+  });
+  msg += '\nTotal: $'+(pur.totalCost).toFixed(2)+'\nPagado: $'+(pur.paid||0).toFixed(2)+'\nPendiente: $'+(pur.totalCost-(pur.paid||0)).toFixed(2);
+  
+  alert(msg);
+}
+
+function openPaymentForm(purchaseId){
+  nav('compras', document.querySelector('[onclick*="nav(\'compras\'"]'));
+  setTimeout(() => {
+    showComprasTab('pagos');
+    document.getElementById('pay-purchase').value = purchaseId;
+    updatePaymentBalance();
+  }, 100);
+}
+
+// Inicializar fechas
+document.addEventListener('DOMContentLoaded', () => {
+  if(document.getElementById('newpur-date')) document.getElementById('newpur-date').valueAsDate = new Date();
+  if(document.getElementById('pay-date')) document.getElementById('pay-date').valueAsDate = new Date();
+});
+
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/index.min.js">
+// ════════════════════════════════════════════════════════════════════════════════
+// MÓDULO: COMPRAS A PROVEEDORES
+// ════════════════════════════════════════════════════════════════════════════════
+
+let purchases = JSON.parse(localStorage.getItem('stockpro_purchases')) || [];
+let paymentLog = JSON.parse(localStorage.getItem('stockpro_paymentlog')) || [];
+
+function savePurchasesData(){
+  localStorage.setItem('stockpro_purchases', JSON.stringify(purchases));
+  localStorage.setItem('stockpro_paymentlog', JSON.stringify(paymentLog));
+}
+
+function showComprasTab(tabName){
+  document.querySelectorAll('[id^="compras-tab-"]').forEach(t => t.style.display = 'none');
+  document.querySelectorAll('[id^="tab-compras-"]').forEach(b => b.classList.remove('bg'));
+  document.getElementById('compras-tab-' + tabName).style.display = 'block';
+  document.getElementById('tab-compras-' + tabName).classList.add('bg');
+  
+  if(tabName === 'lista') renderPurchasesList();
+  if(tabName === 'pagos') populatePaymentSelect();
+  if(tabName === 'reportes') renderReports();
+}
+
+function renderPurchasesList(){
+  const list = document.getElementById('purchases-list');
+  if(!purchases.length){
+    list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--mu)"><div style="font-size:48px;margin-bottom:16px">📦</div>Sin órdenes de compra</div>';
+    return;
+  }
+  
+  list.innerHTML = purchases.sort((a,b) => b.date-a.date).map(p => {
+    const pending = Math.max(0, (p.totalCost || 0) - (p.paid || 0));
+    const statusClass = p.status === 'pagado' ? 'status-pagado' : (p.status === 'parcial' ? 'status-parcial' : 'status-pending');
+    const statusText = p.status === 'pagado' ? '✓ Pagado' : (p.status === 'parcial' ? '⚠ Parcial' : '🔴 Pendiente');
+    
+    return '<div style="border:1px solid var(--bd);border-radius:8px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.1)">'+
+      '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px">'+
+        '<div>'+
+          '<div style="font-weight:700;font-size:18px">'+p.supplier+'</div>'+
+          '<div style="font-size:12px;color:var(--mu)">'+new Date(p.date).toLocaleDateString()+'</div>'+
+        '</div>'+
+        '<div style="text-align:right">'+
+          '<div style="font-weight:700;font-size:18px">$'+(p.totalCost||0).toFixed(2)+'</div>'+
+          '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;margin-top:4px;background:'+(p.status==='pagado'?'#d4edda;color:#155724':'#ffe5e5;color:#c0392b')+'">'+(p.status==='pagado'?'✓ Pagado':'Pendiente')+'</span>'+
+        '</div>'+
+      '</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:12px 0;font-size:14px">'+
+        '<div style="background:var(--s2);padding:8px;border-radius:4px">'+
+          '<div style="font-size:11px;color:var(--mu);text-transform:uppercase">Total</div>'+
+          '<div style="font-weight:700">$'+(p.totalCost||0).toFixed(2)+'</div>'+
+        '</div>'+
+        '<div style="background:var(--s2);padding:8px;border-radius:4px">'+
+          '<div style="font-size:11px;color:var(--mu);text-transform:uppercase">Pagado</div>'+
+          '<div style="font-weight:700;color:var(--ok)">$'+(p.paid||0).toFixed(2)+'</div>'+
+        '</div>'+
+        '<div style="background:var(--s2);padding:8px;border-radius:4px">'+
+          '<div style="font-size:11px;color:var(--mu);text-transform:uppercase">Pendiente</div>'+
+          '<div style="font-weight:700;color:var(--err)">$'+pending.toFixed(2)+'</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="font-size:13px;color:var(--mu);margin:12px 0">'+(p.items?p.items.length:0)+' producto'+(p.items && p.items.length !== 1 ? 's' : '')+(p.notes?' · '+p.notes:'')+'</div>'+
+      '<div style="display:flex;gap:8px">'+
+        '<button class="btn bg bs" onclick="viewPurchaseDetail(\''+p.id+'\')" style="flex:1">Ver Detalles</button>'+
+        '<button class="btn bg bs" onclick="openPaymentForm(\''+p.id+'\')" style="flex:1" '+(pending<=0?'disabled':'')+'>'+( pending>0?'Pagar':'Cerrado')+'</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function addItemRow(){
+  const tbody = document.getElementById('newpur-items');
+  const row = document.createElement('tr');
+  row.innerHTML = '<td style="padding:10px"><input type="text" class="item-name" placeholder="Nombre" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px"></td>'+
+    '<td style="padding:10px"><input type="number" class="item-qty" value="1" min="0.1" step="0.1" oninput="calcItemSubtotal(this)" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px;text-align:center"></td>'+
+    '<td style="padding:10px"><input type="number" class="item-cost" value="0" step="0.01" oninput="calcItemSubtotal(this)" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px;text-align:center"></td>'+
+    '<td style="padding:10px;text-align:right"><span class="item-subtotal">0.00</span></td>'+
+    '<td style="padding:10px"><button class="btn bg bs" onclick="removeItemRow(this)" style="font-size:1rem">✕</button></td>';
+  tbody.appendChild(row);
+}
+
+function removeItemRow(btn){
+  btn.closest('tr').remove();
+  calcTotalCost();
+}
+
+function calcItemSubtotal(input){
+  const row = input.closest('tr');
+  const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+  const cost = parseFloat(row.querySelector('.item-cost').value) || 0;
+  row.querySelector('.item-subtotal').textContent = (qty*cost).toFixed(2);
+  calcTotalCost();
+}
+
+function calcTotalCost(){
+  let total = 0;
+  document.querySelectorAll('#newpur-items tr').forEach(row => {
+    const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+    const cost = parseFloat(row.querySelector('.item-cost').value) || 0;
+    total += qty*cost;
+  });
+  document.getElementById('newpur-total').textContent = '$'+total.toFixed(2);
+}
+
+function saveNewPurchase(){
+  const supplier = document.getElementById('newpur-supplier').value.trim();
+  const date = document.getElementById('newpur-date').value;
+  const notes = document.getElementById('newpur-notes').value.trim();
+  
+  if(!supplier || !date){alert('Completa: Proveedor y Fecha');return;}
+  
+  const items = [];
+  document.querySelectorAll('#newpur-items tr').forEach(row => {
+    const name = row.querySelector('.item-name').value.trim();
+    if(name){
+      items.push({
+        name,
+        qty: parseFloat(row.querySelector('.item-qty').value) || 0,
+        cost: parseFloat(row.querySelector('.item-cost').value) || 0
+      });
+    }
+  });
+  
+  const totalCost = parseFloat(document.getElementById('newpur-total').textContent.replace('$','')) || 0;
+  
+  purchases.push({
+    id: 'pur_'+Date.now(),
+    date: new Date(date).getTime(),
+    supplier, items, totalCost, notes,
+    paid: 0, status: 'pendiente'
+  });
+  
+  savePurchasesData();
+  alert('Orden guardada');
+  
+  document.getElementById('newpur-supplier').value = '';
+  document.getElementById('newpur-date').value = '';
+  document.getElementById('newpur-notes').value = '';
+  document.getElementById('newpur-items').innerHTML = '<tr><td style="padding:10px"><input type="text" class="item-name" placeholder="Nombre" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px"></td><td style="padding:10px"><input type="number" class="item-qty" value="1" min="0.1" step="0.1" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px;text-align:center"></td><td style="padding:10px"><input type="number" class="item-cost" value="0" step="0.01" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px;text-align:center"></td><td style="padding:10px;text-align:right"><span class="item-subtotal">0.00</span></td><td style="padding:10px"><button class="btn bg bs" onclick="removeItemRow(this)" style="font-size:1rem">✕</button></td></tr>';
+  calcTotalCost();
+  renderPurchasesList();
+}
+
+function populatePaymentSelect(){
+  const select = document.getElementById('pay-purchase');
+  select.innerHTML = '<option value="">-- Seleccionar orden --</option>';
+  
+  purchases.filter(p => (p.paid||0) < p.totalCost).forEach(p => {
+    const pending = p.totalCost - (p.paid||0);
+    select.innerHTML += '<option value="'+p.id+'" data-pending="'+pending+'">'+p.supplier+' - $'+pending.toFixed(2)+' pendiente</option>';
+  });
+}
+
+function updatePaymentBalance(){
+  const select = document.getElementById('pay-purchase');
+  const selected = select.options[select.selectedIndex];
+  
+  if(selected.value){
+    const pending = parseFloat(selected.dataset.pending) || 0;
+    document.getElementById('pay-balance-container').style.display = 'block';
+    document.getElementById('pay-balance').textContent = '$'+pending.toFixed(2);
+  } else {
+    document.getElementById('pay-balance-container').style.display = 'none';
+  }
+}
+
+function savePurchasePayment(){
+  const purchaseId = document.getElementById('pay-purchase').value;
+  const amount = parseFloat(document.getElementById('pay-amount').value) || 0;
+  const date = document.getElementById('pay-date').value;
+  const note = document.getElementById('pay-note').value.trim();
+  
+  if(!purchaseId || !amount || !date){alert('Completa: Orden, Monto y Fecha');return;}
+  
+  const purchase = purchases.find(p => p.id === purchaseId);
+  if(!purchase)return;
+  
+  purchase.paid = (purchase.paid||0) + amount;
+  purchase.status = purchase.paid >= purchase.totalCost ? 'pagado' : 'parcial';
+  
+  paymentLog.push({purchaseId, amount, date: new Date(date).getTime(), note});
+  
+  savePurchasesData();
+  alert('Pago registrado');
+  
+  document.getElementById('pay-amount').value = '';
+  document.getElementById('pay-date').value = '';
+  document.getElementById('pay-note').value = '';
+  populatePaymentSelect();
+  renderPurchasesList();
+}
+
+function renderReports(){
+  const total = purchases.reduce((a,p) => a+(p.totalCost||0), 0);
+  const paid = purchases.reduce((a,p) => a+(p.paid||0), 0);
+  const pending = total - paid;
+  
+  document.getElementById('report-summary').innerHTML = 
+    '<div style="background:var(--s2);padding:16px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1)"><div style="font-size:12px;color:var(--mu);text-transform:uppercase">Total Compras</div><div style="font-size:28px;font-weight:700">$'+total.toFixed(2)+'</div></div>'+
+    '<div style="background:var(--s2);padding:16px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1)"><div style="font-size:12px;color:var(--mu);text-transform:uppercase">Total Pagado</div><div style="font-size:28px;font-weight:700;color:var(--ok)">$'+paid.toFixed(2)+'</div></div>'+
+    '<div style="background:var(--s2);padding:16px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1)"><div style="font-size:12px;color:var(--mu);text-transform:uppercase">Total Deuda</div><div style="font-size:28px;font-weight:700;color:var(--err)">$'+pending.toFixed(2)+'</div></div>';
+  
+  const bySupplier = {};
+  purchases.forEach(p => {
+    const pending = p.totalCost - (p.paid||0);
+    if(!bySupplier[p.supplier]) bySupplier[p.supplier] = 0;
+    bySupplier[p.supplier] += pending;
+  });
+  
+  document.getElementById('report-suppliers').innerHTML = Object.entries(bySupplier)
+    .filter(([_,debt]) => debt > 0)
+    .map(([supplier,debt]) => '<div style="border:1px solid var(--bd);border-radius:8px;padding:12px;display:flex;justify-content:space-between"><div>'+supplier+'</div><div style="font-weight:700;color:var(--err)">$'+debt.toFixed(2)+'</div></div>')
+    .join('');
+  
+  document.getElementById('report-pending').innerHTML = purchases
+    .filter(p => p.status !== 'pagado')
+    .sort((a,b) => a.date-b.date)
+    .map(p => {
+      const pending = p.totalCost - (p.paid||0);
+      return '<div style="border:1px solid var(--bd);border-radius:8px;padding:12px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-weight:700">'+p.supplier+'</div><div style="font-size:12px;color:var(--mu)">'+new Date(p.date).toLocaleDateString()+'</div></div><div style="text-align:right"><div style="font-weight:700;color:var(--err)">$'+pending.toFixed(2)+'</div><div style="font-size:12px;color:var(--mu)">de $'+(p.totalCost).toFixed(2)+'</div></div></div>';
+    }).join('');
+}
+
+function viewPurchaseDetail(purchaseId){
+  const pur = purchases.find(p => p.id === purchaseId);
+  if(!pur)return;
+  
+  let msg = pur.supplier + '\nFecha: ' + new Date(pur.date).toLocaleDateString() + '\n\nProductos:\n';
+  pur.items.forEach(item => {
+    msg += '- '+item.name+': '+item.qty+' x $'+item.cost.toFixed(2)+' = $'+(item.qty*item.cost).toFixed(2)+'\n';
+  });
+  msg += '\nTotal: $'+(pur.totalCost).toFixed(2)+'\nPagado: $'+(pur.paid||0).toFixed(2)+'\nPendiente: $'+(pur.totalCost-(pur.paid||0)).toFixed(2);
+  
+  alert(msg);
+}
+
+function openPaymentForm(purchaseId){
+  nav('compras', document.querySelector('[onclick*="nav(\'compras\'"]'));
+  setTimeout(() => {
+    showComprasTab('pagos');
+    document.getElementById('pay-purchase').value = purchaseId;
+    updatePaymentBalance();
+  }, 100);
+}
+
+// Inicializar fechas
+document.addEventListener('DOMContentLoaded', () => {
+  if(document.getElementById('newpur-date')) document.getElementById('newpur-date').valueAsDate = new Date();
+  if(document.getElementById('pay-date')) document.getElementById('pay-date').valueAsDate = new Date();
+});
+
+
+</script>
 <style>
 :root{--bg:#2a3347;--s1:#32405a;--s2:#3a4d6a;--s3:#435878;--bd:#546480;--ac:#f5c518;--ac2:#6ea8fa;--err:#f07272;--ok:#45d99a;--warn:#fba050;--tx:#edf0fa;--mu:#a0b2d0;--r:12px;--fh:'Syne',sans-serif;--fb:'DM Sans',sans-serif;}
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -264,6 +1020,7 @@ tr:hover td{background:rgba(255,255,255,.012);}
     <button class="ni" onclick="nav(&#39;movimientos&#39;,this)"><span class="ic">↕️</span>Movimientos</button>
     <button class="ni" onclick="nav(&#39;fichas&#39;,this)"><span class="ic">🗂️</span>Fichas (Cta. Cte.)</button>
     <button class="ni" onclick="nav(&#39;egresos&#39;,this)"><span class="ic">📤</span>Egresos</button>
+    <button class="ni" onclick="nav(&#39;compras&#39;,this)"><span class="ic">📦</span>Compras Proveedores</button>
     <button class="ni" onclick="nav(&#39;reportes&#39;,this)"><span class="ic">📊</span>Reportes</button>
     <button class="ni" onclick="nav(&#39;alertas&#39;,this)"><span class="ic">🔔</span>Alertas</button>
     <button class="ni" onclick="nav(&#39;categorias&#39;,this)"><span class="ic">🏷️</span>Categorías</button>
@@ -332,6 +1089,7 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
               <select id="disc-preset" onchange="applyDiscPreset()" style="width:98px;padding:6px 6px;font-size:.8rem"><option value="">Desc. rápido</option></select>
             </div>
             <div style="display:flex;justify-content:space-between;font-size:.76rem;color:var(--mu)"><span>Subtotal</span><span id="ct-sub">$0</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:.76rem;color:var(--ac)"><span>IVA</span><span id="ct-iva">$0</span></div>
             <div style="display:flex;justify-content:space-between;font-size:.76rem;color:var(--ok)"><span>Descuento</span><span id="ct-disc">-$0</span></div>
             <div class="ct-total" style="margin:1px 0 6px 0;font-size:1.15rem"><span>TOTAL</span><span id="ct-total">$0</span></div>
             <div style="display:flex;gap:6px">
@@ -679,6 +1437,124 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
           <div style="background:var(--s2);border-radius:7px;padding:10px 12px"><strong style="color:var(--ac)">Más vendidos</strong><br>En el POS los productos se ordenan por cantidad vendida automáticamente</div>
           <div style="background:var(--s2);border-radius:7px;padding:10px 12px"><strong style="color:var(--ac)">Editar ventas</strong><br>En Historial tocá ✏️ para modificar items, o 🗑 para eliminar directamente</div>
           <div style="background:var(--s2);border-radius:7px;padding:10px 12px"><strong style="color:var(--ac)">PLU Balanza</strong><br>Scaneá etiquetas de balanza — extrae el precio automáticamente</div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- COMPRAS A PROVEEDORES -->
+    <div class="view" id="view-compras">
+      <div style="padding:20px;max-width:1200px;margin:0 auto">
+        <h2 style="margin-bottom:20px">📦 Compras a Proveedores</h2>
+        
+        <div style="display:flex;gap:10px;margin-bottom:20px;border-bottom:2px solid var(--bd);flex-wrap:wrap">
+          <button class="btn bg" id="tab-compras-lista" onclick="showComprasTab('lista')" style="border-bottom:3px solid var(--ac);margin-bottom:-2px">📋 Órdenes</button>
+          <button class="btn" id="tab-compras-crear" onclick="showComprasTab('crear')">➕ Nueva Orden</button>
+          <button class="btn" id="tab-compras-pagos" onclick="showComprasTab('pagos')">💳 Pagos</button>
+          <button class="btn" id="tab-compras-reportes" onclick="showComprasTab('reportes')">📊 Reportes</button>
+        </div>
+        
+        <!-- TAB: LISTA -->
+        <div id="compras-tab-lista" style="display:block">
+          <div id="purchases-list" style="display:grid;gap:12px"></div>
+        </div>
+        
+        <!-- TAB: CREAR -->
+        <div id="compras-tab-crear" style="display:none;max-width:600px">
+          <div style="background:var(--s2);padding:20px;border-radius:8px">
+            <div style="margin-bottom:16px">
+              <label style="display:block;font-weight:600;margin-bottom:6px">Proveedor *</label>
+              <input type="text" id="newpur-supplier" placeholder="Nombre del proveedor" style="width:100%;padding:10px;border:1px solid var(--bd);border-radius:6px">
+            </div>
+            
+            <div style="margin-bottom:16px">
+              <label style="display:block;font-weight:600;margin-bottom:6px">Fecha *</label>
+              <input type="date" id="newpur-date" style="width:100%;padding:10px;border:1px solid var(--bd);border-radius:6px">
+            </div>
+            
+            <div style="margin-bottom:16px">
+              <label style="display:block;font-weight:600;margin-bottom:6px">Productos</label>
+              <table style="width:100%;border-collapse:collapse;background:white;border-radius:6px;margin-bottom:10px">
+                <thead>
+                  <tr style="background:#f9f9f9;border-bottom:2px solid var(--bd)">
+                    <th style="padding:10px;text-align:left">Producto</th>
+                    <th style="padding:10px;text-align:center">Cantidad</th>
+                    <th style="padding:10px;text-align:center">Costo</th>
+                    <th style="padding:10px;text-align:right">Subtotal</th>
+                    <th style="padding:10px"></th>
+                  </tr>
+                </thead>
+                <tbody id="newpur-items">
+                  <tr>
+                    <td style="padding:10px"><input type="text" class="item-name" placeholder="Nombre" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px"></td>
+                    <td style="padding:10px"><input type="number" class="item-qty" value="1" min="0.1" step="0.1" oninput="calcItemSubtotal(this)" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px;text-align:center"></td>
+                    <td style="padding:10px"><input type="number" class="item-cost" value="0" step="0.01" oninput="calcItemSubtotal(this)" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px;text-align:center"></td>
+                    <td style="padding:10px;text-align:right"><span class="item-subtotal">0.00</span></td>
+                    <td style="padding:10px"><button class="btn bg bs" onclick="removeItemRow(this)" style="font-size:1rem">✕</button></td>
+                  </tr>
+                </tbody>
+              </table>
+              <button class="btn bg" onclick="addItemRow()" style="width:100%;padding:10px;font-weight:600">+ Agregar producto</button>
+            </div>
+            
+            <div style="margin-bottom:16px">
+              <label style="display:block;font-weight:600;margin-bottom:6px">Notas (opcional)</label>
+              <textarea id="newpur-notes" placeholder="Notas sobre la compra..." style="width:100%;padding:10px;border:1px solid var(--bd);border-radius:6px;font-family:inherit;resize:vertical;min-height:80px"></textarea>
+            </div>
+            
+            <div style="background:white;padding:12px;border-radius:6px;margin-bottom:16px;display:flex;justify-content:space-between;font-weight:700">
+              <span>Total:</span>
+              <span id="newpur-total">$0.00</span>
+            </div>
+            
+            <button class="btn bg" onclick="saveNewPurchase()" style="width:100%;padding:12px;font-weight:700;font-size:1rem">Guardar Orden</button>
+          </div>
+        </div>
+        
+        <!-- TAB: PAGOS -->
+        <div id="compras-tab-pagos" style="display:none;max-width:600px">
+          <div style="background:var(--s2);padding:20px;border-radius:8px">
+            <div style="margin-bottom:16px">
+              <label style="display:block;font-weight:600;margin-bottom:6px">Orden de Compra *</label>
+              <select id="pay-purchase" onchange="updatePaymentBalance()" style="width:100%;padding:10px;border:1px solid var(--bd);border-radius:6px"><option value="">-- Seleccionar orden --</option></select>
+            </div>
+            
+            <div id="pay-balance-container" style="display:none;margin-bottom:16px">
+              <div style="background:white;padding:12px;border-radius:6px">
+                <div style="font-size:.85rem;color:var(--mu);margin-bottom:4px">Saldo pendiente:</div>
+                <div id="pay-balance" style="font-size:24px;font-weight:700;color:var(--err)">$0.00</div>
+              </div>
+            </div>
+            
+            <div style="margin-bottom:16px">
+              <label style="display:block;font-weight:600;margin-bottom:6px">Monto a pagar *</label>
+              <input type="number" id="pay-amount" placeholder="0.00" step="0.01" min="0" style="width:100%;padding:10px;border:1px solid var(--bd);border-radius:6px">
+            </div>
+            
+            <div style="margin-bottom:16px">
+              <label style="display:block;font-weight:600;margin-bottom:6px">Fecha *</label>
+              <input type="date" id="pay-date" style="width:100%;padding:10px;border:1px solid var(--bd);border-radius:6px">
+            </div>
+            
+            <div style="margin-bottom:16px">
+              <label style="display:block;font-weight:600;margin-bottom:6px">Nota (opcional)</label>
+              <input type="text" id="pay-note" placeholder="Ej: Transferencia bancaria" style="width:100%;padding:10px;border:1px solid var(--bd);border-radius:6px">
+            </div>
+            
+            <button class="btn bg" onclick="savePurchasePayment()" style="width:100%;padding:12px;font-weight:700;font-size:1rem">Registrar Pago</button>
+          </div>
+        </div>
+        
+        <!-- TAB: REPORTES -->
+        <div id="compras-tab-reportes" style="display:none">
+          <h3>Resumen de Deuda</h3>
+          <div id="report-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:20px"></div>
+          
+          <h3 style="margin-top:30px;margin-bottom:20px">Deuda por Proveedor</h3>
+          <div id="report-suppliers" style="display:grid;gap:12px"></div>
+          
+          <h3 style="margin-top:30px;margin-bottom:20px">Órdenes Pendientes</h3>
+          <div id="report-pending" style="display:grid;gap:12px"></div>
         </div>
       </div>
     </div>
@@ -1403,7 +2279,23 @@ function cartSub(){
 function cartDisc(){const v=parseFloat($i('disc-val').value)||0,t=$i('disc-type').value;return t==='pct'?cartSub()*v/100:Math.min(v,cartSub());}
 function cartDisc2(){const el2=$i('disc2-val');if(!el2)return 0;const v=parseFloat(el2.value)||0,t=$i('disc2-type').value,pay2amt=parseFloat(($i('co-pay2-amount')||{}).value)||0;if(!v||!pay2amt)return 0;return t==='pct'?pay2amt*v/100:Math.min(v,pay2amt);}
 function cartTotal(){return Math.max(0,cartSub()-cartDisc()-cartDisc2());}
-function renderCartTotals(){$i('ct-sub').textContent='$'+fn(cartSub());$i('ct-disc').textContent='-$'+fn(cartDisc());$i('ct-total').textContent='$'+fn(cartTotal());}
+function renderCartTotals(){
+  const sub = cartSub();
+  const ivaTotal = cart.reduce((a, it) => {
+    const basePrice = it.tipo === 'kg' 
+      ? (it.pricePerKg || 0) / (1 + (it.iva || 0) / 100)
+      : (it.basePrice || it.price);
+    const ivaAmount = basePrice * (it.iva || 0) / 100;
+    return a + (it.tipo === 'kg' ? ivaAmount * it.qty : ivaAmount * it.qty);
+  }, 0);
+  const discVal = parseFloat($i('disc-val').value) || 0;
+  const discount = ($i('disc-type').value === 'porc' ? sub * discVal / 100 : discVal);
+  
+  $i('ct-sub').textContent='$'+fn(sub);
+  if($i('ct-iva')) $i('ct-iva').textContent='$'+fn(ivaTotal);
+  $i('ct-disc').textContent='-$'+fn(discount);
+  $i('ct-total').textContent='$'+fn(sub + ivaTotal - discount);
+}
 
 function setItemIVA(idx,ivaPercent){
   if(idx>=0&&idx<cart.length){
@@ -1442,9 +2334,9 @@ function addToCart(pid){
       if(totalQty>=p.stock&&!allowNoStock){toast('No hay más stock','err');return;}
     }
     if(isKg){
-      cart.push({pid,name:p.name,price:p.price,pricePerKg:p.price,qty:1,tipo:'kg'});
+      cart.push({pid,name:p.name,price:p.price,pricePerKg:p.price,qty:1,tipo:'kg',basePrice:p.price,iva:0});
     } else {
-      cart.push({pid,name:p.name,price:p.price,qty:1,tipo:'unidad'});
+      cart.push({pid,name:p.name,price:p.price,qty:1,tipo:'unidad',basePrice:p.price,iva:0});
     }
   }
   renderCart(true);beep();
@@ -1523,7 +2415,7 @@ function renderCart(resetScroll){
   if(!cart.length){$i('cart-items').innerHTML='<div class="cart-empty">Tocá un producto o escaneá para agregar</div>';renderCartTotals();return;}
   const inpSt='font-size:1.05rem;font-weight:700;font-family:var(--fh);padding:8px 6px;background:var(--s2);border:1px solid var(--bd);color:var(--tx);border-radius:6px;width:100%;box-sizing:border-box';
   const btnSt='width:32px;height:32px;border-radius:6px;border:1px solid var(--bd);background:var(--s3);color:var(--tx);cursor:pointer;font-size:1.1rem;flex-shrink:0;line-height:1';
-  let html='<div class="ci-row ci-head"><div class="ci-col-name">PRODUCTO</div><div class="ci-col-qty" style="text-align:center">CANTIDAD</div><div class="ci-col-price" style="text-align:center">PRECIO</div><div class="ci-col-sub" style="text-align:right">SUBTOTAL</div><div class="ci-col-del"></div></div>';
+  let html='<div class="ci-row ci-head"><div class="ci-col-name">PRODUCTO</div><div class="ci-col-qty" style="text-align:center">CANTIDAD</div><div class="ci-col-price" style="text-align:center">PRECIO</div><div class="ci-col-sub" style="text-align:right">SUBTOTAL</div><div class="ci-col-iva" style="text-align:center;min-width:70px">IVA %</div><div class="ci-col-del"></div></div>';
   const order=cart.map(function(_,i){return i;}).reverse();
   html+=order.map(function(idx){
     var it=cart[idx];
@@ -1545,6 +2437,7 @@ function renderCart(resetScroll){
     row+='</div>';
     row+='<div class="ci-col-price"><input type="text" inputmode="decimal" data-noscan="1" value="'+fn(isKg?(it.pricePerKg||0):it.price)+'" '+focusA+' onchange="'+unitPriceFn+'('+idx+',this.value)" style="'+inpSt+';text-align:center"><div style="font-size:.62rem;color:var(--mu);text-align:center">'+(isKg?'/kg':'c/u')+'</div></div>';
     row+='<div class="ci-col-sub"><input type="text" inputmode="decimal" data-noscan="1" value="'+fn(subtotal)+'" '+focusA+' onchange="'+totalPriceFn+'('+idx+',this.value)" style="'+inpSt+';text-align:right;color:var(--ac);font-size:1rem"></div>';
+    row+='<div class="ci-col-iva" style="display:flex;align-items:center;gap:4px;flex-direction:column;min-width:70px"><label style="font-size:.7rem;color:var(--mu);text-align:center">IVA %</label><input type="number" data-noscan="1" value="'+(it.iva||0)+'" '+focusA+' onchange="setItemIVA('+idx+',this.value)" style="'+inpSt+';text-align:center;padding:4px;font-size:.9rem" min="0" max="100" step="1"></div>';
     row+='<div class="ci-col-del"><button class="ci-del" onclick="removeFromCart('+idx+')">✕</button></div>';
     row+='</div>';
     return row;
@@ -1706,7 +2599,7 @@ function handleBC(code){
         const kgQty=pricePerKg?parseFloat((plu.pluPrice/pricePerKg).toFixed(3)):1;
         const it=cart.find(x=>x.pid===plu.product.id&&x.tipo==='kg');
         if(it){it.qty=kgQty;it.pricePerKg=pricePerKg;it.price=plu.pluPrice;}
-        else cart.push({pid:plu.product.id,name:plu.product.name,price:plu.pluPrice,pricePerKg,qty:kgQty,tipo:'kg',plu:true});
+        else cart.push({pid:plu.product.id,name:plu.product.name,price:plu.pluPrice,pricePerKg,qty:kgQty,tipo:'kg',plu:true,basePrice:plu.pluPrice,iva:0});
         renderCart(true);renderPosGrid();clearPosSearch();
         setTimeout(()=>{ $i('pos-q').value=''; hidePosSearch(); }, 150);  // Limpiar con delay, SIN focus()
       }
@@ -2837,6 +3730,258 @@ async function generateProductQR(productId){
 
 // ══ Inicializar features v9 ══
 window.addEventListener('load',()=>{registerServiceWorker();console.log('✅ StockPro v9 Features cargadas');});
+
+
+// ════════════════════════════════════════════════════════════════════════════════
+// MÓDULO: COMPRAS A PROVEEDORES
+// ════════════════════════════════════════════════════════════════════════════════
+
+let purchases = JSON.parse(localStorage.getItem('stockpro_purchases')) || [];
+let paymentLog = JSON.parse(localStorage.getItem('stockpro_paymentlog')) || [];
+
+function savePurchasesData(){
+  localStorage.setItem('stockpro_purchases', JSON.stringify(purchases));
+  localStorage.setItem('stockpro_paymentlog', JSON.stringify(paymentLog));
+}
+
+function showComprasTab(tabName){
+  document.querySelectorAll('[id^="compras-tab-"]').forEach(t => t.style.display = 'none');
+  document.querySelectorAll('[id^="tab-compras-"]').forEach(b => b.classList.remove('bg'));
+  document.getElementById('compras-tab-' + tabName).style.display = 'block';
+  document.getElementById('tab-compras-' + tabName).classList.add('bg');
+  
+  if(tabName === 'lista') renderPurchasesList();
+  if(tabName === 'pagos') populatePaymentSelect();
+  if(tabName === 'reportes') renderReports();
+}
+
+function renderPurchasesList(){
+  const list = document.getElementById('purchases-list');
+  if(!purchases.length){
+    list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--mu)"><div style="font-size:48px;margin-bottom:16px">📦</div>Sin órdenes de compra</div>';
+    return;
+  }
+  
+  list.innerHTML = purchases.sort((a,b) => b.date-a.date).map(p => {
+    const pending = Math.max(0, (p.totalCost || 0) - (p.paid || 0));
+    const statusClass = p.status === 'pagado' ? 'status-pagado' : (p.status === 'parcial' ? 'status-parcial' : 'status-pending');
+    const statusText = p.status === 'pagado' ? '✓ Pagado' : (p.status === 'parcial' ? '⚠ Parcial' : '🔴 Pendiente');
+    
+    return '<div style="border:1px solid var(--bd);border-radius:8px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.1)">'+
+      '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px">'+
+        '<div>'+
+          '<div style="font-weight:700;font-size:18px">'+p.supplier+'</div>'+
+          '<div style="font-size:12px;color:var(--mu)">'+new Date(p.date).toLocaleDateString()+'</div>'+
+        '</div>'+
+        '<div style="text-align:right">'+
+          '<div style="font-weight:700;font-size:18px">$'+(p.totalCost||0).toFixed(2)+'</div>'+
+          '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;margin-top:4px;background:'+(p.status==='pagado'?'#d4edda;color:#155724':'#ffe5e5;color:#c0392b')+'">'+(p.status==='pagado'?'✓ Pagado':'Pendiente')+'</span>'+
+        '</div>'+
+      '</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:12px 0;font-size:14px">'+
+        '<div style="background:var(--s2);padding:8px;border-radius:4px">'+
+          '<div style="font-size:11px;color:var(--mu);text-transform:uppercase">Total</div>'+
+          '<div style="font-weight:700">$'+(p.totalCost||0).toFixed(2)+'</div>'+
+        '</div>'+
+        '<div style="background:var(--s2);padding:8px;border-radius:4px">'+
+          '<div style="font-size:11px;color:var(--mu);text-transform:uppercase">Pagado</div>'+
+          '<div style="font-weight:700;color:var(--ok)">$'+(p.paid||0).toFixed(2)+'</div>'+
+        '</div>'+
+        '<div style="background:var(--s2);padding:8px;border-radius:4px">'+
+          '<div style="font-size:11px;color:var(--mu);text-transform:uppercase">Pendiente</div>'+
+          '<div style="font-weight:700;color:var(--err)">$'+pending.toFixed(2)+'</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="font-size:13px;color:var(--mu);margin:12px 0">'+(p.items?p.items.length:0)+' producto'+(p.items && p.items.length !== 1 ? 's' : '')+(p.notes?' · '+p.notes:'')+'</div>'+
+      '<div style="display:flex;gap:8px">'+
+        '<button class="btn bg bs" onclick="viewPurchaseDetail(\''+p.id+'\')" style="flex:1">Ver Detalles</button>'+
+        '<button class="btn bg bs" onclick="openPaymentForm(\''+p.id+'\')" style="flex:1" '+(pending<=0?'disabled':'')+'>'+( pending>0?'Pagar':'Cerrado')+'</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function addItemRow(){
+  const tbody = document.getElementById('newpur-items');
+  const row = document.createElement('tr');
+  row.innerHTML = '<td style="padding:10px"><input type="text" class="item-name" placeholder="Nombre" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px"></td>'+
+    '<td style="padding:10px"><input type="number" class="item-qty" value="1" min="0.1" step="0.1" oninput="calcItemSubtotal(this)" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px;text-align:center"></td>'+
+    '<td style="padding:10px"><input type="number" class="item-cost" value="0" step="0.01" oninput="calcItemSubtotal(this)" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px;text-align:center"></td>'+
+    '<td style="padding:10px;text-align:right"><span class="item-subtotal">0.00</span></td>'+
+    '<td style="padding:10px"><button class="btn bg bs" onclick="removeItemRow(this)" style="font-size:1rem">✕</button></td>';
+  tbody.appendChild(row);
+}
+
+function removeItemRow(btn){
+  btn.closest('tr').remove();
+  calcTotalCost();
+}
+
+function calcItemSubtotal(input){
+  const row = input.closest('tr');
+  const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+  const cost = parseFloat(row.querySelector('.item-cost').value) || 0;
+  row.querySelector('.item-subtotal').textContent = (qty*cost).toFixed(2);
+  calcTotalCost();
+}
+
+function calcTotalCost(){
+  let total = 0;
+  document.querySelectorAll('#newpur-items tr').forEach(row => {
+    const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+    const cost = parseFloat(row.querySelector('.item-cost').value) || 0;
+    total += qty*cost;
+  });
+  document.getElementById('newpur-total').textContent = '$'+total.toFixed(2);
+}
+
+function saveNewPurchase(){
+  const supplier = document.getElementById('newpur-supplier').value.trim();
+  const date = document.getElementById('newpur-date').value;
+  const notes = document.getElementById('newpur-notes').value.trim();
+  
+  if(!supplier || !date){alert('Completa: Proveedor y Fecha');return;}
+  
+  const items = [];
+  document.querySelectorAll('#newpur-items tr').forEach(row => {
+    const name = row.querySelector('.item-name').value.trim();
+    if(name){
+      items.push({
+        name,
+        qty: parseFloat(row.querySelector('.item-qty').value) || 0,
+        cost: parseFloat(row.querySelector('.item-cost').value) || 0
+      });
+    }
+  });
+  
+  const totalCost = parseFloat(document.getElementById('newpur-total').textContent.replace('$','')) || 0;
+  
+  purchases.push({
+    id: 'pur_'+Date.now(),
+    date: new Date(date).getTime(),
+    supplier, items, totalCost, notes,
+    paid: 0, status: 'pendiente'
+  });
+  
+  savePurchasesData();
+  alert('Orden guardada');
+  
+  document.getElementById('newpur-supplier').value = '';
+  document.getElementById('newpur-date').value = '';
+  document.getElementById('newpur-notes').value = '';
+  document.getElementById('newpur-items').innerHTML = '<tr><td style="padding:10px"><input type="text" class="item-name" placeholder="Nombre" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px"></td><td style="padding:10px"><input type="number" class="item-qty" value="1" min="0.1" step="0.1" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px;text-align:center"></td><td style="padding:10px"><input type="number" class="item-cost" value="0" step="0.01" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px;text-align:center"></td><td style="padding:10px;text-align:right"><span class="item-subtotal">0.00</span></td><td style="padding:10px"><button class="btn bg bs" onclick="removeItemRow(this)" style="font-size:1rem">✕</button></td></tr>';
+  calcTotalCost();
+  renderPurchasesList();
+}
+
+function populatePaymentSelect(){
+  const select = document.getElementById('pay-purchase');
+  select.innerHTML = '<option value="">-- Seleccionar orden --</option>';
+  
+  purchases.filter(p => (p.paid||0) < p.totalCost).forEach(p => {
+    const pending = p.totalCost - (p.paid||0);
+    select.innerHTML += '<option value="'+p.id+'" data-pending="'+pending+'">'+p.supplier+' - $'+pending.toFixed(2)+' pendiente</option>';
+  });
+}
+
+function updatePaymentBalance(){
+  const select = document.getElementById('pay-purchase');
+  const selected = select.options[select.selectedIndex];
+  
+  if(selected.value){
+    const pending = parseFloat(selected.dataset.pending) || 0;
+    document.getElementById('pay-balance-container').style.display = 'block';
+    document.getElementById('pay-balance').textContent = '$'+pending.toFixed(2);
+  } else {
+    document.getElementById('pay-balance-container').style.display = 'none';
+  }
+}
+
+function savePurchasePayment(){
+  const purchaseId = document.getElementById('pay-purchase').value;
+  const amount = parseFloat(document.getElementById('pay-amount').value) || 0;
+  const date = document.getElementById('pay-date').value;
+  const note = document.getElementById('pay-note').value.trim();
+  
+  if(!purchaseId || !amount || !date){alert('Completa: Orden, Monto y Fecha');return;}
+  
+  const purchase = purchases.find(p => p.id === purchaseId);
+  if(!purchase)return;
+  
+  purchase.paid = (purchase.paid||0) + amount;
+  purchase.status = purchase.paid >= purchase.totalCost ? 'pagado' : 'parcial';
+  
+  paymentLog.push({purchaseId, amount, date: new Date(date).getTime(), note});
+  
+  savePurchasesData();
+  alert('Pago registrado');
+  
+  document.getElementById('pay-amount').value = '';
+  document.getElementById('pay-date').value = '';
+  document.getElementById('pay-note').value = '';
+  populatePaymentSelect();
+  renderPurchasesList();
+}
+
+function renderReports(){
+  const total = purchases.reduce((a,p) => a+(p.totalCost||0), 0);
+  const paid = purchases.reduce((a,p) => a+(p.paid||0), 0);
+  const pending = total - paid;
+  
+  document.getElementById('report-summary').innerHTML = 
+    '<div style="background:var(--s2);padding:16px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1)"><div style="font-size:12px;color:var(--mu);text-transform:uppercase">Total Compras</div><div style="font-size:28px;font-weight:700">$'+total.toFixed(2)+'</div></div>'+
+    '<div style="background:var(--s2);padding:16px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1)"><div style="font-size:12px;color:var(--mu);text-transform:uppercase">Total Pagado</div><div style="font-size:28px;font-weight:700;color:var(--ok)">$'+paid.toFixed(2)+'</div></div>'+
+    '<div style="background:var(--s2);padding:16px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1)"><div style="font-size:12px;color:var(--mu);text-transform:uppercase">Total Deuda</div><div style="font-size:28px;font-weight:700;color:var(--err)">$'+pending.toFixed(2)+'</div></div>';
+  
+  const bySupplier = {};
+  purchases.forEach(p => {
+    const pending = p.totalCost - (p.paid||0);
+    if(!bySupplier[p.supplier]) bySupplier[p.supplier] = 0;
+    bySupplier[p.supplier] += pending;
+  });
+  
+  document.getElementById('report-suppliers').innerHTML = Object.entries(bySupplier)
+    .filter(([_,debt]) => debt > 0)
+    .map(([supplier,debt]) => '<div style="border:1px solid var(--bd);border-radius:8px;padding:12px;display:flex;justify-content:space-between"><div>'+supplier+'</div><div style="font-weight:700;color:var(--err)">$'+debt.toFixed(2)+'</div></div>')
+    .join('');
+  
+  document.getElementById('report-pending').innerHTML = purchases
+    .filter(p => p.status !== 'pagado')
+    .sort((a,b) => a.date-b.date)
+    .map(p => {
+      const pending = p.totalCost - (p.paid||0);
+      return '<div style="border:1px solid var(--bd);border-radius:8px;padding:12px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-weight:700">'+p.supplier+'</div><div style="font-size:12px;color:var(--mu)">'+new Date(p.date).toLocaleDateString()+'</div></div><div style="text-align:right"><div style="font-weight:700;color:var(--err)">$'+pending.toFixed(2)+'</div><div style="font-size:12px;color:var(--mu)">de $'+(p.totalCost).toFixed(2)+'</div></div></div>';
+    }).join('');
+}
+
+function viewPurchaseDetail(purchaseId){
+  const pur = purchases.find(p => p.id === purchaseId);
+  if(!pur)return;
+  
+  let msg = pur.supplier + '\nFecha: ' + new Date(pur.date).toLocaleDateString() + '\n\nProductos:\n';
+  pur.items.forEach(item => {
+    msg += '- '+item.name+': '+item.qty+' x $'+item.cost.toFixed(2)+' = $'+(item.qty*item.cost).toFixed(2)+'\n';
+  });
+  msg += '\nTotal: $'+(pur.totalCost).toFixed(2)+'\nPagado: $'+(pur.paid||0).toFixed(2)+'\nPendiente: $'+(pur.totalCost-(pur.paid||0)).toFixed(2);
+  
+  alert(msg);
+}
+
+function openPaymentForm(purchaseId){
+  nav('compras', document.querySelector('[onclick*="nav(\'compras\'"]'));
+  setTimeout(() => {
+    showComprasTab('pagos');
+    document.getElementById('pay-purchase').value = purchaseId;
+    updatePaymentBalance();
+  }, 100);
+}
+
+// Inicializar fechas
+document.addEventListener('DOMContentLoaded', () => {
+  if(document.getElementById('newpur-date')) document.getElementById('newpur-date').valueAsDate = new Date();
+  if(document.getElementById('pay-date')) document.getElementById('pay-date').valueAsDate = new Date();
+});
+
 
 </script>
 
