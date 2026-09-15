@@ -837,15 +837,159 @@ function saveEgrData(){
 
 // ──── PROVEEDORES ────
 
+function provShowTab(tab){
+  document.querySelectorAll('[id^="prov-"][id$="-tab"]').forEach(t => t.style.display='none');
+  document.querySelectorAll('[id^="tab-prov-"]').forEach(b => b.classList.remove('bg'));
+  document.getElementById('prov-' + tab + '-tab').style.display = 'block';
+  document.getElementById('tab-prov-' + tab).classList.add('bg');
+  
+  if(tab === 'compras') provRenderCart();
+  if(tab === 'pagos') { provLoadOrders(); if(document.getElementById('prov-date'))document.getElementById('prov-date').valueAsDate=new Date(); }
+  if(tab === 'historial') provRenderHistorial();
+}
 
+function provAddItem(){
+  provCart.push({id:'pi_'+Date.now(), name:'', qty:1, cost:0, iva:0});
+  provRenderCart();
+}
 
+function provRemoveItem(id){
+  provCart = provCart.filter(i => i.id !== id);
+  provRenderCart();
+}
 
+function provUpdateItem(id, field, value){
+  const item = provCart.find(i => i.id === id);
+  if(item) {
+    item[field] = (field === 'qty' || field === 'cost' || field === 'iva') ? parseFloat(value) || 0 : value;
+    provRenderCart();
+  }
+}
 
+function provRenderCart(){
+  const html = provCart.map(item => {
+    const subtotal = item.qty * item.cost * (1 + item.iva/100);
+    return '<div style="display:grid;grid-template-columns:2fr 0.7fr 0.7fr 0.7fr 0.7fr auto;gap:6px;align-items:center;padding:6px;border-bottom:1px solid var(--bd);font-size:.8rem">'+
+      '<input type="text" value="' + (item.name||'') + '" onchange="provUpdateItem(\''+item.id+'\',\'name\',this.value)" placeholder="Producto" style="padding:4px;border:1px solid var(--bd);border-radius:3px">'+
+      '<input type="number" value="' + item.qty + '" onchange="provUpdateItem(\''+item.id+'\',\'qty\',this.value)" min="0.01" step="0.01" style="padding:4px;border:1px solid var(--bd);border-radius:3px;text-align:center">'+
+      '<input type="number" value="' + fn(item.cost) + '" onchange="provUpdateItem(\''+item.id+'\',\'cost\',this.value)" step="0.01" min="0" style="padding:4px;border:1px solid var(--bd);border-radius:3px;text-align:center">'+
+      '<input type="number" value="' + item.iva + '" onchange="provUpdateItem(\''+item.id+'\',\'iva\',this.value)" min="0" max="100" step="0.01" placeholder="0" style="padding:4px;border:1px solid var(--bd);border-radius:3px;text-align:center">'+
+      '<div style="text-align:right;font-weight:600">$' + fn(subtotal) + '</div>'+
+      '<button class="btn bs" onclick="provRemoveItem(\''+item.id+'\')" style="width:28px;height:28px;padding:0;font-size:.9rem">✕</button>'+
+    '</div>';
+  }).join('');
+  
+  document.getElementById('prov-carrito').innerHTML = html || '<div style="padding:20px;text-align:center;color:var(--mu);font-size:.9rem">Sin productos</div>';
+  
+  const total = provCart.reduce((a, i) => a + (i.qty * i.cost * (1 + i.iva/100)), 0);
+  document.getElementById('prov-total').textContent = '$' + fn(total);
+  
+  // Actualizar lista de proveedores
+  const suppliers = new Set(provOrders.map(o => o.supplier));
+  let opts = '';
+  suppliers.forEach(s => { opts += '<option value="' + s + '">'; });
+  document.getElementById('prov-suppliers-list').innerHTML = opts;
+}
 
+function provSaveOrder(){
+  const supplier = document.getElementById('prov-supplier').value.trim();
+  const date = document.getElementById('prov-date').value;
+  const notes = document.getElementById('prov-notes').value;
+  
+  if(!supplier || !date) { alert('Proveedor y fecha son obligatorios'); return; }
+  if(provCart.length === 0) { alert('Agrega productos'); return; }
+  
+  const totalCost = provCart.reduce((a, i) => a + (i.qty * i.cost * (1 + i.iva/100)), 0);
+  
+  provOrders.push({
+    id: 'ord_' + Date.now(),
+    supplier, date: new Date(date).getTime(),
+    items: JSON.parse(JSON.stringify(provCart)),
+    totalCost, paid: 0, status: 'pendiente', notes
+  });
+  
+  saveProvData();
+  alert('Orden creada');
+  
+  provCart = [];
+  document.getElementById('prov-supplier').value = '';
+  document.getElementById('prov-date').value = '';
+  document.getElementById('prov-notes').value = '';
+  provRenderCart();
+}
 
+function provLoadOrders(){
+  const select = document.getElementById('prov-pago-orden');
+  select.innerHTML = '<option value="">-- Seleccionar orden --</option>';
+  
+  provOrders.filter(o => o.paid < o.totalCost).forEach(o => {
+    const pending = o.totalCost - o.paid;
+    select.innerHTML += '<option value="' + o.id + '" data-pending="' + pending + '">' + o.supplier + ' - $' + fn(pending) + ' pendiente</option>';
+  });
+}
 
+function provUpdateBalance(){
+  const sel = document.getElementById('prov-pago-orden');
+  const opt = sel.options[sel.selectedIndex];
+  
+  if(opt.value) {
+    const pending = parseFloat(opt.dataset.pending);
+    document.getElementById('prov-balance-show').style.display = 'block';
+    document.getElementById('prov-balance').textContent = '$' + fn(pending);
+  } else {
+    document.getElementById('prov-balance-show').style.display = 'none';
+  }
+}
 
+function provRegisterPayment(){
+  const orderId = document.getElementById('prov-pago-orden').value;
+  const monto = parseFloat(document.getElementById('prov-pago-monto').value) || 0;
+  const fecha = document.getElementById('prov-pago-fecha').value;
+  
+  if(!orderId || !monto || !fecha) { alert('Completa orden, monto y fecha'); return; }
+  
+  const ord = provOrders.find(o => o.id === orderId);
+  if(!ord) return;
+  
+  ord.paid = (ord.paid || 0) + monto;
+  ord.status = ord.paid >= ord.totalCost ? 'pagado' : 'parcial';
+  
+  provPayments.push({ orderId, supplier: ord.supplier, amount: monto, date: new Date(fecha).getTime() });
+  
+  saveProvData();
+  alert('Pago registrado');
+  
+  document.getElementById('prov-pago-monto').value = '';
+  document.getElementById('prov-pago-fecha').value = '';
+  provLoadOrders();
+  provRenderHistorial();
+}
 
+function provRenderHistorial(){
+  const html = provOrders.sort((a,b) => b.date-a.date).map(o => {
+    const pending = o.totalCost - (o.paid||0);
+    const status = o.status === 'pagado' ? '✓ Pagado' : (o.status === 'parcial' ? '⚠ Parcial' : '🔴 Pendiente');
+    const color = o.status === 'pagado' ? 'var(--ok)' : (o.status === 'parcial' ? 'var(--ac)' : 'var(--err)');
+    
+    return '<div style="border:1px solid var(--bd);border-radius:6px;padding:12px;background:white">'+
+      '<div style="display:flex;justify-content:space-between;margin-bottom:8px">'+
+        '<div><div style="font-weight:700">' + o.supplier + '</div><div style="font-size:.85rem;color:var(--mu)">' + new Date(o.date).toLocaleDateString() + '</div></div>'+
+        '<div style="text-align:right"><div style="font-weight:700">$' + fn(o.totalCost) + '</div><div style="font-size:.85rem;font-weight:600;color:' + color + '">' + status + '</div></div>'+
+      '</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:.85rem;margin-bottom:8px">'+
+        '<div style="background:var(--s2);padding:8px;border-radius:4px"><div style="font-size:.75rem;color:var(--mu)">TOTAL</div>$' + fn(o.totalCost) + '</div>'+
+        '<div style="background:var(--s2);padding:8px;border-radius:4px"><div style="font-size:.75rem;color:var(--mu)">PAGADO</div>$' + fn(o.paid||0) + '</div>'+
+        '<div style="background:var(--s2);padding:8px;border-radius:4px"><div style="font-size:.75rem;color:var(--mu)">PENDIENTE</div>$' + fn(pending) + '</div>'+
+      '</div>'+
+      (o.items ? '<div style="font-size:.8rem;color:var(--mu)">' + o.items.length + ' productos</div>' : '')+
+      (o.notes ? '<div style="font-size:.85rem;background:#f5f5f5;padding:8px;border-radius:4px;margin-top:8px">' + o.notes + '</div>' : '')+
+    '</div>';
+  }).join('');
+  
+  document.getElementById('prov-historial-list').innerHTML = html || '<div style="text-align:center;color:var(--mu);padding:40px">Sin órdenes</div>';
+}
+
+// ──── EGRESOS ────
 
 function egrSave(){
   const desc = document.getElementById('egr-desc').value.trim();
@@ -891,209 +1035,163 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 // ════════════════════════════════════════════════════════════════════════════════
-// PROVEEDORES - MODULO FUNCIONAL
+// PROVEEDORES - ULTRA SIMPLE
 // ════════════════════════════════════════════════════════════════════════════════
 
-let provOrders = JSON.parse(localStorage.getItem('prov_ord')) || [];
-let provPayments = JSON.parse(localStorage.getItem('prov_pag')) || [];
-let provCart = [];
+let provOrd = JSON.parse(localStorage.getItem('prov_ord')) || [];
+let provItems = [];
 
-function saveProvData(){
-  localStorage.setItem('prov_ord', JSON.stringify(provOrders));
-  localStorage.setItem('prov_pag', JSON.stringify(provPayments));
-}
+function saveProv(){ localStorage.setItem('prov_ord', JSON.stringify(provOrd)); }
 
-// Tab switching
-document.addEventListener('DOMContentLoaded', () => {
-  // Proveedores tabs
-  document.querySelectorAll('[data-prov-tab]').forEach(btn => {
-    btn.addEventListener('click', function(){
-      const tab = this.dataset.provTab;
-      document.querySelectorAll('[id^="prov-tab-"]').forEach(t => t.style.display='none');
-      document.querySelectorAll('[data-prov-tab]').forEach(b => b.classList.remove('bg'));
-      document.getElementById('prov-tab-' + tab).style.display = 'block';
-      this.classList.add('bg');
-      
-      if(tab === 'compras') provRenderCart();
-      if(tab === 'pagos') { provLoadPaymentOrders(); if($i('prov-pago-fecha'))$i('prov-pago-fecha').valueAsDate=new Date(); }
-      if(tab === 'historial') provRenderHistorial();
-    });
+function provShowTab(tab){
+  ['compras', 'pagos', 'historial'].forEach(t => {
+    $i('prov-tab-'+t).style.display = (t === tab ? 'block' : 'none');
   });
   
-  // Buttons
-  document.getElementById('prov-add-btn')?.addEventListener('click', provAddItem);
-  document.getElementById('prov-save-btn')?.addEventListener('click', provSaveOrder);
-  document.getElementById('prov-pago-btn')?.addEventListener('click', provRegisterPayment);
-  document.getElementById('prov-pago-orden')?.addEventListener('change', provUpdateBalance);
+  if(tab === 'pagos') { provLoadOrd(); $i('prov-pag-fec').valueAsDate = new Date(); }
+  if(tab === 'historial') provShowHist();
+}
+
+function provAddProd(){
+  const name = $i('prov-prod').value.trim();
+  const qty = parseFloat($i('prov-qty').value) || 0;
+  const cost = parseFloat($i('prov-cost').value) || 0;
+  const iva = parseFloat($i('prov-iva').value) || 0;
   
-  // Initialize
-  if($i('prov-date')) $i('prov-date').valueAsDate = new Date();
-  if($i('prov-pago-fecha')) $i('prov-pago-fecha').valueAsDate = new Date();
+  if(!name || !qty || !cost) { alert('Completa Producto, Cantidad y Costo'); return; }
   
-  provRenderCart();
-  egrRender();
-});
-
-// ────── COMPRAS ──────
-
-function provAddItem(){
-  provCart.push({idx: Date.now(), name: '', qty: 1, cost: 0, iva: 0});
-  provRenderCart();
+  provItems.push({name, qty, cost, iva});
+  
+  $i('prov-prod').value = '';
+  $i('prov-qty').value = '';
+  $i('prov-cost').value = '';
+  $i('prov-iva').value = '';
+  
+  provRenderList();
 }
 
-function provRemoveItem(idx){
-  provCart = provCart.filter((i,x) => x !== idx);
-  provRenderCart();
-}
-
-function provUpdateItem(idx, field, value){
-  if(provCart[idx]) {
-    provCart[idx][field] = (field === 'qty' || field === 'cost' || field === 'iva') ? parseFloat(value)||0 : value;
-    provRenderCart();
-  }
-}
-
-function provRenderCart(){
+function provRenderList(){
   let html = '';
-  provCart.forEach((item, idx) => {
+  provItems.forEach((item, i) => {
     const sub = item.qty * item.cost * (1 + item.iva/100);
-    html += '<div style="display:grid;grid-template-columns:2fr 0.6fr 0.7fr 0.7fr 0.7fr auto;gap:6px;align-items:center;padding:6px;border-bottom:1px solid var(--bd);font-size:.75rem">'+
-      '<input type="text" value="'+(item.name||'')+'" style="padding:4px;border:1px solid var(--bd);border-radius:3px" data-prov-field="name" data-prov-idx="'+idx+'">'+
-      '<input type="number" value="'+item.qty+'" style="padding:4px;border:1px solid var(--bd);border-radius:3px;text-align:center" data-prov-field="qty" data-prov-idx="'+idx+'" min="0.01" step="0.01">'+
-      '<input type="number" value="'+fn(item.cost)+'" style="padding:4px;border:1px solid var(--bd);border-radius:3px;text-align:center" data-prov-field="cost" data-prov-idx="'+idx+'" step="0.01" min="0">'+
-      '<input type="number" value="'+item.iva+'" style="padding:4px;border:1px solid var(--bd);border-radius:3px;text-align:center" data-prov-field="iva" data-prov-idx="'+idx+'" min="0" max="100" step="0.01">'+
-      '<div style="text-align:right;font-weight:600">$'+fn(sub)+'</div>'+
-      '<button class="btn bs" style="width:24px;height:24px;padding:0;font-size:.9rem" data-prov-delete="'+idx+'">✕</button>'+
+    html += '<div style="padding:8px;background:white;border-radius:4px;margin-bottom:8px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center">'+
+        '<div style="flex:1">'+
+          '<div style="font-weight:600">'+item.name+'</div>'+
+          '<div style="font-size:.85rem;color:#666">'+item.qty+' × $'+fn(item.cost)+' + IVA '+item.iva+'%</div>'+
+        '</div>'+
+        '<div style="text-align:right;margin-right:10px">'+
+          '<div style="font-weight:700">$'+fn(sub)+'</div>'+
+        '</div>'+
+        '<button class="btn bs" onclick="provItems.splice('+i+',1);provRenderList()" style="width:30px;height:30px;padding:0">✕</button>'+
+      '</div>'+
     '</div>';
   });
   
-  $i('prov-items-list').innerHTML = html || '<div style="padding:20px;text-align:center;color:var(--mu)">Sin productos</div>';
+  $i('prov-list').innerHTML = html || '<div style="color:#999;text-align:center;padding:20px">Sin productos</div>';
   
-  // Event listeners para inputs
-  document.querySelectorAll('[data-prov-field]').forEach(inp => {
-    inp.addEventListener('change', function(){
-      const idx = parseInt(this.dataset.provIdx);
-      const field = this.dataset.provField;
-      provUpdateItem(idx, field, this.value);
-    });
-  });
-  
-  // Event listeners para eliminar
-  document.querySelectorAll('[data-prov-delete]').forEach(btn => {
-    btn.addEventListener('click', function(){
-      const idx = parseInt(this.dataset.provDelete);
-      provRemoveItem(idx);
-    });
-  });
-  
-  // Actualizar total
-  const total = provCart.reduce((a, i) => a + (i.qty * i.cost * (1 + i.iva/100)), 0);
-  $i('prov-total').textContent = '$' + fn(total);
+  const total = provItems.reduce((a, x) => a + (x.qty * x.cost * (1 + x.iva/100)), 0);
+  $i('prov-tot').textContent = '$' + fn(total);
 }
 
-function provSaveOrder(){
-  const supplier = $i('prov-name').value.trim();
-  const date = $i('prov-date').value;
-  const notes = $i('prov-notes').value;
+function provCreate(){
+  const sup = $i('prov-sup').value.trim();
+  const fec = $i('prov-fec').value;
   
-  if(!supplier || !date) { alert('Proveedor y fecha requeridos'); return; }
-  if(provCart.length === 0) { alert('Agrega productos'); return; }
+  if(!sup || !fec) { alert('Proveedor y Fecha requeridos'); return; }
+  if(provItems.length === 0) { alert('Agrega al menos un producto'); return; }
   
-  const total = provCart.reduce((a, i) => a + (i.qty * i.cost * (1 + i.iva/100)), 0);
+  const total = provItems.reduce((a, x) => a + (x.qty * x.cost * (1 + x.iva/100)), 0);
   
-  provOrders.push({
+  provOrd.push({
     id: 'ord_' + Date.now(),
-    supplier, date: new Date(date).getTime(),
-    items: JSON.parse(JSON.stringify(provCart)),
-    total, paid: 0, status: 'pendiente', notes
+    supplier: sup,
+    date: new Date(fec).getTime(),
+    items: JSON.parse(JSON.stringify(provItems)),
+    total, paid: 0, status: 'pendiente'
   });
   
-  saveProvData();
+  saveProv();
   alert('Orden creada');
   
-  provCart = [];
-  $i('prov-name').value = '';
-  $i('prov-date').value = '';
-  $i('prov-notes').value = '';
-  provRenderCart();
+  provItems = [];
+  $i('prov-sup').value = '';
+  $i('prov-fec').value = '';
+  provRenderList();
 }
 
-// ────── PAGOS ──────
-
-function provLoadPaymentOrders(){
-  const sel = $i('prov-pago-orden');
-  sel.innerHTML = '<option value="">-- Seleccionar orden --</option>';
+function provLoadOrd(){
+  const sel = $i('prov-sel-ord');
+  sel.innerHTML = '<option>-- Seleccionar --</option>';
   
-  provOrders.filter(o => o.paid < o.total).forEach(o => {
+  provOrd.filter(o => o.paid < o.total).forEach(o => {
     const pending = o.total - o.paid;
     sel.innerHTML += '<option value="'+o.id+'" data-pending="'+pending+'">'+o.supplier+' - $'+fn(pending)+' pendiente</option>';
   });
 }
 
-function provUpdateBalance(){
-  const sel = $i('prov-pago-orden');
+function provChgOrd(){
+  const sel = $i('prov-sel-ord');
   const opt = sel.options[sel.selectedIndex];
   
-  if(opt.value) {
-    const pending = parseFloat(opt.dataset.pending);
-    $i('prov-balance-box').style.display = 'block';
-    $i('prov-balance-amt').textContent = '$' + fn(pending);
+  if(opt.value && opt.value !== '-- Seleccionar --') {
+    const pending = parseFloat(opt.dataset.pending) || 0;
+    $i('prov-bal-div').style.display = 'block';
+    $i('prov-bal').textContent = '$' + fn(pending);
   } else {
-    $i('prov-balance-box').style.display = 'none';
+    $i('prov-bal-div').style.display = 'none';
   }
 }
 
-function provRegisterPayment(){
-  const ordId = $i('prov-pago-orden').value;
-  const monto = parseFloat($i('prov-pago-monto').value) || 0;
-  const fecha = $i('prov-pago-fecha').value;
+function provPagReg(){
+  const ordId = $i('prov-sel-ord').value;
+  const amt = parseFloat($i('prov-pag-mon').value) || 0;
+  const fec = $i('prov-pag-fec').value;
   
-  if(!ordId || !monto || !fecha) { alert('Completa orden, monto y fecha'); return; }
+  if(!ordId || ordId === '-- Seleccionar --' || !amt || !fec) { alert('Completa todos los campos'); return; }
   
-  const ord = provOrders.find(o => o.id === ordId);
+  const ord = provOrd.find(o => o.id === ordId);
   if(!ord) return;
   
-  ord.paid = (ord.paid || 0) + monto;
+  ord.paid = (ord.paid || 0) + amt;
   ord.status = ord.paid >= ord.total ? 'pagado' : 'parcial';
   
-  provPayments.push({
-    ordId, supplier: ord.supplier,
-    amount: monto, date: new Date(fecha).getTime()
-  });
+  saveProv();
+  alert('Pago registrado: $' + fn(amt));
   
-  saveProvData();
-  alert('Pago registrado');
+  $i('prov-pag-mon').value = '';
+  $i('prov-pag-fec').value = '';
+  $i('prov-sel-ord').value = '';
+  $i('prov-bal-div').style.display = 'none';
   
-  $i('prov-pago-monto').value = '';
-  $i('prov-pago-fecha').value = '';
-  provLoadPaymentOrders();
-  provRenderHistorial();
+  provLoadOrd();
+  provShowHist();
 }
 
-// ────── HISTORIAL ──────
-
-function provRenderHistorial(){
-  const html = provOrders.sort((a,b) => b.date-a.date).map(o => {
+function provShowHist(){
+  const html = provOrd.sort((a,b) => b.date-a.date).map(o => {
     const pending = o.total - (o.paid||0);
-    const status = o.status === 'pagado' ? '✓ Pagado' : (o.status === 'parcial' ? '⚠ Parcial' : '🔴 Pendiente');
-    const color = o.status === 'pagado' ? 'var(--ok)' : (o.status === 'parcial' ? 'var(--ac)' : 'var(--err)');
+    const st = o.status === 'pagado' ? '✓' : (o.status === 'parcial' ? '⚠' : '🔴');
+    const col = o.status === 'pagado' ? '#4caf50' : (o.status === 'parcial' ? '#ff9800' : '#f44336');
     
-    return '<div style="border:1px solid var(--bd);border-radius:6px;padding:12px;background:white">'+
-      '<div style="display:flex;justify-content:space-between;margin-bottom:8px">'+
-        '<div><div style="font-weight:700">'+o.supplier+'</div><div style="font-size:.85rem;color:var(--mu)">'+new Date(o.date).toLocaleDateString()+'</div></div>'+
-        '<div style="text-align:right"><div style="font-weight:700">$'+fn(o.total)+'</div><div style="font-size:.85rem;font-weight:600;color:'+color+'">'+status+'</div></div>'+
+    return '<div style="border:1px solid #ccc;border-radius:6px;padding:12px;margin-bottom:12px;background:white">'+
+      '<div style="display:flex;justify-content:space-between">'+
+        '<div><div style="font-weight:700">'+o.supplier+'</div><div style="font-size:.85rem;color:#999">'+new Date(o.date).toLocaleDateString()+'</div></div>'+
+        '<div style="text-align:right"><div style="font-weight:700;color:'+col+'">'+st+' $'+fn(o.total)+'</div><div style="font-size:.85rem">Pagado: $'+fn(o.paid||0)+'</div></div>'+
       '</div>'+
-      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:.85rem;margin-bottom:8px">'+
-        '<div style="background:var(--s2);padding:8px;border-radius:4px"><div style="font-size:.75rem;color:var(--mu)">TOTAL</div>$'+fn(o.total)+'</div>'+
-        '<div style="background:var(--s2);padding:8px;border-radius:4px"><div style="font-size:.75rem;color:var(--mu)">PAGADO</div>$'+fn(o.paid||0)+'</div>'+
-        '<div style="background:var(--s2);padding:8px;border-radius:4px"><div style="font-size:.75rem;color:var(--mu)">PENDIENTE</div>$'+fn(pending)+'</div>'+
-      '</div>'+
-      (o.notes ? '<div style="font-size:.8rem;background:#f5f5f5;padding:8px;border-radius:4px">'+o.notes+'</div>' : '')+
+      '<div style="margin-top:8px;font-size:.85rem;color:#666">Pendiente: $'+fn(pending)+'</div>'+
     '</div>';
   }).join('');
   
-  $i('prov-historial-list').innerHTML = html || '<div style="text-align:center;color:var(--mu);padding:40px">Sin órdenes</div>';
+  $i('prov-hist-div').innerHTML = html || '<div style="text-align:center;color:#999;padding:40px">Sin órdenes</div>';
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+  if($i('prov-fec')) $i('prov-fec').valueAsDate = new Date();
+  if($i('prov-pag-fec')) $i('prov-pag-fec').valueAsDate = new Date();
+  provRenderList();
+  egrRender();
+});
 
 </script>
 <style>
@@ -1780,6 +1878,106 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
 
 
 
+<!-- PROVEEDORES -->
+    <div class="view" id="view-proveedores">
+      <div style="padding:20px;max-width:1400px;margin:0 auto">
+        <h2>🏭 PROVEEDORES</h2>
+        
+        <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:2px solid var(--bd);flex-wrap:wrap">
+          <button class="btn bg" id="tab-prov-compras" onclick="provShowTab('compras')" style="border-bottom:3px solid var(--ac);margin-bottom:-2px">🛒 Compras</button>
+          <button class="btn" id="tab-prov-pagos" onclick="provShowTab('pagos')">💳 Pagos</button>
+          <button class="btn" id="tab-prov-historial" onclick="provShowTab('historial')">📋 Historial</button>
+        </div>
+        
+        <!-- COMPRAS CON CARRITO -->
+        <div id="prov-compras-tab" style="display:block">
+          <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px">
+            <div>
+              <h3>Productos a Comprar</h3>
+              <div style="border:1px solid var(--bd);border-radius:8px;overflow:hidden">
+                <div style="display:grid;grid-template-columns:2fr 0.7fr 0.7fr 0.7fr 0.7fr auto;gap:6px;background:var(--bd);padding:8px;font-weight:600;font-size:.8rem">
+                  <div>Producto</div>
+                  <div style="text-align:center">Cant</div>
+                  <div style="text-align:center">Costo</div>
+                  <div style="text-align:center">IVA %</div>
+                  <div style="text-align:right">Subtotal</div>
+                  <div></div>
+                </div>
+                <div id="prov-carrito" style="max-height:400px;overflow-y:auto"></div>
+              </div>
+              <button class="btn bg" onclick="provAddItem()" style="width:100%;margin-top:8px">+ Producto</button>
+            </div>
+            
+            <div style="background:var(--s2);padding:16px;border-radius:8px;height:fit-content">
+              <h3 style="margin-top:0">Datos Orden</h3>
+              
+              <div style="margin-bottom:12px">
+                <label style="display:block;font-weight:600;margin-bottom:4px">Proveedor *</label>
+                <input type="text" id="prov-supplier" placeholder="Nombre" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px" list="prov-suppliers-list">
+                <datalist id="prov-suppliers-list"></datalist>
+              </div>
+              
+              <div style="margin-bottom:12px">
+                <label style="display:block;font-weight:600;margin-bottom:4px">Fecha *</label>
+                <input type="date" id="prov-date" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
+              </div>
+              
+              <div style="margin-bottom:12px">
+                <label style="display:block;font-weight:600;margin-bottom:4px">Notas</label>
+                <textarea id="prov-notes" placeholder="..." style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px;resize:none;height:60px"></textarea>
+              </div>
+              
+              <div style="background:white;padding:12px;border-radius:6px;margin-bottom:12px">
+                <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:.9rem">
+                  <span>Total:</span>
+                  <span id="prov-total" style="font-weight:700">$0</span>
+                </div>
+              </div>
+              
+              <button class="btn bg" onclick="provSaveOrder()" style="width:100%;padding:10px;font-weight:600">Crear Orden</button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- PAGOS -->
+        <div id="prov-pagos-tab" style="display:none;max-width:600px">
+          <div style="background:var(--s2);padding:16px;border-radius:8px">
+            <h3 style="margin-top:0">Registrar Pago</h3>
+            
+            <div style="margin-bottom:12px">
+              <label style="display:block;font-weight:600;margin-bottom:4px">Orden *</label>
+              <select id="prov-pago-orden" onchange="provUpdateBalance()" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
+                <option value="">-- Seleccionar --</option>
+              </select>
+            </div>
+            
+            <div id="prov-balance-show" style="display:none;background:white;padding:12px;border-radius:6px;margin-bottom:12px">
+              <div style="font-size:.85rem;color:var(--mu);margin-bottom:4px">Saldo pendiente</div>
+              <div id="prov-balance" style="font-size:20px;font-weight:700;color:var(--err)">$0</div>
+            </div>
+            
+            <div style="margin-bottom:12px">
+              <label style="display:block;font-weight:600;margin-bottom:4px">Monto *</label>
+              <input type="number" id="prov-pago-monto" placeholder="0.00" step="0.01" min="0" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
+            </div>
+            
+            <div style="margin-bottom:12px">
+              <label style="display:block;font-weight:600;margin-bottom:4px">Fecha *</label>
+              <input type="date" id="prov-pago-fecha" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
+            </div>
+            
+            <button class="btn bg" onclick="provRegisterPayment()" style="width:100%;padding:10px;font-weight:600">Registrar Pago</button>
+          </div>
+        </div>
+        
+        <!-- HISTORIAL -->
+        <div id="prov-historial-tab" style="display:none">
+          <h3>Órdenes de Compra</h3>
+          <div id="prov-historial-list" style="display:grid;gap:12px"></div>
+        </div>
+      </div>
+    </div>
+
 <!-- EGRESOS -->
     <div class="view" id="view-egresos">
       <div style="padding:20px;max-width:600px">
@@ -1811,87 +2009,89 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
       </div>
     </div>
 
-
 <!-- PROVEEDORES -->
     <div class="view" id="view-proveedores">
-      <div style="padding:20px;max-width:1200px;margin:0 auto">
+      <div style="padding:20px;max-width:900px">
         <h2>🏭 PROVEEDORES</h2>
         
-        <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
-          <button class="btn bg" data-prov-tab="compras" style="border-bottom:3px solid var(--ac);margin-bottom:-2px">🛒 Compras</button>
-          <button class="btn" data-prov-tab="pagos">💳 Pagos</button>
-          <button class="btn" data-prov-tab="historial">📋 Historial</button>
+        <div style="margin-bottom:20px">
+          <button class="btn bg" onclick="provShowTab('compras')" style="margin-right:10px">🛒 Compras</button>
+          <button class="btn" onclick="provShowTab('pagos')">💳 Pagos</button>
+          <button class="btn" onclick="provShowTab('historial')">📋 Historial</button>
         </div>
         
         <!-- COMPRAS -->
-        <div id="prov-tab-compras" style="display:block">
-          <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px">
-            <div>
-              <h3>Productos a Comprar</h3>
-              <div style="border:1px solid var(--bd);border-radius:8px;overflow:hidden">
-                <div style="display:grid;grid-template-columns:2fr 0.6fr 0.7fr 0.7fr 0.7fr auto;gap:6px;background:var(--bd);padding:8px;font-weight:600;font-size:.8rem">
-                  <div>Producto</div><div>Cant</div><div>Costo</div><div>IVA%</div><div>Subtotal</div><div></div>
-                </div>
-                <div id="prov-items-list"></div>
-              </div>
-              <button class="btn bg" id="prov-add-btn" style="width:100%;margin-top:8px">+ Producto</button>
+        <div id="prov-tab-compras">
+          <div style="background:white;border:1px solid #ccc;border-radius:8px;padding:16px">
+            <h3>Nueva Orden</h3>
+            
+            <div style="margin-bottom:12px">
+              <label>Proveedor *</label>
+              <input type="text" id="prov-sup" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px">
             </div>
             
-            <div style="background:var(--s2);padding:16px;border-radius:8px;height:fit-content">
-              <h3 style="margin-top:0">Orden</h3>
-              <div style="margin-bottom:12px">
-                <label style="display:block;font-weight:600;margin-bottom:4px">Proveedor *</label>
-                <input type="text" id="prov-name" placeholder="Nombre" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
-              </div>
-              <div style="margin-bottom:12px">
-                <label style="display:block;font-weight:600;margin-bottom:4px">Fecha *</label>
-                <input type="date" id="prov-date" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
-              </div>
-              <div style="margin-bottom:12px">
-                <label style="display:block;font-weight:600;margin-bottom:4px">Notas</label>
-                <textarea id="prov-notes" placeholder="..." style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px;resize:none;height:60px"></textarea>
-              </div>
-              <div style="background:white;padding:12px;border-radius:6px;margin-bottom:12px">
-                <div style="display:flex;justify-content:space-between">
-                  <span>TOTAL:</span>
-                  <span id="prov-total" style="font-weight:700">$0</span>
-                </div>
-              </div>
-              <button class="btn bg" id="prov-save-btn" style="width:100%;padding:10px;font-weight:600">Crear Orden</button>
+            <div style="margin-bottom:12px">
+              <label>Fecha *</label>
+              <input type="date" id="prov-fec" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px">
             </div>
+            
+            <div style="margin-bottom:12px">
+              <label>Producto</label>
+              <input type="text" id="prov-prod" placeholder="Nombre" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;margin-bottom:8px">
+              
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px">
+                <input type="number" id="prov-qty" placeholder="Cantidad" step="0.01" min="0" style="padding:8px;border:1px solid #ccc;border-radius:4px">
+                <input type="number" id="prov-cost" placeholder="Costo" step="0.01" min="0" style="padding:8px;border:1px solid #ccc;border-radius:4px">
+                <input type="number" id="prov-iva" placeholder="IVA %" step="0.01" min="0" max="100" style="padding:8px;border:1px solid #ccc;border-radius:4px">
+                <button class="btn" onclick="provAddProd()" style="padding:8px">Agregar</button>
+              </div>
+            </div>
+            
+            <div style="background:#f5f5f5;padding:12px;border-radius:4px;margin-bottom:12px;max-height:300px;overflow-y:auto">
+              <div id="prov-list"></div>
+            </div>
+            
+            <div style="background:#f0f0f0;padding:12px;border-radius:4px;margin-bottom:12px">
+              <div style="font-weight:700;font-size:18px">Total: <span id="prov-tot">$0</span></div>
+            </div>
+            
+            <button class="btn bg" onclick="provCreate()" style="width:100%;padding:10px;font-weight:600">Crear Orden</button>
           </div>
         </div>
         
         <!-- PAGOS -->
-        <div id="prov-tab-pagos" style="display:none;max-width:600px">
-          <div style="background:var(--s2);padding:16px;border-radius:8px">
-            <h3 style="margin-top:0">Registrar Pago</h3>
+        <div id="prov-tab-pagos" style="display:none">
+          <div style="background:white;border:1px solid #ccc;border-radius:8px;padding:16px;max-width:500px">
+            <h3>Registrar Pago</h3>
+            
             <div style="margin-bottom:12px">
-              <label style="display:block;font-weight:600;margin-bottom:4px">Orden *</label>
-              <select id="prov-pago-orden" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
-                <option value="">-- Seleccionar --</option>
+              <label>Orden *</label>
+              <select id="prov-sel-ord" onchange="provChgOrd()" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px">
+                <option>-- Seleccionar --</option>
               </select>
             </div>
-            <div id="prov-balance-box" style="display:none;background:white;padding:12px;border-radius:6px;margin-bottom:12px">
-              <div style="font-size:.85rem;color:var(--mu)">Saldo pendiente</div>
-              <div id="prov-balance-amt" style="font-size:20px;font-weight:700;color:var(--err)">$0</div>
+            
+            <div id="prov-bal-div" style="display:none;background:#fff3cd;padding:12px;border-radius:4px;margin-bottom:12px">
+              Saldo pendiente: <span id="prov-bal" style="font-weight:700;font-size:16px;color:red">$0</span>
             </div>
+            
             <div style="margin-bottom:12px">
-              <label style="display:block;font-weight:600;margin-bottom:4px">Monto *</label>
-              <input type="number" id="prov-pago-monto" placeholder="0.00" step="0.01" min="0" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
+              <label>Monto *</label>
+              <input type="number" id="prov-pag-mon" placeholder="0.00" step="0.01" min="0" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px">
             </div>
+            
             <div style="margin-bottom:12px">
-              <label style="display:block;font-weight:600;margin-bottom:4px">Fecha *</label>
-              <input type="date" id="prov-pago-fecha" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
+              <label>Fecha *</label>
+              <input type="date" id="prov-pag-fec" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px">
             </div>
-            <button class="btn bg" id="prov-pago-btn" style="width:100%;padding:10px;font-weight:600">Registrar Pago</button>
+            
+            <button class="btn bg" onclick="provPagReg()" style="width:100%;padding:10px;font-weight:600">Registrar Pago</button>
           </div>
         </div>
         
         <!-- HISTORIAL -->
         <div id="prov-tab-historial" style="display:none">
-          <h3>Órdenes</h3>
-          <div id="prov-historial-list" style="display:grid;gap:12px"></div>
+          <div id="prov-hist-div"></div>
         </div>
       </div>
     </div>
@@ -2453,7 +2653,11 @@ function initUsers(){if(!users.length){users=[{id:'u1',name:'Administrador',role
 function roleL(r){return{admin:'Administrador',vendedor:'Vendedor',deposito:'Depósito'}[r]||r;}
 function renderLoginUsers(){
   if(!users||!users.length)initUsers();
-  $i('login-users').innerHTML=users.map(u=>'<button class="ubtn" onclick="loginAs(\''+u.id+'\')">'+'<div class="uav">'+( u.avatar||'👤')+'</div><div><div class="uname">'+u.name+'</div><div class="urole">'+roleL(u.role)+'</div></div></button>').join('');
+  let html = '';
+  users.forEach(u => {
+    html += '<button class="ubtn" onclick="loginAs(\''+u.id+'\')"><div class="uav">'+( u.avatar||'👤')+'</div><div><div class="uname">'+u.name+'</div><div class="urole">'+roleL(u.role)+'</div></div></button>';
+  });
+  $i('login-users').innerHTML = html;
 }
 function loginAs(id){const u=users.find(x=>x.id===id);if(u){currentUser=u;startApp();}}
 function loginPin(){
@@ -4786,210 +4990,163 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 // ════════════════════════════════════════════════════════════════════════════════
-// PROVEEDORES - MODULO FUNCIONAL
+// PROVEEDORES - ULTRA SIMPLE
 // ════════════════════════════════════════════════════════════════════════════════
 
-let provOrders = JSON.parse(localStorage.getItem('prov_ord')) || [];
-let provPayments = JSON.parse(localStorage.getItem('prov_pag')) || [];
-let provCart = [];
+let provOrd = JSON.parse(localStorage.getItem('prov_ord')) || [];
+let provItems = [];
 
-function saveProvData(){
-  localStorage.setItem('prov_ord', JSON.stringify(provOrders));
-  localStorage.setItem('prov_pag', JSON.stringify(provPayments));
-}
+function saveProv(){ localStorage.setItem('prov_ord', JSON.stringify(provOrd)); }
 
-// Tab switching
-document.addEventListener('DOMContentLoaded', () => {
-  // Proveedores tabs
-  document.querySelectorAll('[data-prov-tab]').forEach(btn => {
-    btn.addEventListener('click', function(){
-      const tab = this.dataset.provTab;
-      document.querySelectorAll('[id^="prov-tab-"]').forEach(t => t.style.display='none');
-      document.querySelectorAll('[data-prov-tab]').forEach(b => b.classList.remove('bg'));
-      document.getElementById('prov-tab-' + tab).style.display = 'block';
-      this.classList.add('bg');
-      
-      if(tab === 'compras') provRenderCart();
-      if(tab === 'pagos') { provLoadPaymentOrders(); if($i('prov-pago-fecha'))$i('prov-pago-fecha').valueAsDate=new Date(); }
-      if(tab === 'historial') provRenderHistorial();
-    });
+function provShowTab(tab){
+  ['compras', 'pagos', 'historial'].forEach(t => {
+    $i('prov-tab-'+t).style.display = (t === tab ? 'block' : 'none');
   });
   
-  // Buttons
-  document.getElementById('prov-add-btn')?.addEventListener('click', provAddItem);
-  document.getElementById('prov-save-btn')?.addEventListener('click', provSaveOrder);
-  document.getElementById('prov-pago-btn')?.addEventListener('click', provRegisterPayment);
-  document.getElementById('prov-pago-orden')?.addEventListener('change', provUpdateBalance);
+  if(tab === 'pagos') { provLoadOrd(); $i('prov-pag-fec').valueAsDate = new Date(); }
+  if(tab === 'historial') provShowHist();
+}
+
+function provAddProd(){
+  const name = $i('prov-prod').value.trim();
+  const qty = parseFloat($i('prov-qty').value) || 0;
+  const cost = parseFloat($i('prov-cost').value) || 0;
+  const iva = parseFloat($i('prov-iva').value) || 0;
   
-  // Initialize
-  if($i('prov-date')) $i('prov-date').valueAsDate = new Date();
-  if($i('prov-pago-fecha')) $i('prov-pago-fecha').valueAsDate = new Date();
+  if(!name || !qty || !cost) { alert('Completa Producto, Cantidad y Costo'); return; }
   
-  provRenderCart();
-  egrRender();
-});
-
-// ────── COMPRAS ──────
-
-function provAddItem(){
-  provCart.push({idx: Date.now(), name: '', qty: 1, cost: 0, iva: 0});
-  provRenderCart();
+  provItems.push({name, qty, cost, iva});
+  
+  $i('prov-prod').value = '';
+  $i('prov-qty').value = '';
+  $i('prov-cost').value = '';
+  $i('prov-iva').value = '';
+  
+  provRenderList();
 }
 
-function provRemoveItem(idx){
-  provCart = provCart.filter((i,x) => x !== idx);
-  provRenderCart();
-}
-
-function provUpdateItem(idx, field, value){
-  if(provCart[idx]) {
-    provCart[idx][field] = (field === 'qty' || field === 'cost' || field === 'iva') ? parseFloat(value)||0 : value;
-    provRenderCart();
-  }
-}
-
-function provRenderCart(){
+function provRenderList(){
   let html = '';
-  provCart.forEach((item, idx) => {
+  provItems.forEach((item, i) => {
     const sub = item.qty * item.cost * (1 + item.iva/100);
-    html += '<div style="display:grid;grid-template-columns:2fr 0.6fr 0.7fr 0.7fr 0.7fr auto;gap:6px;align-items:center;padding:6px;border-bottom:1px solid var(--bd);font-size:.75rem">'+
-      '<input type="text" value="'+(item.name||'')+'" style="padding:4px;border:1px solid var(--bd);border-radius:3px" data-prov-field="name" data-prov-idx="'+idx+'">'+
-      '<input type="number" value="'+item.qty+'" style="padding:4px;border:1px solid var(--bd);border-radius:3px;text-align:center" data-prov-field="qty" data-prov-idx="'+idx+'" min="0.01" step="0.01">'+
-      '<input type="number" value="'+fn(item.cost)+'" style="padding:4px;border:1px solid var(--bd);border-radius:3px;text-align:center" data-prov-field="cost" data-prov-idx="'+idx+'" step="0.01" min="0">'+
-      '<input type="number" value="'+item.iva+'" style="padding:4px;border:1px solid var(--bd);border-radius:3px;text-align:center" data-prov-field="iva" data-prov-idx="'+idx+'" min="0" max="100" step="0.01">'+
-      '<div style="text-align:right;font-weight:600">$'+fn(sub)+'</div>'+
-      '<button class="btn bs" style="width:24px;height:24px;padding:0;font-size:.9rem" data-prov-delete="'+idx+'">✕</button>'+
+    html += '<div style="padding:8px;background:white;border-radius:4px;margin-bottom:8px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center">'+
+        '<div style="flex:1">'+
+          '<div style="font-weight:600">'+item.name+'</div>'+
+          '<div style="font-size:.85rem;color:#666">'+item.qty+' × $'+fn(item.cost)+' + IVA '+item.iva+'%</div>'+
+        '</div>'+
+        '<div style="text-align:right;margin-right:10px">'+
+          '<div style="font-weight:700">$'+fn(sub)+'</div>'+
+        '</div>'+
+        '<button class="btn bs" onclick="provItems.splice('+i+',1);provRenderList()" style="width:30px;height:30px;padding:0">✕</button>'+
+      '</div>'+
     '</div>';
   });
   
-  $i('prov-items-list').innerHTML = html || '<div style="padding:20px;text-align:center;color:var(--mu)">Sin productos</div>';
+  $i('prov-list').innerHTML = html || '<div style="color:#999;text-align:center;padding:20px">Sin productos</div>';
   
-  // Event listeners para inputs
-  document.querySelectorAll('[data-prov-field]').forEach(inp => {
-    inp.addEventListener('change', function(){
-      const idx = parseInt(this.dataset.provIdx);
-      const field = this.dataset.provField;
-      provUpdateItem(idx, field, this.value);
-    });
-  });
-  
-  // Event listeners para eliminar
-  document.querySelectorAll('[data-prov-delete]').forEach(btn => {
-    btn.addEventListener('click', function(){
-      const idx = parseInt(this.dataset.provDelete);
-      provRemoveItem(idx);
-    });
-  });
-  
-  // Actualizar total
-  const total = provCart.reduce((a, i) => a + (i.qty * i.cost * (1 + i.iva/100)), 0);
-  $i('prov-total').textContent = '$' + fn(total);
+  const total = provItems.reduce((a, x) => a + (x.qty * x.cost * (1 + x.iva/100)), 0);
+  $i('prov-tot').textContent = '$' + fn(total);
 }
 
-function provSaveOrder(){
-  const supplier = $i('prov-name').value.trim();
-  const date = $i('prov-date').value;
-  const notes = $i('prov-notes').value;
+function provCreate(){
+  const sup = $i('prov-sup').value.trim();
+  const fec = $i('prov-fec').value;
   
-  if(!supplier || !date) { alert('Proveedor y fecha requeridos'); return; }
-  if(provCart.length === 0) { alert('Agrega productos'); return; }
+  if(!sup || !fec) { alert('Proveedor y Fecha requeridos'); return; }
+  if(provItems.length === 0) { alert('Agrega al menos un producto'); return; }
   
-  const total = provCart.reduce((a, i) => a + (i.qty * i.cost * (1 + i.iva/100)), 0);
+  const total = provItems.reduce((a, x) => a + (x.qty * x.cost * (1 + x.iva/100)), 0);
   
-  provOrders.push({
+  provOrd.push({
     id: 'ord_' + Date.now(),
-    supplier, date: new Date(date).getTime(),
-    items: JSON.parse(JSON.stringify(provCart)),
-    total, paid: 0, status: 'pendiente', notes
+    supplier: sup,
+    date: new Date(fec).getTime(),
+    items: JSON.parse(JSON.stringify(provItems)),
+    total, paid: 0, status: 'pendiente'
   });
   
-  saveProvData();
+  saveProv();
   alert('Orden creada');
   
-  provCart = [];
-  $i('prov-name').value = '';
-  $i('prov-date').value = '';
-  $i('prov-notes').value = '';
-  provRenderCart();
+  provItems = [];
+  $i('prov-sup').value = '';
+  $i('prov-fec').value = '';
+  provRenderList();
 }
 
-// ────── PAGOS ──────
-
-function provLoadPaymentOrders(){
-  const sel = $i('prov-pago-orden');
-  sel.innerHTML = '<option value="">-- Seleccionar orden --</option>';
+function provLoadOrd(){
+  const sel = $i('prov-sel-ord');
+  sel.innerHTML = '<option>-- Seleccionar --</option>';
   
-  provOrders.filter(o => o.paid < o.total).forEach(o => {
+  provOrd.filter(o => o.paid < o.total).forEach(o => {
     const pending = o.total - o.paid;
     sel.innerHTML += '<option value="'+o.id+'" data-pending="'+pending+'">'+o.supplier+' - $'+fn(pending)+' pendiente</option>';
   });
 }
 
-function provUpdateBalance(){
-  const sel = $i('prov-pago-orden');
+function provChgOrd(){
+  const sel = $i('prov-sel-ord');
   const opt = sel.options[sel.selectedIndex];
   
-  if(opt.value) {
-    const pending = parseFloat(opt.dataset.pending);
-    $i('prov-balance-box').style.display = 'block';
-    $i('prov-balance-amt').textContent = '$' + fn(pending);
+  if(opt.value && opt.value !== '-- Seleccionar --') {
+    const pending = parseFloat(opt.dataset.pending) || 0;
+    $i('prov-bal-div').style.display = 'block';
+    $i('prov-bal').textContent = '$' + fn(pending);
   } else {
-    $i('prov-balance-box').style.display = 'none';
+    $i('prov-bal-div').style.display = 'none';
   }
 }
 
-function provRegisterPayment(){
-  const ordId = $i('prov-pago-orden').value;
-  const monto = parseFloat($i('prov-pago-monto').value) || 0;
-  const fecha = $i('prov-pago-fecha').value;
+function provPagReg(){
+  const ordId = $i('prov-sel-ord').value;
+  const amt = parseFloat($i('prov-pag-mon').value) || 0;
+  const fec = $i('prov-pag-fec').value;
   
-  if(!ordId || !monto || !fecha) { alert('Completa orden, monto y fecha'); return; }
+  if(!ordId || ordId === '-- Seleccionar --' || !amt || !fec) { alert('Completa todos los campos'); return; }
   
-  const ord = provOrders.find(o => o.id === ordId);
+  const ord = provOrd.find(o => o.id === ordId);
   if(!ord) return;
   
-  ord.paid = (ord.paid || 0) + monto;
+  ord.paid = (ord.paid || 0) + amt;
   ord.status = ord.paid >= ord.total ? 'pagado' : 'parcial';
   
-  provPayments.push({
-    ordId, supplier: ord.supplier,
-    amount: monto, date: new Date(fecha).getTime()
-  });
+  saveProv();
+  alert('Pago registrado: $' + fn(amt));
   
-  saveProvData();
-  alert('Pago registrado');
+  $i('prov-pag-mon').value = '';
+  $i('prov-pag-fec').value = '';
+  $i('prov-sel-ord').value = '';
+  $i('prov-bal-div').style.display = 'none';
   
-  $i('prov-pago-monto').value = '';
-  $i('prov-pago-fecha').value = '';
-  provLoadPaymentOrders();
-  provRenderHistorial();
+  provLoadOrd();
+  provShowHist();
 }
 
-// ────── HISTORIAL ──────
-
-function provRenderHistorial(){
-  const html = provOrders.sort((a,b) => b.date-a.date).map(o => {
+function provShowHist(){
+  const html = provOrd.sort((a,b) => b.date-a.date).map(o => {
     const pending = o.total - (o.paid||0);
-    const status = o.status === 'pagado' ? '✓ Pagado' : (o.status === 'parcial' ? '⚠ Parcial' : '🔴 Pendiente');
-    const color = o.status === 'pagado' ? 'var(--ok)' : (o.status === 'parcial' ? 'var(--ac)' : 'var(--err)');
+    const st = o.status === 'pagado' ? '✓' : (o.status === 'parcial' ? '⚠' : '🔴');
+    const col = o.status === 'pagado' ? '#4caf50' : (o.status === 'parcial' ? '#ff9800' : '#f44336');
     
-    return '<div style="border:1px solid var(--bd);border-radius:6px;padding:12px;background:white">'+
-      '<div style="display:flex;justify-content:space-between;margin-bottom:8px">'+
-        '<div><div style="font-weight:700">'+o.supplier+'</div><div style="font-size:.85rem;color:var(--mu)">'+new Date(o.date).toLocaleDateString()+'</div></div>'+
-        '<div style="text-align:right"><div style="font-weight:700">$'+fn(o.total)+'</div><div style="font-size:.85rem;font-weight:600;color:'+color+'">'+status+'</div></div>'+
+    return '<div style="border:1px solid #ccc;border-radius:6px;padding:12px;margin-bottom:12px;background:white">'+
+      '<div style="display:flex;justify-content:space-between">'+
+        '<div><div style="font-weight:700">'+o.supplier+'</div><div style="font-size:.85rem;color:#999">'+new Date(o.date).toLocaleDateString()+'</div></div>'+
+        '<div style="text-align:right"><div style="font-weight:700;color:'+col+'">'+st+' $'+fn(o.total)+'</div><div style="font-size:.85rem">Pagado: $'+fn(o.paid||0)+'</div></div>'+
       '</div>'+
-      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:.85rem;margin-bottom:8px">'+
-        '<div style="background:var(--s2);padding:8px;border-radius:4px"><div style="font-size:.75rem;color:var(--mu)">TOTAL</div>$'+fn(o.total)+'</div>'+
-        '<div style="background:var(--s2);padding:8px;border-radius:4px"><div style="font-size:.75rem;color:var(--mu)">PAGADO</div>$'+fn(o.paid||0)+'</div>'+
-        '<div style="background:var(--s2);padding:8px;border-radius:4px"><div style="font-size:.75rem;color:var(--mu)">PENDIENTE</div>$'+fn(pending)+'</div>'+
-      '</div>'+
-      (o.notes ? '<div style="font-size:.8rem;background:#f5f5f5;padding:8px;border-radius:4px">'+o.notes+'</div>' : '')+
+      '<div style="margin-top:8px;font-size:.85rem;color:#666">Pendiente: $'+fn(pending)+'</div>'+
     '</div>';
   }).join('');
   
-  $i('prov-historial-list').innerHTML = html || '<div style="text-align:center;color:var(--mu);padding:40px">Sin órdenes</div>';
+  $i('prov-hist-div').innerHTML = html || '<div style="text-align:center;color:#999;padding:40px">Sin órdenes</div>';
 }
 
-</script>
+document.addEventListener('DOMContentLoaded', () => {
+  if($i('prov-fec')) $i('prov-fec').valueAsDate = new Date();
+  if($i('prov-pag-fec')) $i('prov-pag-fec').valueAsDate = new Date();
+  provRenderList();
+  egrRender();
+});
 
-</body></html>
+
+</script>
