@@ -280,11 +280,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // MÓDULO: PROVEEDORES (Unificado: Compras, Pagos, Egresos)
 // ════════════════════════════════════════════════════════════════════════════════
 
-let provOrders = JSON.parse(localStorage.getItem('prov_orders')) || [];
-let provPayments = JSON.parse(localStorage.getItem('prov_payments')) || [];
-let provEgresos = JSON.parse(localStorage.getItem('prov_egresos')) || [];
-let provSuppliers = JSON.parse(localStorage.getItem('prov_suppliers')) || [];
-let provCarrito = [];
+
 
 function saveProvData(){
   localStorage.setItem('prov_orders', JSON.stringify(provOrders));
@@ -293,269 +289,18 @@ function saveProvData(){
   localStorage.setItem('prov_suppliers', JSON.stringify(provSuppliers));
 }
 
-function showProvTab(tabName){
-  document.querySelectorAll('[id^="prov-tab-"]').forEach(t => t.style.display = 'none');
-  document.querySelectorAll('[id^="tab-prov-"]').forEach(b => b.classList.remove('bg'));
-  document.getElementById('prov-tab-' + tabName).style.display = 'block';
-  document.getElementById('tab-prov-' + tabName).classList.add('bg');
-  
-  if(tabName === 'compras') { populateSuppliers(); renderProvCarrito(); }
-  if(tabName === 'pagos') populatePagoOrdenes();
-  if(tabName === 'historial') renderHistorial();
-  if(tabName === 'egresos') renderEgresos();
-}
-
-// ────── COMPRAS (Carrito) ──────
-
-function populateSuppliers(){
-  const select = document.getElementById('prov-supplier');
-  select.innerHTML = '<option value="">-- Seleccionar --</option>';
-  
-  // Proveedores existentes + opción de nuevo
-  const existentes = new Set(provOrders.map(o => o.supplier));
-  provSuppliers.forEach(s => {
-    select.innerHTML += '<option value="' + s + '">' + s + '</option>';
-  });
-  existentes.forEach(s => {
-    if(!provSuppliers.includes(s)) select.innerHTML += '<option value="' + s + '">' + s + '</option>';
-  });
-  select.innerHTML += '<option value="__new__">+ Nuevo Proveedor</option>';
-}
-
-function addProvItem(){
-  provCarrito.push({id: 'pi_' + Date.now(), name: '', qty: 1, cost: 0});
-  renderProvCarrito();
-}
-
-function removeProvItem(id){
-  provCarrito = provCarrito.filter(i => i.id !== id);
-  renderProvCarrito();
-}
-
-function updateProvItem(id, field, value){
-  const item = provCarrito.find(i => i.id === id);
-  if(item) {
-    item[field] = field === 'qty' || field === 'cost' ? parseFloat(value) || 0 : value;
-    renderProvCarrito();
-  }
-}
-
-function renderProvCarrito(){
-  const html = provCarrito.map(item => {
-    const subtotal = item.qty * item.cost;
-    return '<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:6px;align-items:center;padding:8px;border-bottom:1px solid var(--bd);font-size:.85rem">'+
-      '<input type="text" value="' + (item.name || '') + '" onchange="updateProvItem(\''+item.id+'\', \'name\', this.value)" placeholder="Nombre producto" style="padding:6px;border:1px solid var(--bd);border-radius:4px">'+
-      '<input type="number" value="' + item.qty + '" onchange="updateProvItem(\''+item.id+'\', \'qty\', this.value)" min="0.01" step="0.01" style="padding:6px;border:1px solid var(--bd);border-radius:4px;text-align:center">'+
-      '<input type="number" value="' + fn(item.cost) + '" onchange="updateProvItem(\''+item.id+'\', \'cost\', this.value)" step="0.01" min="0" style="padding:6px;border:1px solid var(--bd);border-radius:4px;text-align:center">'+
-      '<div style="text-align:right;font-weight:600">$' + fn(subtotal) + '</div>'+
-      '<button class="btn bs" onclick="removeProvItem(\''+item.id+'\')" style="width:32px;height:32px;padding:0">✕</button>'+
-    '</div>';
-  }).join('');
-  
-  document.getElementById('prov-carrito-items').innerHTML = html || '<div style="padding:20px;text-align:center;color:var(--mu)">Sin productos</div>';
-  
-  const subtotal = provCarrito.reduce((a, i) => a + (i.qty * i.cost), 0);
-  document.getElementById('prov-subtotal').textContent = '$' + fn(subtotal);
-  document.getElementById('prov-total').textContent = '$' + fn(subtotal);
-}
-
-function savePurchaseOrder(){
-  const supplier = document.getElementById('prov-supplier').value;
-  const date = document.getElementById('prov-date').value;
-  const notes = document.getElementById('prov-notes').value;
-  
-  if(!supplier || supplier === '__new__') {
-    alert('Selecciona un proveedor');
-    return;
-  }
-  if(!date) {
-    alert('Selecciona una fecha');
-    return;
-  }
-  if(provCarrito.length === 0) {
-    alert('Agrega al menos un producto');
-    return;
-  }
-  
-  const totalCost = provCarrito.reduce((a, i) => a + (i.qty * i.cost), 0);
-  
-  provOrders.push({
-    id: 'order_' + Date.now(),
-    supplier,
-    date: new Date(date).getTime(),
-    items: [...provCarrito],
-    totalCost,
-    paid: 0,
-    status: 'pendiente',
-    notes
-  });
-  
-  // Agregar supplier a lista si es nuevo
-  if(!provSuppliers.includes(supplier)) provSuppliers.push(supplier);
-  
-  saveProvData();
-  alert('Orden creada');
-  
-  // Limpiar
-  provCarrito = [];
-  document.getElementById('prov-supplier').value = '';
-  document.getElementById('prov-date').value = '';
-  document.getElementById('prov-notes').value = '';
-  renderProvCarrito();
-}
-
-// ────── PAGOS ──────
-
-function populatePagoOrdenes(){
-  const select = document.getElementById('pago-orden');
-  select.innerHTML = '<option value="">-- Seleccionar orden --</option>';
-  
-  provOrders.filter(o => o.paid < o.totalCost).forEach(o => {
-    const pending = o.totalCost - o.paid;
-    select.innerHTML += '<option value="' + o.id + '" data-pending="' + pending + '">' + 
-      o.supplier + ' - $' + fn(pending) + ' pendiente</option>';
-  });
-}
-
-function updatePagoBalance(){
-  const select = document.getElementById('pago-orden');
-  const selected = select.options[select.selectedIndex];
-  
-  if(selected.value) {
-    const pending = parseFloat(selected.dataset.pending) || 0;
-    document.getElementById('pago-balance-container').style.display = 'block';
-    document.getElementById('pago-balance').textContent = '$' + fn(pending);
-  } else {
-    document.getElementById('pago-balance-container').style.display = 'none';
-  }
-}
-
-function registrarPago(){
-  const orderId = document.getElementById('pago-orden').value;
-  const monto = parseFloat(document.getElementById('pago-monto').value) || 0;
-  const fecha = document.getElementById('pago-fecha').value;
-  const tipo = document.getElementById('pago-tipo').value;
-  
-  if(!orderId || !monto || !fecha) {
-    alert('Completa: Orden, Monto y Fecha');
-    return;
-  }
-  
-  const order = provOrders.find(o => o.id === orderId);
-  if(!order) return;
-  
-  order.paid = (order.paid || 0) + monto;
-  order.status = order.paid >= order.totalCost ? 'pagado' : 'parcial';
-  
-  provPayments.push({
-    orderId,
-    supplier: order.supplier,
-    amount: monto,
-    date: new Date(fecha).getTime(),
-    type: tipo
-  });
-  
-  saveProvData();
-  alert('Pago registrado');
-  
-  document.getElementById('pago-monto').value = '';
-  document.getElementById('pago-fecha').value = '';
-  populatePagoOrdenes();
-}
-
-// ────── HISTORIAL ──────
-
-function renderHistorial(){
-  const html = provOrders.sort((a,b) => b.date - a.date).map(o => {
-    const pending = o.totalCost - (o.paid || 0);
-    const statusColor = o.status === 'pagado' ? 'var(--ok)' : (o.status === 'parcial' ? 'var(--ac)' : 'var(--err)');
-    const statusText = o.status === 'pagado' ? '✓ Pagado' : (o.status === 'parcial' ? '⚠ Parcial' : '🔴 Pendiente');
-    
-    return '<div style="border:1px solid var(--bd);border-radius:8px;padding:16px;background:white">'+
-      '<div style="display:flex;justify-content:space-between;margin-bottom:12px">'+
-        '<div>'+
-          '<div style="font-weight:700;font-size:16px">' + o.supplier + '</div>'+
-          '<div style="font-size:12px;color:var(--mu)">' + new Date(o.date).toLocaleDateString() + '</div>'+
-        '</div>'+
-        '<div style="text-align:right">'+
-          '<div style="font-weight:700">$' + fn(o.totalCost) + '</div>'+
-          '<div style="font-size:12px;color:' + statusColor + ';font-weight:600">' + statusText + '</div>'+
-        '</div>'+
-      '</div>'+
-      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;font-size:12px;margin-bottom:12px">'+
-        '<div style="background:var(--s2);padding:8px;border-radius:4px"><div style="color:var(--mu);font-size:11px">TOTAL</div><div style="font-weight:700">$' + fn(o.totalCost) + '</div></div>'+
-        '<div style="background:var(--s2);padding:8px;border-radius:4px"><div style="color:var(--mu);font-size:11px">PAGADO</div><div style="font-weight:700;color:var(--ok)">$' + fn(o.paid || 0) + '</div></div>'+
-        '<div style="background:var(--s2);padding:8px;border-radius:4px"><div style="color:var(--mu);font-size:11px">PENDIENTE</div><div style="font-weight:700;color:var(--err)">$' + fn(pending) + '</div></div>'+
-      '</div>'+
-      (o.notes ? '<div style="background:var(--s2);padding:8px;border-radius:4px;font-size:12px;margin-bottom:8px"><strong>Notas:</strong> ' + o.notes + '</div>' : '')+
-      '<div style="font-size:12px;color:var(--mu)">' + (o.items ? o.items.length + ' productos' : '0 productos') + '</div>'+
-    '</div>';
-  }).join('');
-  
-  document.getElementById('prov-historial').innerHTML = html || '<div style="text-align:center;color:var(--mu);padding:40px">Sin órdenes</div>';
-}
-
-// ────── EGRESOS ──────
-
-function registrarEgreso(){
-  const desc = document.getElementById('egr-desc').value;
-  const monto = parseFloat(document.getElementById('egr-monto').value) || 0;
-  const fecha = document.getElementById('egr-fecha').value;
-  
-  if(!desc || !monto || !fecha) {
-    alert('Completa todos los campos');
-    return;
-  }
-  
-  provEgresos.push({
-    id: 'egr_' + Date.now(),
-    desc, monto,
-    date: new Date(fecha).getTime()
-  });
-  
-  saveProvData();
-  alert('Egreso registrado');
-  
-  document.getElementById('egr-desc').value = '';
-  document.getElementById('egr-monto').value = '';
-  document.getElementById('egr-fecha').value = '';
-  
-  renderEgresos();
-}
-
-function renderEgresos(){
-  const html = provEgresos.sort((a,b) => b.date - a.date).map(e => {
-    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid var(--bd);border-radius:6px">'+
-      '<div>'+
-        '<div style="font-weight:600">' + e.desc + '</div>'+
-        '<div style="font-size:12px;color:var(--mu)">' + new Date(e.date).toLocaleDateString() + '</div>'+
-      '</div>'+
-      '<div style="font-weight:700;color:var(--err)">-$' + fn(e.monto) + '</div>'+
-    '</div>';
-  }).join('');
-  
-  document.getElementById('prov-egresos').innerHTML = html || '<div style="text-align:center;color:var(--mu);padding:20px">Sin egresos</div>';
-}
-
-// Inicializar
-document.addEventListener('DOMContentLoaded', () => {
-  if(document.getElementById('prov-date')) document.getElementById('prov-date').valueAsDate = new Date();
-  if(document.getElementById('pago-fecha')) document.getElementById('pago-fecha').valueAsDate = new Date();
-  if(document.getElementById('egr-fecha')) document.getElementById('egr-fecha').valueAsDate = new Date();
-  
-  provCarrito = [];
-  renderProvCarrito();
-});
 
 
-</script>
-<script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/index.min.js">
-// ════════════════════════════════════════════════════════════════════════════════
-// MÓDULO: COMPRAS A PROVEEDORES
-// ════════════════════════════════════════════════════════════════════════════════
 
-let purchases = JSON.parse(localStorage.getItem('stockpro_purchases')) || [];
-let paymentLog = JSON.parse(localStorage.getItem('stockpro_paymentlog')) || [];
+
+
+
+
+
+
+
+
+
 
 function savePurchasesData(){
   localStorage.setItem('stockpro_purchases', JSON.stringify(purchases));
@@ -806,11 +551,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // MÓDULO: PROVEEDORES (Unificado: Compras, Pagos, Egresos)
 // ════════════════════════════════════════════════════════════════════════════════
 
-let provOrders = JSON.parse(localStorage.getItem('prov_orders')) || [];
-let provPayments = JSON.parse(localStorage.getItem('prov_payments')) || [];
-let provEgresos = JSON.parse(localStorage.getItem('prov_egresos')) || [];
-let provSuppliers = JSON.parse(localStorage.getItem('prov_suppliers')) || [];
-let provCarrito = [];
+
 
 function saveProvData(){
   localStorage.setItem('prov_orders', JSON.stringify(provOrders));
@@ -1071,6 +812,224 @@ document.addEventListener('DOMContentLoaded', () => {
   
   provCarrito = [];
   renderProvCarrito();
+});
+
+
+
+// ════════════════════════════════════════════════════════════════════════════════
+// MÓDULO: PROVEEDORES + EGRESOS
+// ════════════════════════════════════════════════════════════════════════════════
+
+let provOrders = JSON.parse(localStorage.getItem('prov_ord')) || [];
+let provPayments = JSON.parse(localStorage.getItem('prov_pag')) || [];
+let provList = [];
+let provCart = [];
+
+let egresos = JSON.parse(localStorage.getItem('egr_list')) || [];
+
+function saveProvData(){
+  localStorage.setItem('prov_ord', JSON.stringify(provOrders));
+  localStorage.setItem('prov_pag', JSON.stringify(provPayments));
+}
+function saveEgrData(){
+  localStorage.setItem('egr_list', JSON.stringify(egresos));
+}
+
+// ──── PROVEEDORES ────
+
+function provShowTab(tab){
+  document.querySelectorAll('[id^="prov-"][id$="-tab"]').forEach(t => t.style.display='none');
+  document.querySelectorAll('[id^="tab-prov-"]').forEach(b => b.classList.remove('bg'));
+  document.getElementById('prov-' + tab + '-tab').style.display = 'block';
+  document.getElementById('tab-prov-' + tab).classList.add('bg');
+  
+  if(tab === 'compras') provRenderCart();
+  if(tab === 'pagos') { provLoadOrders(); if(document.getElementById('prov-date'))document.getElementById('prov-date').valueAsDate=new Date(); }
+  if(tab === 'historial') provRenderHistorial();
+}
+
+function provAddItem(){
+  provCart.push({id:'pi_'+Date.now(), name:'', qty:1, cost:0, iva:0});
+  provRenderCart();
+}
+
+function provRemoveItem(id){
+  provCart = provCart.filter(i => i.id !== id);
+  provRenderCart();
+}
+
+function provUpdateItem(id, field, value){
+  const item = provCart.find(i => i.id === id);
+  if(item) {
+    item[field] = (field === 'qty' || field === 'cost' || field === 'iva') ? parseFloat(value) || 0 : value;
+    provRenderCart();
+  }
+}
+
+function provRenderCart(){
+  const html = provCart.map(item => {
+    const subtotal = item.qty * item.cost * (1 + item.iva/100);
+    return '<div style="display:grid;grid-template-columns:2fr 0.7fr 0.7fr 0.7fr 0.7fr auto;gap:6px;align-items:center;padding:6px;border-bottom:1px solid var(--bd);font-size:.8rem">'+
+      '<input type="text" value="' + (item.name||'') + '" onchange="provUpdateItem(\''+item.id+'\',\'name\',this.value)" placeholder="Producto" style="padding:4px;border:1px solid var(--bd);border-radius:3px">'+
+      '<input type="number" value="' + item.qty + '" onchange="provUpdateItem(\''+item.id+'\',\'qty\',this.value)" min="0.01" step="0.01" style="padding:4px;border:1px solid var(--bd);border-radius:3px;text-align:center">'+
+      '<input type="number" value="' + fn(item.cost) + '" onchange="provUpdateItem(\''+item.id+'\',\'cost\',this.value)" step="0.01" min="0" style="padding:4px;border:1px solid var(--bd);border-radius:3px;text-align:center">'+
+      '<input type="number" value="' + item.iva + '" onchange="provUpdateItem(\''+item.id+'\',\'iva\',this.value)" min="0" max="100" step="0.01" placeholder="0" style="padding:4px;border:1px solid var(--bd);border-radius:3px;text-align:center">'+
+      '<div style="text-align:right;font-weight:600">$' + fn(subtotal) + '</div>'+
+      '<button class="btn bs" onclick="provRemoveItem(\''+item.id+'\')" style="width:28px;height:28px;padding:0;font-size:.9rem">✕</button>'+
+    '</div>';
+  }).join('');
+  
+  document.getElementById('prov-carrito').innerHTML = html || '<div style="padding:20px;text-align:center;color:var(--mu);font-size:.9rem">Sin productos</div>';
+  
+  const total = provCart.reduce((a, i) => a + (i.qty * i.cost * (1 + i.iva/100)), 0);
+  document.getElementById('prov-total').textContent = '$' + fn(total);
+  
+  // Actualizar lista de proveedores
+  const suppliers = new Set(provOrders.map(o => o.supplier));
+  let opts = '';
+  suppliers.forEach(s => { opts += '<option value="' + s + '">'; });
+  document.getElementById('prov-suppliers-list').innerHTML = opts;
+}
+
+function provSaveOrder(){
+  const supplier = document.getElementById('prov-supplier').value.trim();
+  const date = document.getElementById('prov-date').value;
+  const notes = document.getElementById('prov-notes').value;
+  
+  if(!supplier || !date) { alert('Proveedor y fecha son obligatorios'); return; }
+  if(provCart.length === 0) { alert('Agrega productos'); return; }
+  
+  const totalCost = provCart.reduce((a, i) => a + (i.qty * i.cost * (1 + i.iva/100)), 0);
+  
+  provOrders.push({
+    id: 'ord_' + Date.now(),
+    supplier, date: new Date(date).getTime(),
+    items: JSON.parse(JSON.stringify(provCart)),
+    totalCost, paid: 0, status: 'pendiente', notes
+  });
+  
+  saveProvData();
+  alert('Orden creada');
+  
+  provCart = [];
+  document.getElementById('prov-supplier').value = '';
+  document.getElementById('prov-date').value = '';
+  document.getElementById('prov-notes').value = '';
+  provRenderCart();
+}
+
+function provLoadOrders(){
+  const select = document.getElementById('prov-pago-orden');
+  select.innerHTML = '<option value="">-- Seleccionar orden --</option>';
+  
+  provOrders.filter(o => o.paid < o.totalCost).forEach(o => {
+    const pending = o.totalCost - o.paid;
+    select.innerHTML += '<option value="' + o.id + '" data-pending="' + pending + '">' + o.supplier + ' - $' + fn(pending) + ' pendiente</option>';
+  });
+}
+
+function provUpdateBalance(){
+  const sel = document.getElementById('prov-pago-orden');
+  const opt = sel.options[sel.selectedIndex];
+  
+  if(opt.value) {
+    const pending = parseFloat(opt.dataset.pending);
+    document.getElementById('prov-balance-show').style.display = 'block';
+    document.getElementById('prov-balance').textContent = '$' + fn(pending);
+  } else {
+    document.getElementById('prov-balance-show').style.display = 'none';
+  }
+}
+
+function provRegisterPayment(){
+  const orderId = document.getElementById('prov-pago-orden').value;
+  const monto = parseFloat(document.getElementById('prov-pago-monto').value) || 0;
+  const fecha = document.getElementById('prov-pago-fecha').value;
+  
+  if(!orderId || !monto || !fecha) { alert('Completa orden, monto y fecha'); return; }
+  
+  const ord = provOrders.find(o => o.id === orderId);
+  if(!ord) return;
+  
+  ord.paid = (ord.paid || 0) + monto;
+  ord.status = ord.paid >= ord.totalCost ? 'pagado' : 'parcial';
+  
+  provPayments.push({ orderId, supplier: ord.supplier, amount: monto, date: new Date(fecha).getTime() });
+  
+  saveProvData();
+  alert('Pago registrado');
+  
+  document.getElementById('prov-pago-monto').value = '';
+  document.getElementById('prov-pago-fecha').value = '';
+  provLoadOrders();
+  provRenderHistorial();
+}
+
+function provRenderHistorial(){
+  const html = provOrders.sort((a,b) => b.date-a.date).map(o => {
+    const pending = o.totalCost - (o.paid||0);
+    const status = o.status === 'pagado' ? '✓ Pagado' : (o.status === 'parcial' ? '⚠ Parcial' : '🔴 Pendiente');
+    const color = o.status === 'pagado' ? 'var(--ok)' : (o.status === 'parcial' ? 'var(--ac)' : 'var(--err)');
+    
+    return '<div style="border:1px solid var(--bd);border-radius:6px;padding:12px;background:white">'+
+      '<div style="display:flex;justify-content:space-between;margin-bottom:8px">'+
+        '<div><div style="font-weight:700">' + o.supplier + '</div><div style="font-size:.85rem;color:var(--mu)">' + new Date(o.date).toLocaleDateString() + '</div></div>'+
+        '<div style="text-align:right"><div style="font-weight:700">$' + fn(o.totalCost) + '</div><div style="font-size:.85rem;font-weight:600;color:' + color + '">' + status + '</div></div>'+
+      '</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:.85rem;margin-bottom:8px">'+
+        '<div style="background:var(--s2);padding:8px;border-radius:4px"><div style="font-size:.75rem;color:var(--mu)">TOTAL</div>$' + fn(o.totalCost) + '</div>'+
+        '<div style="background:var(--s2);padding:8px;border-radius:4px"><div style="font-size:.75rem;color:var(--mu)">PAGADO</div>$' + fn(o.paid||0) + '</div>'+
+        '<div style="background:var(--s2);padding:8px;border-radius:4px"><div style="font-size:.75rem;color:var(--mu)">PENDIENTE</div>$' + fn(pending) + '</div>'+
+      '</div>'+
+      (o.items ? '<div style="font-size:.8rem;color:var(--mu)">' + o.items.length + ' productos</div>' : '')+
+      (o.notes ? '<div style="font-size:.85rem;background:#f5f5f5;padding:8px;border-radius:4px;margin-top:8px">' + o.notes + '</div>' : '')+
+    '</div>';
+  }).join('');
+  
+  document.getElementById('prov-historial-list').innerHTML = html || '<div style="text-align:center;color:var(--mu);padding:40px">Sin órdenes</div>';
+}
+
+// ──── EGRESOS ────
+
+function egrSave(){
+  const desc = document.getElementById('egr-desc').value.trim();
+  const monto = parseFloat(document.getElementById('egr-monto').value) || 0;
+  const fecha = document.getElementById('egr-fecha').value;
+  
+  if(!desc || !monto || !fecha) { alert('Completa todos los campos'); return; }
+  
+  egresos.push({ id:'egr_'+Date.now(), desc, monto, date: new Date(fecha).getTime() });
+  
+  saveEgrData();
+  alert('Egreso guardado');
+  
+  document.getElementById('egr-desc').value = '';
+  document.getElementById('egr-monto').value = '';
+  document.getElementById('egr-fecha').value = '';
+  
+  egrRender();
+}
+
+function egrRender(){
+  const html = egresos.sort((a,b) => b.date-a.date).map(e => {
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid var(--bd);border-radius:6px;background:white">'+
+      '<div><div style="font-weight:600">' + e.desc + '</div><div style="font-size:.85rem;color:var(--mu)">' + new Date(e.date).toLocaleDateString() + '</div></div>'+
+      '<div style="font-weight:700;color:var(--err)">-$' + fn(e.monto) + '</div>'+
+    '</div>';
+  }).join('');
+  
+  document.getElementById('egr-list').innerHTML = html || '<div style="text-align:center;color:var(--mu);padding:20px">Sin egresos</div>';
+}
+
+// Inicializar
+document.addEventListener('DOMContentLoaded', () => {
+  if(document.getElementById('prov-date')) document.getElementById('prov-date').valueAsDate = new Date();
+  if(document.getElementById('prov-pago-fecha')) document.getElementById('prov-pago-fecha').valueAsDate = new Date();
+  if(document.getElementById('egr-fecha')) document.getElementById('egr-fecha').valueAsDate = new Date();
+  
+  provCart = [];
+  provRenderCart();
+  egrRender();
 });
 
 
@@ -1332,6 +1291,7 @@ tr:hover td{background:rgba(255,255,255,.012);}
     <button class="ni" onclick="nav(&#39;fichas&#39;,this)"><span class="ic">🗂️</span>Fichas (Cta. Cte.)</button>
     <button class="ni" onclick="nav(&#39;egresos&#39;,this)"><span class="ic">📤</span>Egresos</button>
     <button class="ni" onclick="nav(&#39;proveedores&#39;,this)"><span class="ic">🏭</span>Proveedores</button>
+        <button class="ni" onclick="nav(&#39;egresos&#39;,this)"><span class="ic">💸</span>Egresos</button>
     <button class="ni" onclick="nav(&#39;reportes&#39;,this)"><span class="ic">📊</span>Reportes</button>
     <button class="ni" onclick="nav(&#39;alertas&#39;,this)"><span class="ic">🔔</span>Alertas</button>
     <button class="ni" onclick="nav(&#39;categorias&#39;,this)"><span class="ic">🏷️</span>Categorías</button>
@@ -1756,44 +1716,45 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
     
 
 
-<!-- PROVEEDORES - UNIFICADO -->
+
+
+<!-- PROVEEDORES -->
     <div class="view" id="view-proveedores">
       <div style="padding:20px;max-width:1400px;margin:0 auto">
         <h2>🏭 PROVEEDORES</h2>
         
         <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:2px solid var(--bd);flex-wrap:wrap">
-          <button class="btn bg" id="tab-prov-compras" onclick="showProvTab('compras')" style="border-bottom:3px solid var(--ac);margin-bottom:-2px">🛒 Compras</button>
-          <button class="btn" id="tab-prov-pagos" onclick="showProvTab('pagos')">💳 Pagos</button>
-          <button class="btn" id="tab-prov-historial" onclick="showProvTab('historial')">📋 Historial</button>
-          <button class="btn" id="tab-prov-egresos" onclick="showProvTab('egresos')">💸 Egresos</button>
+          <button class="btn bg" id="tab-prov-compras" onclick="provShowTab('compras')" style="border-bottom:3px solid var(--ac);margin-bottom:-2px">🛒 Compras</button>
+          <button class="btn" id="tab-prov-pagos" onclick="provShowTab('pagos')">💳 Pagos</button>
+          <button class="btn" id="tab-prov-historial" onclick="provShowTab('historial')">📋 Historial</button>
         </div>
         
-        <!-- TAB: COMPRAS (con carrito) -->
-        <div id="prov-tab-compras" style="display:block">
+        <!-- COMPRAS CON CARRITO -->
+        <div id="prov-compras-tab" style="display:block">
           <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px">
-            <!-- CARRITO -->
             <div>
-              <h3>📦 Productos a Comprar</h3>
-              <div id="prov-carrito-header" style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:6px;background:var(--bd);padding:8px;font-weight:600;border-radius:4px 4px 0 0;font-size:.85rem">
-                <div>PRODUCTO</div>
-                <div style="text-align:center">CANTIDAD</div>
-                <div style="text-align:center">COSTO</div>
-                <div style="text-align:right">SUBTOTAL</div>
-                <div></div>
+              <h3>Productos a Comprar</h3>
+              <div style="border:1px solid var(--bd);border-radius:8px;overflow:hidden">
+                <div style="display:grid;grid-template-columns:2fr 0.7fr 0.7fr 0.7fr 0.7fr auto;gap:6px;background:var(--bd);padding:8px;font-weight:600;font-size:.8rem">
+                  <div>Producto</div>
+                  <div style="text-align:center">Cant</div>
+                  <div style="text-align:center">Costo</div>
+                  <div style="text-align:center">IVA %</div>
+                  <div style="text-align:right">Subtotal</div>
+                  <div></div>
+                </div>
+                <div id="prov-carrito" style="max-height:400px;overflow-y:auto"></div>
               </div>
-              <div id="prov-carrito-items" style="background:white;border:1px solid var(--bd);border-top:none;border-radius:0 0 4px 4px"></div>
-              <button class="btn bg" onclick="addProvItem()" style="width:100%;margin-top:8px">+ Agregar Producto</button>
+              <button class="btn bg" onclick="provAddItem()" style="width:100%;margin-top:8px">+ Producto</button>
             </div>
             
-            <!-- DATOS DE ORDEN -->
             <div style="background:var(--s2);padding:16px;border-radius:8px;height:fit-content">
               <h3 style="margin-top:0">Datos Orden</h3>
               
               <div style="margin-bottom:12px">
                 <label style="display:block;font-weight:600;margin-bottom:4px">Proveedor *</label>
-                <select id="prov-supplier" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
-                  <option value="">-- Seleccionar --</option>
-                </select>
+                <input type="text" id="prov-supplier" placeholder="Nombre" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px" list="prov-suppliers-list">
+                <datalist id="prov-suppliers-list"></datalist>
               </div>
               
               <div style="margin-bottom:12px">
@@ -1803,99 +1764,88 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
               
               <div style="margin-bottom:12px">
                 <label style="display:block;font-weight:600;margin-bottom:4px">Notas</label>
-                <textarea id="prov-notes" placeholder="Observaciones..." style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px;resize:none;height:80px"></textarea>
+                <textarea id="prov-notes" placeholder="..." style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px;resize:none;height:60px"></textarea>
               </div>
               
               <div style="background:white;padding:12px;border-radius:6px;margin-bottom:12px">
-                <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-                  <span>Subtotal:</span>
-                  <span id="prov-subtotal" style="font-weight:600">$0</span>
-                </div>
-                <div style="display:flex;justify-content:space-between;padding-top:6px;border-top:1px solid var(--bd);font-weight:700">
-                  <span>TOTAL:</span>
-                  <span id="prov-total">$0</span>
+                <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:.9rem">
+                  <span>Total:</span>
+                  <span id="prov-total" style="font-weight:700">$0</span>
                 </div>
               </div>
               
-              <button class="btn bg" onclick="savePurchaseOrder()" style="width:100%;padding:10px;font-weight:600">Crear Orden</button>
+              <button class="btn bg" onclick="provSaveOrder()" style="width:100%;padding:10px;font-weight:600">Crear Orden</button>
             </div>
           </div>
         </div>
         
-        <!-- TAB: PAGOS -->
-        <div id="prov-tab-pagos" style="display:none">
-          <div style="max-width:600px">
-            <h3>Registrar Pago</h3>
+        <!-- PAGOS -->
+        <div id="prov-pagos-tab" style="display:none;max-width:600px">
+          <div style="background:var(--s2);padding:16px;border-radius:8px">
+            <h3 style="margin-top:0">Registrar Pago</h3>
             
-            <div style="background:var(--s2);padding:16px;border-radius:8px;margin-bottom:20px">
-              <div style="margin-bottom:12px">
-                <label style="display:block;font-weight:600;margin-bottom:4px">Orden *</label>
-                <select id="pago-orden" onchange="updatePagoBalance()" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
-                  <option value="">-- Seleccionar orden --</option>
-                </select>
-              </div>
-              
-              <div id="pago-balance-container" style="display:none;background:white;padding:12px;border-radius:6px;margin-bottom:12px">
-                <div style="font-size:.85rem;color:var(--mu);margin-bottom:4px">Saldo pendiente</div>
-                <div id="pago-balance" style="font-size:24px;font-weight:700;color:var(--err)">$0</div>
-              </div>
-              
-              <div style="margin-bottom:12px">
-                <label style="display:block;font-weight:600;margin-bottom:4px">Monto *</label>
-                <input type="number" id="pago-monto" placeholder="0.00" step="0.01" min="0" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
-              </div>
-              
-              <div style="margin-bottom:12px">
-                <label style="display:block;font-weight:600;margin-bottom:4px">Fecha *</label>
-                <input type="date" id="pago-fecha" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
-              </div>
-              
-              <div style="margin-bottom:12px">
-                <label style="display:block;font-weight:600;margin-bottom:4px">Tipo</label>
-                <select id="pago-tipo" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
-                  <option value="transfer">Transferencia</option>
-                  <option value="efectivo">Efectivo</option>
-                  <option value="cheque">Cheque</option>
-                  <option value="otro">Otro</option>
-                </select>
-              </div>
-              
-              <button class="btn bg" onclick="registrarPago()" style="width:100%;padding:10px;font-weight:600">Registrar Pago</button>
+            <div style="margin-bottom:12px">
+              <label style="display:block;font-weight:600;margin-bottom:4px">Orden *</label>
+              <select id="prov-pago-orden" onchange="provUpdateBalance()" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
+                <option value="">-- Seleccionar --</option>
+              </select>
             </div>
+            
+            <div id="prov-balance-show" style="display:none;background:white;padding:12px;border-radius:6px;margin-bottom:12px">
+              <div style="font-size:.85rem;color:var(--mu);margin-bottom:4px">Saldo pendiente</div>
+              <div id="prov-balance" style="font-size:20px;font-weight:700;color:var(--err)">$0</div>
+            </div>
+            
+            <div style="margin-bottom:12px">
+              <label style="display:block;font-weight:600;margin-bottom:4px">Monto *</label>
+              <input type="number" id="prov-pago-monto" placeholder="0.00" step="0.01" min="0" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
+            </div>
+            
+            <div style="margin-bottom:12px">
+              <label style="display:block;font-weight:600;margin-bottom:4px">Fecha *</label>
+              <input type="date" id="prov-pago-fecha" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
+            </div>
+            
+            <button class="btn bg" onclick="provRegisterPayment()" style="width:100%;padding:10px;font-weight:600">Registrar Pago</button>
           </div>
         </div>
         
-        <!-- TAB: HISTORIAL -->
-        <div id="prov-tab-historial" style="display:none">
+        <!-- HISTORIAL -->
+        <div id="prov-historial-tab" style="display:none">
           <h3>Órdenes de Compra</h3>
-          <div id="prov-historial" style="display:grid;gap:12px"></div>
+          <div id="prov-historial-list" style="display:grid;gap:12px"></div>
         </div>
+      </div>
+    </div>
+
+<!-- EGRESOS -->
+    <div class="view" id="view-egresos">
+      <div style="padding:20px;max-width:600px">
+        <h2>💸 EGRESOS</h2>
         
-        <!-- TAB: EGRESOS -->
-        <div id="prov-tab-egresos" style="display:none">
-          <h3>Egresos Varios</h3>
-          <div style="background:var(--s2);padding:16px;border-radius:8px;max-width:600px;margin-bottom:20px">
-            <div style="margin-bottom:12px">
-              <label style="display:block;font-weight:600;margin-bottom:4px">Descripción</label>
-              <input type="text" id="egr-desc" placeholder="Concepto" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
-            </div>
-            
-            <div style="margin-bottom:12px">
-              <label style="display:block;font-weight:600;margin-bottom:4px">Monto</label>
-              <input type="number" id="egr-monto" placeholder="0.00" step="0.01" min="0" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
-            </div>
-            
-            <div style="margin-bottom:12px">
-              <label style="display:block;font-weight:600;margin-bottom:4px">Fecha</label>
-              <input type="date" id="egr-fecha" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
-            </div>
-            
-            <button class="btn bg" onclick="registrarEgreso()" style="width:100%;padding:10px;font-weight:600">Registrar Egreso</button>
+        <div style="background:var(--s2);padding:16px;border-radius:8px;margin-bottom:20px">
+          <h3 style="margin-top:0">Registrar Egreso</h3>
+          
+          <div style="margin-bottom:12px">
+            <label style="display:block;font-weight:600;margin-bottom:4px">Descripción *</label>
+            <input type="text" id="egr-desc" placeholder="Concepto" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
           </div>
           
-          <h4>Egresos Registrados</h4>
-          <div id="prov-egresos" style="display:grid;gap:8px"></div>
+          <div style="margin-bottom:12px">
+            <label style="display:block;font-weight:600;margin-bottom:4px">Monto *</label>
+            <input type="number" id="egr-monto" placeholder="0.00" step="0.01" min="0" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
+          </div>
+          
+          <div style="margin-bottom:12px">
+            <label style="display:block;font-weight:600;margin-bottom:4px">Fecha *</label>
+            <input type="date" id="egr-fecha" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
+          </div>
+          
+          <button class="btn bg" onclick="egrSave()" style="width:100%;padding:10px;font-weight:600">Guardar Egreso</button>
         </div>
+        
+        <h3>Historial de Egresos</h3>
+        <div id="egr-list" style="display:grid;gap:8px"></div>
       </div>
     </div>
 
@@ -3353,8 +3303,8 @@ function updateTipoVenta(){
 
 function updMarginInfo(){const c=parseFloat($i('p-cost').value)||0,p=parseFloat($i('p-price').value)||0,st=parseFloat($i('p-stk').value)||0;const g=p-c,m=mg(c,p),mk2=mk(c,p);const cls=g>=0?'pos':'neg';$i('mi-g').textContent='$'+fn(g);$i('mi-g').className='miv '+cls;$i('mi-m').textContent=m.toFixed(1)+'%';$i('mi-m').className='miv '+cls;$i('mi-mk').textContent=mk2.toFixed(1)+'%';$i('mi-mk').className='miv '+cls;$i('mi-sv').textContent='$'+fn(c*st);}
 function calcM(){updMarginInfo();if($i('p-margin-pct').value)calcPriceFromMargin();}
-function calcPriceFromMargin(){const cost=parseFloat($i('p-cost').value)||0,pct=parseFloat($i('p-margin-pct').value)||0,round=parseInt($i('p-round').value)||1,res=$i('p-calc-result');if(!cost||!pct){res.textContent='';return;}let price=cost*(1+pct/100);if(round>1)price=Math.ceil(price/round)*round;res.innerHTML='Precio sugerido: <strong style="color:var(--ac)">$'+fn(price)+'</strong> · Ganancia: $'+fn(price-cost);$i('p-price').value=price.toFixed(2);updMarginInfo();}
-function applyPriceFromMargin(){const cost=parseFloat($i('p-cost').value)||0,pct=parseFloat($i('p-margin-pct').value)||0,round=parseInt($i('p-round').value)||1;if(!cost||!pct){toast('Ingresá costo y % ganancia','err');return;}let price=cost*(1+pct/100);if(round>1)price=Math.ceil(price/round)*round;$i('p-price').value=price.toFixed(2);updMarginInfo();toast('Precio aplicado: $'+fn(price));}
+function calcPriceFromMargin(){const cost=parseFloat($i('p-cost').value)||0,iva=parseFloat($i('p-iva').value)||0,pct=parseFloat($i('p-margin-pct').value)||0,round=parseInt($i('p-round').value)||1,res=$i('p-calc-result');if(!cost||!pct){res.textContent='';return;}const base=cost*(1+iva/100);let price=base*(1+pct/100);if(round>1)price=Math.ceil(price/round)*round;res.innerHTML='Costo+IVA: $'+fn(base)+' | Precio sugerido: <strong style="color:var(--ac)">$'+fn(price)+'</strong> · Ganancia: $'+fn(price-base);$i('p-price').value=price.toFixed(2);updMarginInfo();}
+function applyPriceFromMargin(){const cost=parseFloat($i('p-cost').value)||0,iva=parseFloat($i('p-iva').value)||0,pct=parseFloat($i('p-margin-pct').value)||0,round=parseInt($i('p-round').value)||1;if(!cost||!pct){toast('Ingresá costo y % ganancia','err');return;}const base=cost*(1+iva/100);let price=base*(1+pct/100);if(round>1)price=Math.ceil(price/round)*round;$i('p-price').value=price.toFixed(2);updMarginInfo();toast('Precio aplicado: $'+fn(price));}
 function saveProd(){
   const name=$i('p-name').value.trim();if(!name){toast('Nombre obligatorio','err');return;}
   const sv=parseInt($i('p-stk').value)||0;const tipo=($i('p-tipo-kg')&&$i('p-tipo-kg').checked)?'kg':'unidad';const d={name,barcode:$i('p-bc').value.trim(),sku:$i('p-sku').value.trim(),cat:$i('p-cat').value,marca:$i('p-marca').value.trim(),proveedor:$i('p-proveedor').value.trim(),stock:sv,min:parseInt($i('p-min').value)||5,cost:parseFloat($i('p-cost').value)||0,price:parseFloat($i('p-price').value)||0,iva:parseFloat($i('p-iva').value)||0,notes:$i('p-notes').value.trim(),tipo};
@@ -4305,11 +4255,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // MÓDULO: PROVEEDORES (Unificado: Compras, Pagos, Egresos)
 // ════════════════════════════════════════════════════════════════════════════════
 
-let provOrders = JSON.parse(localStorage.getItem('prov_orders')) || [];
-let provPayments = JSON.parse(localStorage.getItem('prov_payments')) || [];
-let provEgresos = JSON.parse(localStorage.getItem('prov_egresos')) || [];
-let provSuppliers = JSON.parse(localStorage.getItem('prov_suppliers')) || [];
-let provCarrito = [];
+
 
 function saveProvData(){
   localStorage.setItem('prov_orders', JSON.stringify(provOrders));
@@ -4570,6 +4516,224 @@ document.addEventListener('DOMContentLoaded', () => {
   
   provCarrito = [];
   renderProvCarrito();
+});
+
+
+
+// ════════════════════════════════════════════════════════════════════════════════
+// MÓDULO: PROVEEDORES + EGRESOS
+// ════════════════════════════════════════════════════════════════════════════════
+
+let provOrders = JSON.parse(localStorage.getItem('prov_ord')) || [];
+let provPayments = JSON.parse(localStorage.getItem('prov_pag')) || [];
+let provList = [];
+let provCart = [];
+
+let egresos = JSON.parse(localStorage.getItem('egr_list')) || [];
+
+function saveProvData(){
+  localStorage.setItem('prov_ord', JSON.stringify(provOrders));
+  localStorage.setItem('prov_pag', JSON.stringify(provPayments));
+}
+function saveEgrData(){
+  localStorage.setItem('egr_list', JSON.stringify(egresos));
+}
+
+// ──── PROVEEDORES ────
+
+function provShowTab(tab){
+  document.querySelectorAll('[id^="prov-"][id$="-tab"]').forEach(t => t.style.display='none');
+  document.querySelectorAll('[id^="tab-prov-"]').forEach(b => b.classList.remove('bg'));
+  document.getElementById('prov-' + tab + '-tab').style.display = 'block';
+  document.getElementById('tab-prov-' + tab).classList.add('bg');
+  
+  if(tab === 'compras') provRenderCart();
+  if(tab === 'pagos') { provLoadOrders(); if(document.getElementById('prov-date'))document.getElementById('prov-date').valueAsDate=new Date(); }
+  if(tab === 'historial') provRenderHistorial();
+}
+
+function provAddItem(){
+  provCart.push({id:'pi_'+Date.now(), name:'', qty:1, cost:0, iva:0});
+  provRenderCart();
+}
+
+function provRemoveItem(id){
+  provCart = provCart.filter(i => i.id !== id);
+  provRenderCart();
+}
+
+function provUpdateItem(id, field, value){
+  const item = provCart.find(i => i.id === id);
+  if(item) {
+    item[field] = (field === 'qty' || field === 'cost' || field === 'iva') ? parseFloat(value) || 0 : value;
+    provRenderCart();
+  }
+}
+
+function provRenderCart(){
+  const html = provCart.map(item => {
+    const subtotal = item.qty * item.cost * (1 + item.iva/100);
+    return '<div style="display:grid;grid-template-columns:2fr 0.7fr 0.7fr 0.7fr 0.7fr auto;gap:6px;align-items:center;padding:6px;border-bottom:1px solid var(--bd);font-size:.8rem">'+
+      '<input type="text" value="' + (item.name||'') + '" onchange="provUpdateItem(\''+item.id+'\',\'name\',this.value)" placeholder="Producto" style="padding:4px;border:1px solid var(--bd);border-radius:3px">'+
+      '<input type="number" value="' + item.qty + '" onchange="provUpdateItem(\''+item.id+'\',\'qty\',this.value)" min="0.01" step="0.01" style="padding:4px;border:1px solid var(--bd);border-radius:3px;text-align:center">'+
+      '<input type="number" value="' + fn(item.cost) + '" onchange="provUpdateItem(\''+item.id+'\',\'cost\',this.value)" step="0.01" min="0" style="padding:4px;border:1px solid var(--bd);border-radius:3px;text-align:center">'+
+      '<input type="number" value="' + item.iva + '" onchange="provUpdateItem(\''+item.id+'\',\'iva\',this.value)" min="0" max="100" step="0.01" placeholder="0" style="padding:4px;border:1px solid var(--bd);border-radius:3px;text-align:center">'+
+      '<div style="text-align:right;font-weight:600">$' + fn(subtotal) + '</div>'+
+      '<button class="btn bs" onclick="provRemoveItem(\''+item.id+'\')" style="width:28px;height:28px;padding:0;font-size:.9rem">✕</button>'+
+    '</div>';
+  }).join('');
+  
+  document.getElementById('prov-carrito').innerHTML = html || '<div style="padding:20px;text-align:center;color:var(--mu);font-size:.9rem">Sin productos</div>';
+  
+  const total = provCart.reduce((a, i) => a + (i.qty * i.cost * (1 + i.iva/100)), 0);
+  document.getElementById('prov-total').textContent = '$' + fn(total);
+  
+  // Actualizar lista de proveedores
+  const suppliers = new Set(provOrders.map(o => o.supplier));
+  let opts = '';
+  suppliers.forEach(s => { opts += '<option value="' + s + '">'; });
+  document.getElementById('prov-suppliers-list').innerHTML = opts;
+}
+
+function provSaveOrder(){
+  const supplier = document.getElementById('prov-supplier').value.trim();
+  const date = document.getElementById('prov-date').value;
+  const notes = document.getElementById('prov-notes').value;
+  
+  if(!supplier || !date) { alert('Proveedor y fecha son obligatorios'); return; }
+  if(provCart.length === 0) { alert('Agrega productos'); return; }
+  
+  const totalCost = provCart.reduce((a, i) => a + (i.qty * i.cost * (1 + i.iva/100)), 0);
+  
+  provOrders.push({
+    id: 'ord_' + Date.now(),
+    supplier, date: new Date(date).getTime(),
+    items: JSON.parse(JSON.stringify(provCart)),
+    totalCost, paid: 0, status: 'pendiente', notes
+  });
+  
+  saveProvData();
+  alert('Orden creada');
+  
+  provCart = [];
+  document.getElementById('prov-supplier').value = '';
+  document.getElementById('prov-date').value = '';
+  document.getElementById('prov-notes').value = '';
+  provRenderCart();
+}
+
+function provLoadOrders(){
+  const select = document.getElementById('prov-pago-orden');
+  select.innerHTML = '<option value="">-- Seleccionar orden --</option>';
+  
+  provOrders.filter(o => o.paid < o.totalCost).forEach(o => {
+    const pending = o.totalCost - o.paid;
+    select.innerHTML += '<option value="' + o.id + '" data-pending="' + pending + '">' + o.supplier + ' - $' + fn(pending) + ' pendiente</option>';
+  });
+}
+
+function provUpdateBalance(){
+  const sel = document.getElementById('prov-pago-orden');
+  const opt = sel.options[sel.selectedIndex];
+  
+  if(opt.value) {
+    const pending = parseFloat(opt.dataset.pending);
+    document.getElementById('prov-balance-show').style.display = 'block';
+    document.getElementById('prov-balance').textContent = '$' + fn(pending);
+  } else {
+    document.getElementById('prov-balance-show').style.display = 'none';
+  }
+}
+
+function provRegisterPayment(){
+  const orderId = document.getElementById('prov-pago-orden').value;
+  const monto = parseFloat(document.getElementById('prov-pago-monto').value) || 0;
+  const fecha = document.getElementById('prov-pago-fecha').value;
+  
+  if(!orderId || !monto || !fecha) { alert('Completa orden, monto y fecha'); return; }
+  
+  const ord = provOrders.find(o => o.id === orderId);
+  if(!ord) return;
+  
+  ord.paid = (ord.paid || 0) + monto;
+  ord.status = ord.paid >= ord.totalCost ? 'pagado' : 'parcial';
+  
+  provPayments.push({ orderId, supplier: ord.supplier, amount: monto, date: new Date(fecha).getTime() });
+  
+  saveProvData();
+  alert('Pago registrado');
+  
+  document.getElementById('prov-pago-monto').value = '';
+  document.getElementById('prov-pago-fecha').value = '';
+  provLoadOrders();
+  provRenderHistorial();
+}
+
+function provRenderHistorial(){
+  const html = provOrders.sort((a,b) => b.date-a.date).map(o => {
+    const pending = o.totalCost - (o.paid||0);
+    const status = o.status === 'pagado' ? '✓ Pagado' : (o.status === 'parcial' ? '⚠ Parcial' : '🔴 Pendiente');
+    const color = o.status === 'pagado' ? 'var(--ok)' : (o.status === 'parcial' ? 'var(--ac)' : 'var(--err)');
+    
+    return '<div style="border:1px solid var(--bd);border-radius:6px;padding:12px;background:white">'+
+      '<div style="display:flex;justify-content:space-between;margin-bottom:8px">'+
+        '<div><div style="font-weight:700">' + o.supplier + '</div><div style="font-size:.85rem;color:var(--mu)">' + new Date(o.date).toLocaleDateString() + '</div></div>'+
+        '<div style="text-align:right"><div style="font-weight:700">$' + fn(o.totalCost) + '</div><div style="font-size:.85rem;font-weight:600;color:' + color + '">' + status + '</div></div>'+
+      '</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:.85rem;margin-bottom:8px">'+
+        '<div style="background:var(--s2);padding:8px;border-radius:4px"><div style="font-size:.75rem;color:var(--mu)">TOTAL</div>$' + fn(o.totalCost) + '</div>'+
+        '<div style="background:var(--s2);padding:8px;border-radius:4px"><div style="font-size:.75rem;color:var(--mu)">PAGADO</div>$' + fn(o.paid||0) + '</div>'+
+        '<div style="background:var(--s2);padding:8px;border-radius:4px"><div style="font-size:.75rem;color:var(--mu)">PENDIENTE</div>$' + fn(pending) + '</div>'+
+      '</div>'+
+      (o.items ? '<div style="font-size:.8rem;color:var(--mu)">' + o.items.length + ' productos</div>' : '')+
+      (o.notes ? '<div style="font-size:.85rem;background:#f5f5f5;padding:8px;border-radius:4px;margin-top:8px">' + o.notes + '</div>' : '')+
+    '</div>';
+  }).join('');
+  
+  document.getElementById('prov-historial-list').innerHTML = html || '<div style="text-align:center;color:var(--mu);padding:40px">Sin órdenes</div>';
+}
+
+// ──── EGRESOS ────
+
+function egrSave(){
+  const desc = document.getElementById('egr-desc').value.trim();
+  const monto = parseFloat(document.getElementById('egr-monto').value) || 0;
+  const fecha = document.getElementById('egr-fecha').value;
+  
+  if(!desc || !monto || !fecha) { alert('Completa todos los campos'); return; }
+  
+  egresos.push({ id:'egr_'+Date.now(), desc, monto, date: new Date(fecha).getTime() });
+  
+  saveEgrData();
+  alert('Egreso guardado');
+  
+  document.getElementById('egr-desc').value = '';
+  document.getElementById('egr-monto').value = '';
+  document.getElementById('egr-fecha').value = '';
+  
+  egrRender();
+}
+
+function egrRender(){
+  const html = egresos.sort((a,b) => b.date-a.date).map(e => {
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid var(--bd);border-radius:6px;background:white">'+
+      '<div><div style="font-weight:600">' + e.desc + '</div><div style="font-size:.85rem;color:var(--mu)">' + new Date(e.date).toLocaleDateString() + '</div></div>'+
+      '<div style="font-weight:700;color:var(--err)">-$' + fn(e.monto) + '</div>'+
+    '</div>';
+  }).join('');
+  
+  document.getElementById('egr-list').innerHTML = html || '<div style="text-align:center;color:var(--mu);padding:20px">Sin egresos</div>';
+}
+
+// Inicializar
+document.addEventListener('DOMContentLoaded', () => {
+  if(document.getElementById('prov-date')) document.getElementById('prov-date').valueAsDate = new Date();
+  if(document.getElementById('prov-pago-fecha')) document.getElementById('prov-pago-fecha').valueAsDate = new Date();
+  if(document.getElementById('egr-fecha')) document.getElementById('egr-fecha').valueAsDate = new Date();
+  
+  provCart = [];
+  provRenderCart();
+  egrRender();
 });
 
 
