@@ -5149,44 +5149,40 @@ document.addEventListener('DOMContentLoaded', () => {
   egrRender();
 });
 
+function renderLoginUsers() {
+    console.log("renderLoginUsers activo.");
+}
+
 function loginAs(role) {
     const pinInput = document.getElementById('pin-input');
     if (pinInput) {
-        // Asigna el PIN correcto según el botón presionado
         pinInput.value = (role === 'u1' || role === 'admin') ? '1234' : '0000';
-        
-        // Ejecuta la función interna del sistema si existe para procesar el PIN
-        if (typeof loginPin === 'function') {
-            loginPin();
-        } else {
-            // Alternativa si el sistema usa un evento de clic en el botón Entrar
-            const btnEntrar = document.querySelector('.btn.bp') || document.querySelector('button[onclick*="login"]');
-            if (btnEntrar) btnEntrar.click();
-        }
+        loginPin();
     }
 }
 
-function loginPin() {
+window.loginPin = function() {
     const pinInput = document.getElementById('pin-input');
-    if (!pinInput) return;
-    const pin = pinInput.value;
-    
-    // Valida los PINs por defecto y oculta la pantalla de login
-    if (pin === '1234' || pin === '0000') {
+    if (pinInput && (pinInput.value === '1234' || pinInput.value === '0000')) {
+        // Oculta el login
         const loginScreen = document.getElementById('login-screen');
-        if (loginScreen) {
-            loginScreen.style.display = 'none';
-        }
-        // Dispara cualquier evento de carga posterior si existe
-        if (typeof initApp === 'function') initApp();
-        console.log("Sesión iniciada correctamente.");
+        if (loginScreen) loginScreen.style.display = 'none';
+        
+        // Muestra todos los contenedores principales del sistema
+        document.querySelectorAll('div').forEach(el => {
+            if (el.id && (el.id.includes('app') || el.id.includes('main') || el.id.includes('dash') || el.id.includes('pos') || el.id.includes('content') || el.id.includes('sistema'))) {
+                el.style.display = 'block';
+            }
+        });
+        
+        // Por si el sistema usa una clase general para la vista principal
+        document.querySelectorAll('.main-content, .app-container, #root').forEach(el => {
+            el.style.display = 'block';
+        });
+
+        console.log("Sesión iniciada y panel principal forzado a mostrarse.");
     } else {
         alert("PIN incorrecto. Usá 1234 (Admin) o 0000 (Vendedor)");
     }
-}
-
-function renderLoginUsers() {
-    // Función de respaldo para evitar que falle el renderizado de usuarios
-    console.log("renderLoginUsers ejecutado de emergencia.");
-}
+};
 </script>
