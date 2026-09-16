@@ -4781,7 +4781,7 @@ let provPayments = JSON.parse(localStorage.getItem('prov_pag')) || [];
 let provList = [];
 let provCart = [];
 
-let egresos = JSON.parse(localStorage.getItem('egr_list')) || [];
+egresos = JSON.parse(localStorage.getItem('egr_list')) || [];
 
 function saveProvData(){
   localStorage.setItem('prov_ord', JSON.stringify(provOrders));
