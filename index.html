@@ -5150,15 +5150,18 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function loginAs(role) {
-    // Busca el input de PIN y le asigna el PIN por defecto según el rol
     const pinInput = document.getElementById('pin-input');
     if (pinInput) {
-        // Asigna '1234' para admin y '0000' para vendedor por defecto
+        // Asigna el PIN correcto según el botón presionado
         pinInput.value = (role === 'u1' || role === 'admin') ? '1234' : '0000';
         
-        // Dispara la función de login existente si la tiene el sistema
+        // Ejecuta la función interna del sistema si existe para procesar el PIN
         if (typeof loginPin === 'function') {
             loginPin();
+        } else {
+            // Alternativa si el sistema usa un evento de clic en el botón Entrar
+            const btnEntrar = document.querySelector('.btn.bp') || document.querySelector('button[onclick*="login"]');
+            if (btnEntrar) btnEntrar.click();
         }
     }
 }
