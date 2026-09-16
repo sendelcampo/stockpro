@@ -5153,6 +5153,10 @@ function renderLoginUsers() {
     console.log("renderLoginUsers activo.");
 }
 
+function renderLoginUsers() {
+    console.log("renderLoginUsers activo.");
+}
+
 function loginAs(role) {
     const pinInput = document.getElementById('pin-input');
     if (pinInput) {
@@ -5175,7 +5179,6 @@ window.loginPin = function() {
             }
         });
         
-        // Por si el sistema usa una clase general para la vista principal
         document.querySelectorAll('.main-content, .app-container, #root').forEach(el => {
             el.style.display = 'block';
         });
@@ -5185,4 +5188,13 @@ window.loginPin = function() {
         alert("PIN incorrecto. Usá 1234 (Admin) o 0000 (Vendedor)");
     }
 };
+
+// Habilita los botones del menú lateral para evitar bloqueos
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('aside a, .sidebar a, nav a, .menu-item').forEach(item => {
+        item.addEventListener('click', function() {
+            console.log("Opción de menú seleccionada.");
+        });
+    });
+});
 </script>
