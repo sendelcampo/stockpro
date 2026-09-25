@@ -3054,7 +3054,26 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
 
 <script>
 // ══ DATA ══
-const LS={get:k=>JSON.parse(localStorage.getItem('sp5-'+k)||'null'),set:(k,v)=>localStorage.setItem('sp5-'+k,JSON.stringify(v))};
+/* LS.get / LS.set NUNCA deben lanzar.
+   Si el navegador se queda sin espacio (QuotaExceededError) el throw salía de
+   autoBackup() dentro de confirmSale() ANTES de closeO('m-checkout'): la
+   ventana de cobro no se cerraba, el carrito seguía cargado (cada clic
+   generaba otra venta) y como persist()/persistSale() también fallaban, la
+   venta nunca llegaba a Supabase y loadFromCloud() la borraba a los 30 seg. */
+const LS={
+  get:k=>{try{return JSON.parse(localStorage.getItem('sp5-'+k)||'null')}catch(e){return null}},
+  set:(k,v)=>{
+    const key='sp5-'+k;let data;
+    try{data=JSON.stringify(v);}catch(e){console.warn('LS.set (JSON) '+k,e);return false;}
+    try{localStorage.setItem(key,data);return true;}
+    catch(e){
+      /* Sin espacio: liberar las copias locales (sp5-bk) y reintentar una vez */
+      try{localStorage.removeItem('sp5-bk');}catch(_){}
+      try{localStorage.setItem(key,data);return true;}
+      catch(e2){console.warn('LS.set sin espacio en localStorage: '+k,e2);return false;}
+    }
+  }
+};
 let products=LS.get('p')||[];
 let movements=LS.get('m')||[];
 let categories=LS.get('c')||[];
@@ -4012,22 +4031,38 @@ function openCheckout(){
   $i('co-recv').value='';$i('co-pay2-amount').value='';$i('disc2-val').value='';$i('disc2-type').value='pct';$i('co-note').value='';$i('co-change').textContent='$0';
   renderPayButtons();calcChange();openO('m-checkout');
 }
+let confirmingSale=false;
 function confirmSale(){
+  if(confirmingSale)return;                       // anti doble clic
+  if(!cart.length){toast('El carrito está vacío','err');closeO('m-checkout');return;}
   const total=cartTotal();
   const needsCliente=selectedPay1==='cuenta'||selectedPay2==='cuenta';
   const clienteId=needsCliente?$i('co-cliente').value:'';
   if(needsCliente&&!clienteId){toast('Seleccioná un cliente para cobrar a cuenta corriente','err');return;}
   const sale={id:uid(),ts:Date.now(),items:cart.map(x=>({...x})),sub:cartSub(),disc:cartDisc()+cartDisc2(),total,pay:selectedPay1||'efectivo',pay2:selectedPay2||null,pay2amount:selectedPay2?(parseFloat($i('co-pay2-amount').value)||0):0,recv:parseFloat($i('co-recv').value)||total,note:$i('co-note').value.trim(),user:currentUser?currentUser.name:'',discVal:parseFloat($i('disc-val').value)||0,discType:$i('disc-type').value,discVal2:parseFloat($i('disc2-val').value)||0,discType2:$i('disc2-type').value,clienteId:clienteId||''};
-  cart.forEach(it=>{const idx=products.findIndex(x=>x.id===it.pid);if(idx>-1){products[idx].stock=Math.max(0,products[idx].stock-it.qty);addMvt(it.pid,'venta',it.qty,'Venta #'+sale.id.slice(-4).toUpperCase());}});
-  if(needsCliente){
-    const pay2amt=sale.pay2amount||0;
-    const cargoAmt=selectedPay1==='cuenta'?(total-(selectedPay2?pay2amt:0)):pay2amt;
-    if(cargoAmt>0){const cli=contacts.find(c=>c.id===clienteId);ctaMovs.unshift({id:uid(),contactId:clienteId,ts:Date.now(),type:'cargo',amount:cargoAmt,note:'Venta #'+sale.id.slice(-4).toUpperCase(),ref:sale.id});}
+  confirmingSale=true;
+  try{
+    cart.forEach(it=>{const idx=products.findIndex(x=>x.id===it.pid);if(idx>-1){products[idx].stock=Math.max(0,products[idx].stock-it.qty);addMvt(it.pid,'venta',it.qty,'Venta #'+sale.id.slice(-4).toUpperCase());}});
+    if(needsCliente){
+      const pay2amt=sale.pay2amount||0;
+      const cargoAmt=selectedPay1==='cuenta'?(total-(selectedPay2?pay2amt:0)):pay2amt;
+      if(cargoAmt>0){ctaMovs.unshift({id:uid(),contactId:clienteId,ts:Date.now(),type:'cargo',amount:cargoAmt,note:'Venta #'+sale.id.slice(-4).toUpperCase(),ref:sale.id});}
+    }
+    sales.unshift(sale);lastSale=sale;
+    /* La ventana se cierra y el carrito se vacía ANTES de persistir:
+       un fallo de almacenamiento no puede dejar el cobro abierto. */
+    closeO('m-checkout');clearCart();refreshAll();renderPosSales();
+    $i('ps-total').textContent='$'+fn(total);openO('m-post-sale');
+    try{persist();persistSale(sale);}catch(e){console.warn('persist de venta',e);}
+    try{autoBackup();}catch(e){console.warn('autoBackup',e);}
+    if(cfg().autoprint!==false)setTimeout(()=>printTicketData(sale),300);
+  }catch(err){
+    console.error('confirmSale',err);
+    closeO('m-checkout');clearCart();refreshAll();renderPosSales();
+    toast('⚠️ No se pudo completar la venta','err');
+  }finally{
+    confirmingSale=false;
   }
-  sales.unshift(sale);lastSale=sale;persist();persistSale(sale);autoBackup();
-  closeO('m-checkout');clearCart();refreshAll();renderPosSales();
-  if(cfg().autoprint!==false)setTimeout(()=>printTicketData(sale),300);
-  $i('ps-total').textContent='$'+fn(total);openO('m-post-sale');
 }
 function beep(){if(!cfg().sound)return;try{const ctx=new(window.AudioContext||window.webkitAudioContext)();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=1200;g.gain.value=0.15;o.start();g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.08);o.stop(ctx.currentTime+0.08);}catch(e){}}
 
@@ -4672,7 +4707,17 @@ function exportExcel(){
   if(typeof XLSX==='undefined'){ensureXLSX(exportExcel);return;}const wb=XLSX.utils.book_new();const c=cfg();const inv=[['Nombre','Código barras','SKU','Categoría','Marca','Proveedor','Stock','Stock mín','Precio costo','Precio venta','Margen %','Valor stock','Estado']];products.forEach(p=>{const s={ok:'En stock',low:'Stock bajo',out:'Sin stock'}[sst(p)];inv.push([p.name,p.barcode||'',p.sku||'',p.cat||'',p.marca||'',p.proveedor||'',p.stock,p.min||5,p.cost||0,p.price||0,mg(p.cost,p.price).toFixed(1)+'%',(p.cost||0)*p.stock,s]);});XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(inv),'Inventario');const PL={efectivo:'Efectivo',qr:'QR',transferencia:'Transferencia',debito:'Débito',credito:'Crédito',cuenta:'Cuenta cte.',otro:'Otro'};const vsht=[['Fecha','ID Venta','Productos','Total','Descuento','Pago 1','Pago 2','Monto 2','Usuario']];sales.forEach(s=>vsht.push([fd(s.ts),'#'+s.id.slice(-6).toUpperCase(),s.items.map(i=>i.qty+'x '+i.name).join(', '),s.total,s.disc||0,PL[s.pay]||s.pay,s.pay2?(PL[s.pay2]||s.pay2):'',s.pay2amount||0,s.user||'']));XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(vsht),'Ventas');const msht=[['Fecha','Producto','Tipo','Cantidad','Nota','Usuario']];movements.forEach(m=>msht.push([fd(m.ts),m.pname,m.type,m.qty,m.note||'',m.user||'']));XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(msht),'Movimientos');const asht=[['Producto','Stock','Stock mín','Estado']];products.filter(p=>sst(p)!=='ok').forEach(p=>asht.push([p.name,p.stock,p.min||5,{low:'Stock bajo',out:'Sin stock'}[sst(p)]]));XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(asht),'Alertas');XLSX.writeFile(wb,'StockPro_'+new Date().toLocaleDateString('es-AR').replace(/\//g,'-')+'.xlsx');toast('Excel exportado ✓');}
 
 // ══ BACKUP ══
-function autoBackup(){const bk={ts:Date.now(),products,movements,categories,users,sales,label:'Auto'};localBackups.unshift(bk);if(localBackups.length>10)localBackups=localBackups.slice(0,10);LS.set('bk',localBackups);}
+function autoBackup(){
+  /* Nunca debe romper el flujo de venta: si no entra en localStorage se
+     descartan las copias más viejas en lugar de lanzar QuotaExceededError. */
+  try{
+    const bk={ts:Date.now(),products,movements,categories,users,sales,label:'Auto'};
+    localBackups.unshift(bk);
+    if(localBackups.length>10)localBackups=localBackups.slice(0,10);
+    while(localBackups.length>1&&!LS.set('bk',localBackups))localBackups.pop();
+    LS.set('bk',localBackups);
+  }catch(e){console.warn('autoBackup',e);}
+}
 function exportPluCsv(){
   const kgProds=products.filter(p=>p.tipo==='kg');
   if(!kgProds.length){toast('No hay productos por kilo para exportar','err');return;}
