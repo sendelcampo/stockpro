@@ -623,8 +623,9 @@ function openProductModal(){
   const name=prompt('Nombre del producto:');if(!name)return;
   const sku=prompt('SKU (opcional):')||'',barcode=prompt('Código de barras (opcional):')||'';
   const cost=parseFloat(prompt('Costo base:'))||0,stock=parseInt(prompt('Stock inicial:'))||0;
+  const dm=provDefMargin();
   const taxPct=parseFloat(prompt('% Impuesto (ej: 21):')||'21')||21;
-  const profitPct=parseFloat(prompt('% Ganancia (ej: 20):')||'20')||20;
+  const profitPct=parseFloat(prompt('% Ganancia (ej: '+dm+'):',String(dm))||String(dm))||dm;
   const rounding=parseFloat(prompt('Redondeo (ej: 1, 0.50, 5):')||'1')||1;
   const price=parseFloat(prompt('Precio de venta:')||'0')||0;
   products.push({id:'prod_'+Date.now(),name,sku,barcode,cost,stock,taxPct,profitPct,rounding,price,category:'Sin categoría',description:''});
@@ -1406,8 +1407,9 @@ function openProductModal(){
   const name=prompt('Nombre del producto:');if(!name)return;
   const sku=prompt('SKU (opcional):')||'',barcode=prompt('Código de barras (opcional):')||'';
   const cost=parseFloat(prompt('Costo base:'))||0,stock=parseInt(prompt('Stock inicial:'))||0;
+  const dm=provDefMargin();
   const taxPct=parseFloat(prompt('% Impuesto (ej: 21):')||'21')||21;
-  const profitPct=parseFloat(prompt('% Ganancia (ej: 20):')||'20')||20;
+  const profitPct=parseFloat(prompt('% Ganancia (ej: '+dm+'):',String(dm))||String(dm))||dm;
   const rounding=parseFloat(prompt('Redondeo (ej: 1, 0.50, 5):')||'1')||1;
   const price=parseFloat(prompt('Precio de venta:')||'0')||0;
   products.push({id:'prod_'+Date.now(),name,sku,barcode,cost,stock,taxPct,profitPct,rounding,price,category:'Sin categoría',description:''});
@@ -1612,6 +1614,12 @@ body{font-family:var(--fb);background:var(--bg);color:var(--tx);min-height:100vh
 .pinrow input:focus{border-color:var(--ac);}
 #pin-err{color:var(--err);font-size:.78rem;margin-top:5px;min-height:14px;}
 #app{display:none;}
+/* Fila de resultados del buscador del POS: toda la barra es un botón */
+.psr-row{display:flex;align-items:center;gap:10px;width:100%;padding:11px 14px;border:0;border-bottom:1px solid var(--bd);background:transparent;color:var(--tx);font:inherit;text-align:left;cursor:pointer;box-sizing:border-box;-webkit-appearance:none;appearance:none;}
+.psr-row:hover{background:var(--s3);}
+.psr-row:active{background:var(--ac);color:#000;}
+.psr-row:last-child{border-bottom:0;}
+.psr-row.is-out{opacity:.5;}
 .layout{display:grid;grid-template-columns:220px 1fr;grid-template-rows:58px 1fr;min-height:100vh;}
 .topbar{grid-column:1/-1;background:var(--bg);border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;padding:0 18px;position:sticky;top:0;z-index:100;}
 .logo{font-family:var(--fh);font-weight:800;font-size:1.1rem;}
@@ -1738,7 +1746,21 @@ tr:hover td{background:rgba(255,255,255,.012);}
 .ct-total{display:flex;justify-content:space-between;font-family:var(--fh);font-size:1.3rem;font-weight:700;margin-top:8px;}
 .ct-total span:last-child{color:var(--ac);}
 .discount-row{display:flex;gap:6px;align-items:center;margin-bottom:4px;}
-@media print{body *{visibility:hidden!important;}#ticket-print,#ticket-print *{visibility:visible!important;}#ticket-print{position:fixed!important;inset:0!important;display:block!important;background:#fff!important;padding:0!important;margin:0!important;}@page{margin:0;padding:0;}}
+/* IMPORTANTE: antes se usaba `body *{visibility:hidden}` + `position:fixed`.
+   visibility:hidden NO saca al elemento del flujo, asi que la pagina seguia
+   midiendo toda la altura de la app => salian 2 hojas; y el elemento fijo se
+   REPITE en cada hoja => la termica imprimia el ticket DOS VECES.
+   Ahora se oculta todo lo demas con display:none y el ticket queda estatico. */
+@media print{
+  html,body{height:auto!important;max-height:none!important;overflow:visible!important;background:#fff!important;}
+  /* Fallback explícito además de body>* : colapsa la app de cualquier modo */
+  #app,.layout,main,header.topbar,.overlay,.modal,#toast,#sbo{display:none!important;}
+  body>*{display:none!important;}
+  body>#ticket-print{display:block!important;visibility:visible!important;position:static!important;left:auto!important;top:auto!important;inset:auto!important;background:#fff!important;padding:0!important;margin:0!important;width:auto!important;height:auto!important;max-width:none!important;overflow:visible!important;transform:none!important;}
+  body>#ticket-print:has(>.ticket:empty){display:none!important;}
+  #ticket-print,#ticket-print *{visibility:visible!important;}
+  @page{margin:0;padding:0;}
+}
 #ticket-print{display:none;}
 .ticket{background:#fff;color:#000;font-family:'Courier New',Courier,monospace;line-height:1.35;word-break:break-word;width:100%;max-width:100%;font-weight:600;}
 .tk-logo{text-align:center;font-weight:700;margin-bottom:1mm;}.tk-sub{text-align:center;color:#333;margin-bottom:1.5mm;}
@@ -1838,14 +1860,15 @@ tr:hover td{background:rgba(255,255,255,.012);}
   </header>
   <nav class="sidebar" id="sidebar">
     <button class="ni active" onclick="nav(&#39;pos&#39;,this)"><span class="ic">🛒</span>Punto de Venta</button>
-    <button class="ni" onclick="nav(&#39;dashboard&#39;,this)"><span class="ic">📊</span>Dashboard</button>
+    <button class="ni" onclick="nav(&#39;dashboard&#39;,this)" id="nav-dash"><span class="ic">📊</span>Dashboard</button>
     <button class="ni" onclick="nav(&#39;productos&#39;,this)"><span class="ic">📦</span>Productos</button>
     <button class="ni" onclick="nav(&#39;ventas&#39;,this)"><span class="ic">🧾</span>Historial Ventas</button>
     <button class="ni" onclick="nav(&#39;movimientos&#39;,this)"><span class="ic">↕️</span>Movimientos</button>
     <button class="ni" onclick="nav(&#39;fichas&#39;,this)"><span class="ic">🗂️</span>Fichas (Cta. Cte.)</button>
     <button class="ni" onclick="nav(&#39;egresos&#39;,this)"><span class="ic">📤</span>Egresos</button>
+    <button class="ni" onclick="nav(&#39;egresosdc&#39;,this)" id="nav-edc"><span class="ic">🍳</span>Egresos Doña Cocina</button>
     <button class="ni" onclick="nav(&#39;proveedores&#39;,this)"><span class="ic">🏭</span>Proveedores</button>
-    <button class="ni" onclick="nav(&#39;reportes&#39;,this)"><span class="ic">📊</span>Reportes</button>
+    <button class="ni" onclick="nav(&#39;reportes&#39;,this)" id="nav-rep"><span class="ic">📊</span>Reportes</button>
     <button class="ni" onclick="nav(&#39;alertas&#39;,this)"><span class="ic">🔔</span>Alertas</button>
     <button class="ni" onclick="nav(&#39;categorias&#39;,this)"><span class="ic">🏷️</span>Categorías</button>
     <div class="nsep"></div>
@@ -1875,7 +1898,7 @@ tr:hover td{background:rgba(255,255,255,.012);}
         <div class="pos-right">
           <div style="display:flex;gap:8px;padding:12px 14px 0 14px;flex-shrink:0;position:relative">
             <div style="flex:1;position:relative">
-              <input type="text" id="pos-q" placeholder="🔍 Buscar o escanear producto..." oninput="
+              <input type="text" id="pos-q" placeholder="🔍 Buscar o escanear producto..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-form-type="other" list="pos-q-nolist" oninput="
 if(bcProcessing)return;  // Bloquear si está escaneando
 scanTarget='pos';
 const code=this.value.trim().replace(/\s+/g,'');
@@ -1892,6 +1915,7 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
 }
 " onfocus="scanTarget='pos';renderPosSearch()" onchange="renderPosSearch()" onblur="setTimeout(()=>hidePosSearch(),200)" style="width:100%;font-size:1.1rem;padding:14px 16px;box-sizing:border-box" autofocus="">
               <div id="pos-search-results" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.35);max-height:280px;overflow-y:auto;z-index:5;max-width:100%"></div>
+              <datalist id="pos-q-nolist"></datalist>
             </div>
             <button class="btn bg" onclick="openScan(&#39;pos&#39;)" title="Cámara" style="font-size:1.2rem;padding:0 18px">📷</button>
             <button class="btn bg" onclick="clearCart()" title="Limpiar carrito" style="font-size:1.2rem;padding:0 18px">🗑</button>
@@ -2091,8 +2115,14 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
 
     <!-- EGRESOS -->
     <div class="view" id="view-egresos">
-      <div class="sec-hdr"><div class="sec-t">Egresos</div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn bg bs" onclick="openGastoM()">+ Nuevo gasto</button><button class="btn bp bs" onclick="openEgresoM()">+ Nueva compra</button></div></div>
-      <div class="tblw"><table><thead><tr><th>Fecha</th><th>Proveedor / Concepto</th><th>Detalle</th><th>Total</th><th>Pago</th><th></th></tr></thead><tbody id="egresos-tb"></tbody></table></div>
+      <div class="sec-hdr"><div class="sec-t">Egresos</div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn bg bs" onclick="openGastoM()">+ Nuevo gasto</button></div></div>
+      <div class="tblw"><table><thead><tr><th>Fecha</th><th>Concepto</th><th>Detalle</th><th>Total</th><th>Pago</th><th></th></tr></thead><tbody id="egresos-tb"></tbody></table></div>
+    </div>
+
+    <!-- EGRESOS DOÑA COCINA (solo administrador) -->
+    <div class="view" id="view-egresosdc">
+      <div class="sec-hdr"><div class="sec-t">🍳 Egresos Doña Cocina</div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn bg bs" onclick="openGastoM(&#39;dc&#39;)">+ Nuevo gasto</button></div></div>
+      <div class="tblw"><table><thead><tr><th>Fecha</th><th>Categoría / Concepto</th><th>Detalle</th><th>Total</th><th>Pago</th><th></th></tr></thead><tbody id="egresosdc-tb"></tbody></table></div>
     </div>
 
     <!-- CATEGORÍAS -->
@@ -2141,6 +2171,11 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
         <div class="cfg-row"><div class="cfg-label">Moneda</div><div class="cfg-ctrl"><select id="cfg-currency"><option value="$">$ (Peso argentino)</option><option value="US$">US$</option><option value="R$">R$</option></select></div></div>
       </div>
       <div class="cfg-section">
+        <div class="cfg-title">📦 Proveedores</div>
+        <div class="cfg-row"><div><div class="cfg-label">Ganancia por defecto (%)</div><div class="cfg-sub">Se aplica al agregar un producto nuevo a una compra de proveedores (antes era 20%). Cada producto puede tener su propio %.</div></div><div class="cfg-ctrl"><input type="number" id="cfg-prov-margin" min="0" max="1000" step="1" value="55" style="width:74px;text-align:right"></div></div>
+        <div class="cfg-row"><div><div class="cfg-label">Impuesto (IVA) en compras</div><div class="cfg-sub">Se activa/desactiva con la casilla «% Impuesto» del módulo Proveedores → Compras</div></div><div class="cfg-ctrl"><span style="font-size:.75rem;color:var(--mu)">por compra</span></div></div>
+      </div>
+      <div class="cfg-section">
         <div class="cfg-title">🏷️ Descuentos rápidos</div>
         <div style="font-size:.78rem;color:var(--mu);margin-bottom:12px">Se muestran como acceso rápido en el carrito, al lado del campo de descuento.</div>
         <div id="cfg-disc-presets" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px"></div>
@@ -2181,6 +2216,14 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
         <div class="cfg-row"><div class="cfg-label">Calcular ranking sobre</div><div class="cfg-ctrl"><select id="cfg-rank-mode" onchange="onRankModeChange()"><option value="all">Histórico completo</option><option value="monthly">Solo el mes actual</option><option value="custom">Desde la última limpieza</option></select></div></div>
         <div id="cfg-rank-since-row" style="font-size:.78rem;color:var(--mu);margin-bottom:10px;display:none">Última limpieza: <span id="cfg-rank-since-txt">—</span></div>
         <button class="btn bg bs" onclick="clearSalesRank()">🗑️ Limpiar ranking ahora</button>
+      </div>
+
+      <!-- USUARIOS Y CLAVES (solo administrador) -->
+      <div class="cfg-section" id="cfg-users-section" style="display:none">
+        <div class="cfg-title">🔑 Usuarios y claves (PIN)</div>
+        <div style="font-size:.78rem;color:var(--mu);margin-bottom:12px">Creá o editá usuarios, asigná el rol (Administrador o Vendedor) y definí la clave PIN con la que ingresan al sistema.</div>
+        <div id="cfg-users-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
+        <button class="btn bp bs" onclick="openUserM(null)">➕ Nuevo usuario / clave</button>
       </div>
     </div>
 
@@ -2366,11 +2409,11 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
                 <div style="font-weight:700;font-size:1.1rem" id="prov-subtotal">$0</div>
               </div>
               <div>
-                <div style="font-size:.8rem;color:var(--mu)">IVA Total</div>
+                <div style="font-size:.8rem;color:var(--mu)">Impuesto / IVA</div>
                 <div style="font-weight:700;font-size:1.1rem" id="prov-iva-total">$0</div>
               </div>
               <div>
-                <div style="font-size:.8rem;color:var(--mu)">TOTAL CON IVA</div>
+                <div style="font-size:.8rem;color:var(--mu)">TOTAL DE LA COMPRA</div>
                 <div style="font-weight:700;font-size:1.1rem;color:var(--ac2)" id="prov-total">$0</div>
               </div>
             </div>
@@ -2547,16 +2590,49 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
 <!-- MODAL NUEVO GASTO GENERAL -->
 <div class="overlay" id="m-gasto">
   <div class="modal" style="max-width:420px">
-    <div class="mt">📤 Nuevo gasto</div>
+    <div class="mt" id="gasto-title">📤 Nuevo gasto</div>
     <input type="hidden" id="gasto-editing-id">
     <div class="fgrid">
-      <div class="fg full"><label class="fl">Tipo de Gasto *</label><select id="gasto-cat"><option value="">-- Seleccionar tipo --</option><option value="Insumos">Insumos</option><option value="Sueldos">Sueldos</option><option value="Alquiler">Alquiler</option><option value="Servicios">Servicios (luz, agua, internet)</option><option value="Impuestos">Impuestos</option><option value="Mantenimiento">Mantenimiento</option><option value="Transporte">Transporte</option><option value="Marketing">Marketing/Publicidad</option><option value="Seguridad">Seguridad</option><option value="Limpieza">Limpieza</option><option value="Otro">Otro</option></select></div>
+      <div class="fg full"><label class="fl">Tipo de Gasto *</label><select id="gasto-cat" onchange="onGastoCatChg()"><option value="">-- Seleccionar tipo --</option></select></div>
+      <div class="fg full" id="gasto-cat-new-wrap" style="display:none"><label class="fl">Nueva categoría *</label><input type="text" id="gasto-cat-new" maxlength="40" placeholder="Ej: Viandas, Delivery, Uniformes" onkeydown="if(event.key==='Enter'){event.preventDefault();addGastoCatQuick();}"></div>
+      <div class="fg full" style="display:flex;gap:6px;justify-content:space-between;align-items:center;flex-wrap:wrap">
+        <span style="font-size:.72rem;color:var(--mu)">Categorías: <b id="gasto-cat-count">0</b></span>
+        <span style="display:flex;gap:6px">
+          <button type="button" class="btn bg bs" onclick="addGastoCatQuick()">➕ Agregar categoría</button>
+          <button type="button" class="btn bg bs" onclick="toggleGastoCats()">🗂️ Ver / eliminar</button>
+        </span>
+      </div>
+      <div class="fg full" id="gasto-cats-list" style="display:none;max-height:170px;overflow:auto;border:1px dashed var(--bd);border-radius:6px;padding:6px"></div>
       <div class="fg full"><label class="fl">Monto ($) *</label><input type="number" id="gasto-amount" min="0" step="0.01" placeholder="0"></div>
       <div class="fg full"><label class="fl">Descripción</label><input type="text" id="gasto-note" placeholder="Ej: Sueldo de Marzo — Juan"></div>
       <div class="fg full"><label class="fl">Tipo de Pago</label><select id="gasto-tipo-pago"><option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option><option value="tarjeta">Tarjeta</option><option value="cuenta">Cuenta corriente</option><option value="cheque">Cheque</option><option value="otros">Otros</option></select></div>
-      <div class="fg full"><label class="fl">Estado</label><select id="gasto-pay"><option value="pagado">Pagado</option><option value="pendiente">Pendiente</option></select></div>
+      <div class="fg full"><label class="fl">Estado</label><select id="gasto-pay"><option value="pagado">Pagado (completo)</option><option value="pendiente">Pendiente / a pagar en partes</option></select><div style="font-size:.68rem;color:var(--mu);margin-top:4px">Para cargar pagos parciales con fecha y detalle: guardá el gasto y tocá 💳 en la lista de egresos.</div></div>
     </div>
     <div class="mfoot"><button class="btn bg" onclick="closeO('m-gasto')">Cancelar</button><button class="btn bp" onclick="saveGasto()">Guardar gasto</button></div>
+  </div>
+</div>
+
+<!-- MODAL PAGO PARCIAL DE EGRESO -->
+<div class="overlay" id="m-egpay">
+  <div class="modal" style="max-width:520px;width:100%">
+    <div class="mt" id="egpay-title">💳 Registrar pago</div>
+    <input type="hidden" id="egpay-id">
+    <input type="hidden" id="egpay-modo">
+    <div id="egpay-sum" style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:.85rem"></div>
+    <div class="fgrid">
+      <div class="fg"><label class="fl">Monto ($) *</label><input type="number" id="egpay-amt" min="0" step="0.01" placeholder="0" inputmode="decimal"></div>
+      <div class="fg"><label class="fl">Fecha *</label><input type="date" id="egpay-date"></div>
+      <div class="fg full"><label class="fl">Detalle</label><input type="text" id="egpay-detail" placeholder="Ej: Seña, 2da cuota, transferencia del 12/05"></div>
+      <div class="fg full"><label class="fl">Forma de pago</label><select id="egpay-tipo"><option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option><option value="tarjeta">Tarjeta</option><option value="cuenta">Cuenta corriente</option><option value="cheque">Cheque</option><option value="otros">Otros</option></select></div>
+    </div>
+    <div style="margin-top:14px">
+      <div style="font-size:.78rem;color:var(--mu);margin-bottom:6px">Pagos registrados</div>
+      <div id="egpay-list" style="display:grid;gap:6px"></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn bg" onclick="closeO('m-egpay')">Cerrar</button>
+      <button class="btn bp" onclick="saveEgPay()">➕ Agregar pago</button>
+    </div>
   </div>
 </div>
 
@@ -2633,7 +2709,17 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
     </div>
     <div id="ord-pays" style="display:grid;gap:6px"></div>
 
-    <div style="display:flex;gap:18px;flex-wrap:wrap;background:var(--s2);padding:12px;border-radius:8px;margin-top:12px;font-size:.9rem">
+    <div style="background:var(--s2);padding:12px;border-radius:8px;margin-top:12px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" id="ord-include-iva" onchange="ordToggleIva()" style="width:18px;height:18px;cursor:pointer">
+        <span style="font-weight:600;font-size:.85rem">% Impuesto (IVA) incluido en el total</span>
+      </label>
+      <div style="font-size:.74rem;color:var(--mu)">Subtotal + Impuesto = Total de la compra</div>
+    </div>
+
+    <div style="display:flex;gap:18px;flex-wrap:wrap;background:var(--s2);padding:12px;border-radius:8px;margin-top:8px;font-size:.9rem">
+      <div>Subtotal: <strong id="ord-subtotal">$0</strong></div>
+      <div>Impuesto: <strong id="ord-tax" style="color:var(--mu)">$0</strong></div>
       <div>Total: <strong id="ord-total">$0</strong></div>
       <div>Pagado: <strong id="ord-paid" style="color:var(--ok)">$0</strong></div>
       <div>Pendiente: <strong id="ord-pending" style="color:var(--err)">$0</strong></div>
@@ -2703,7 +2789,7 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
       <div class="fg"><label class="fl">Stock mínimo</label><input type="number" id="p-min" min="0" placeholder="5"></div>
       <div class="fg"><label class="fl" id="lbl-cost">Precio costo ($)</label><input type="text" inputmode="decimal" id="p-cost" oninput="calcM()"></div>
       <div class="fg"><label class="fl" id="lbl-price">Precio venta ($)</label><input type="number" id="p-price" min="0" step="0.01" oninput="calcM()"></div>
-      <div class="fg"><label class="fl">IVA (%)</label><input type="number" id="p-iva" min="0" max="100" step="0.01" value="0" placeholder="0"></div>
+      <div class="fg"><label class="fl">IVA (%)</label><input type="number" id="p-iva" min="0" max="100" step="0.01" value="0" placeholder="0" oninput="calcM()"><div style="font-size:.68rem;color:var(--mu);margin-top:3px">Se suma al precio de costo</div></div>
       <div class="fg full">
         <div class="margi" id="margi">
           <span class="mil">Ganancia</span><span class="miv" id="mi-g">$0</span>
@@ -2852,7 +2938,7 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
     <div class="fgrid">
       <div class="fg"><label class="fl">Categoría</label><select id="bk-cat"><option value="">— Sin cambio —</option></select></div>
       <div class="fg"><label class="fl">Stock mínimo</label><input type="number" id="bk-min" placeholder="— Sin cambio —" min="0"></div>
-      <div class="fg"><label class="fl">Precio costo ($)</label><input type="text" inputmode="decimal" id="bk-cost" placeholder="— Sin cambio —" oninput="calcBkMargin()"></div>
+      <div class="fg"><label class="fl">Precio costo sin IVA ($)</label><input type="text" inputmode="decimal" id="bk-cost" placeholder="— Sin cambio —" oninput="calcBkMargin()"></div>
       <div class="fg"><label class="fl">Precio venta ($)</label><input type="number" id="bk-price" placeholder="— Sin cambio —" min="0" step="0.01" oninput="calcBkMargin()"></div>
       <div class="fg full" style="background:var(--s2);border-radius:8px;padding:10px 12px;border:1px solid var(--bd)">
         <div style="font-size:.72rem;color:var(--ac);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">📊 Calculadora</div>
@@ -2884,7 +2970,7 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
     <div class="fgrid">
       <div class="fg full"><label class="fl">Nombre *</label><input type="text" id="u-name" placeholder="Ej: María García"></div>
       <div class="fg"><label class="fl">Rol</label><select id="u-role"><option value="admin">Administrador</option><option value="vendedor">Vendedor</option><option value="deposito">Depósito</option></select></div>
-      <div class="fg"><label class="fl">PIN (4-6 dígitos)</label><input type="password" id="u-pin" maxlength="6" inputmode="numeric" placeholder="••••"></div>
+      <div class="fg"><label class="fl">PIN (4-6 dígitos)</label><div style="display:flex;gap:6px;align-items:center"><input type="password" id="u-pin" maxlength="6" inputmode="numeric" placeholder="••••" style="flex:1;min-width:0"><button type="button" class="btn bg bs" onclick="genUserPin()" title="Generar clave aleatoria" style="white-space:nowrap">🎲 Generar</button></div></div>
       <div class="fg full"><label class="fl">Emoji avatar</label><input type="text" id="u-av" maxlength="2" placeholder="👤"></div>
     </div>
     <div class="mfoot"><button class="btn bg" onclick="closeO(&#39;m-user&#39;)">Cancelar</button><button class="btn bp" onclick="saveUser()">Guardar</button></div>
@@ -2977,6 +3063,9 @@ let sales=LS.get('s')||[];
 let contacts=LS.get('ct')||[];
 let ctaMovs=LS.get('cm')||[];
 let egresos=LS.get('eg')||[];
+let egresosDC=LS.get('egdc')||[];   // Módulo "Egresos Doña Cocina" (solo admin)
+let egModo='eg';                    // 'eg' = Egresos normal · 'dc' = Doña Cocina
+let egresoCats=LS.get('egcats')||null; // Categorías de gasto guardadas por el usuario
 let fichaTab='cliente';
 let selectedFichaId=null;
 let localBackups=LS.get('bk')||[];
@@ -3020,6 +3109,37 @@ async function fetchAllRows(table,orderCol){
   }
   return all;
 }
+// ══ BORRADO REAL DE COMPRAS/PAGOS DE PROVEEDORES EN LA NUBE ══
+/* ordDel() quitaba la orden solo en forma local: provCloudSync() únicamente hace upsert,
+   por lo que loadFromCloud() (cada 30s) la restauraba desde Supabase. Acá se registran los
+   IDs borrados, se filtran al sincronizar y se borran definitivamente de la nube. */
+let provDeleted=JSON.parse(localStorage.getItem('prov_deleted')||'{"orders":[],"payments":[]}');
+if(!provDeleted||!Array.isArray(provDeleted.orders)||!Array.isArray(provDeleted.payments))provDeleted={orders:[],payments:[]};
+function provSaveDeleted(){localStorage.setItem('prov_deleted',JSON.stringify(provDeleted));}
+function provMarkDeleted(table,id){
+  const key=table==='prov_payments'?'payments':'orders';
+  if(!id||provDeleted[key].indexOf(id)>=0)return;
+  provDeleted[key].push(id);provSaveDeleted();
+}
+function provIsDeleted(table,id){
+  const key=table==='prov_payments'?'payments':'orders';
+  return provDeleted[key].indexOf(id)>=0;
+}
+async function provFlushDeleted(){
+  if(!cloudMode||!sb)return; /* sin nube queda pendiente para la próxima conexión */
+  const pairs=[['prov_orders','orders'],['prov_payments','payments']];
+  for(let pi=0;pi<pairs.length;pi++){
+    const table=pairs[pi][0],key=pairs[pi][1];
+    const pend=provDeleted[key].slice();
+    for(let i=0;i<pend.length;i++){
+      let ok=false;
+      try{const r=await sb.from(table).delete().eq('id',pend[i]);ok=!(r&&r.error);if(!ok)console.error('provFlushDeleted:',r.error);}
+      catch(e){console.error('provFlushDeleted:',e);}
+      if(ok){const ix=provDeleted[key].indexOf(pend[i]);if(ix>=0)provDeleted[key].splice(ix,1);}
+    }
+  }
+  provSaveDeleted();
+}
 async function loadFromCloud(){
   if(!sb)return;
   try{
@@ -3033,9 +3153,9 @@ async function loadFromCloud(){
     ]);
     /* Si la nube viene vacia o con error, NO se pisa lo local: persist() sube lo local y lo repone. */
     if(rp&&rp.length)products=rp.map(r=>r.data);if(rc&&rc.length)categories=rc.map(r=>r.data);if(ru&&ru.length)users=ru.map(r=>r.data);if(rct&&rct.length)contacts=rct.map(r=>r.data);
-    if(rm.data&&rm.data.length)movements=rm.data.map(r=>r.data);if(rs.data&&rs.data.length)sales=rs.data.map(r=>r.data);if(rcm.data&&rcm.data.length)ctaMovs=rcm.data.map(r=>r.data);if(reg.data&&reg.data.length)egresos=reg.data.map(r=>r.data);
-    if(rpo&&rpo.length){const ids=new Set(rpo.map(r=>r.id));provOrders=rpo.map(r=>r.data).concat(provOrders.filter(o=>!ids.has(o.id)));}
-    if(rpy&&rpy.length){const ids=new Set(rpy.map(r=>r.id));provPayments=rpy.map(r=>r.data).concat(provPayments.filter(p=>!p.id||!ids.has(p.id)));}
+    if(rm.data&&rm.data.length)movements=rm.data.map(r=>r.data);if(rs.data&&rs.data.length)sales=rs.data.map(r=>r.data);if(rcm.data&&rcm.data.length)ctaMovs=rcm.data.map(r=>r.data);if(reg.data&&reg.data.length){const allEg=reg.data.map(r=>r.data);egresos=allEg.filter(e=>e.mod!=='dc');egresosDC=allEg.filter(e=>e.mod==='dc');}
+    if(rpo&&rpo.length){const ids=new Set(rpo.map(r=>r.id));const dOrd=provDeleted.orders;provOrders=rpo.map(r=>r.data).filter(o=>dOrd.indexOf(o.id)<0).concat(provOrders.filter(o=>!ids.has(o.id)&&dOrd.indexOf(o.id)<0));}
+    if(rpy&&rpy.length){const ids=new Set(rpy.map(r=>r.id));const dPay=provDeleted.payments;provPayments=rpy.map(r=>r.data).filter(p=>dPay.indexOf(p.id)<0).concat(provPayments.filter(p=>(!p.id||!ids.has(p.id))&&dPay.indexOf(p.id)<0));}
     if(rps&&rps.length){const ids=new Set(rps.map(r=>r.id));provSuppliers=rps.map(r=>r.data).concat(provSuppliers.filter(s=>!ids.has(s)));}
     persist();
   }catch(e){console.error('loadFromCloud:',e);}
@@ -3060,11 +3180,11 @@ function ensureKgPluCodes(){
 }
 async function persist(){
   ensureKgPluCodes();
-  LS.set('p',products);LS.set('m',movements);LS.set('c',categories);LS.set('u',users);LS.set('s',sales);LS.set('ct',contacts);LS.set('cm',ctaMovs);LS.set('eg',egresos);
+  LS.set('p',products);LS.set('m',movements);LS.set('c',categories);LS.set('u',users);LS.set('s',sales);LS.set('ct',contacts);LS.set('cm',ctaMovs);LS.set('eg',egresos);LS.set('egdc',egresosDC);LS.set('egcats',(egresoCats&&egresoCats.length)?egresoCats:['Insumos','Sueldos','Alquiler','Servicios','Impuestos','Mantenimiento','Transporte','Marketing','Seguridad','Limpieza','Otro']);
   saveProvData();
   if(!cloudMode||!sb)return;
   showSync('⏳ Guardando...',true);
-  try{await Promise.all([cloudUpsert('products',products),cloudUpsert('categories',categories),cloudUpsert('users',users),cloudUpsert('contacts',contacts),cloudUpsert('cta_movs',ctaMovs),cloudUpsert('egresos',egresos)]);showSync('☁️ Guardado',true);}
+  try{await Promise.all([cloudUpsert('products',products),cloudUpsert('categories',categories),cloudUpsert('users',users),cloudUpsert('contacts',contacts),cloudUpsert('cta_movs',ctaMovs),cloudUpsert('egresos',egresos.concat(egresosDC))]);showSync('☁️ Guardado',true);}
   catch(e){showSync('⚠️ Error al guardar',false);}
 }
 async function persistMov(m){LS.set('m',movements);if(cloudMode&&sb)await cloudUpsert('movements',[m]);}
@@ -3103,6 +3223,21 @@ function fn(n){return Number(n||0).toLocaleString('es-AR',{maximumFractionDigits
 function spNum(v){if(v===null||v===undefined)return 0;let s=String(v).trim();if(!s)return 0;s=s.replace(/\s/g,'');if(s.indexOf(',')>-1){s=s.replace(/\./g,'').replace(',','.');}const n=parseFloat(s);return isNaN(n)?0:n;}
 function spDec(v){if(v===null||v===undefined||v==='')return '';return String(spNum(v));}
 function provIvaOn(){const cb=document.getElementById('prov-include-iva');return !cb||cb.checked;}
+/* Ganancia por defecto de Proveedores: vive en Configuración (55% por defecto).
+   Si la pantalla de Config aún no se cargó, cae al valor guardado en cfg. */
+function provDefMargin(){
+  const c=(typeof cfg==='function')?cfg():null;
+  let v=c&&c.provMarginPct!=null?spNum(c.provMarginPct):55;
+  /* El valor del input solo se usa si la pantalla de Configuración está visible
+     (si no, el campo conserva el 55 del HTML y pisaría lo guardado). */
+  const vc=document.getElementById('view-config');
+  if(vc&&vc.classList&&vc.classList.contains('active')){
+    const el=document.getElementById('cfg-prov-margin');
+    const dv=el?parseInt(el.value):NaN;
+    if(!isNaN(dv)&&dv>=0)v=dv;
+  }
+  return (v==null||isNaN(v))?55:v;
+}
 function provRecalcAll(){provCarrito.forEach(calculateItemPrices);renderProvCarrito();}
 function spIsNumField(t){if(!t||t.tagName!=='INPUT')return false;if(t.type==='number')return true;if(t.type==='text'){const im=(t.getAttribute('inputmode')||t.inputMode||'').toLowerCase();return im==='decimal'||im==='numeric'||im==='tel';}return false;}
 document.addEventListener('focusin',function(e){const t=e.target;if(spIsNumField(t)){try{t.select();}catch(_){}}});
@@ -3110,6 +3245,7 @@ document.addEventListener('click',function(e){const t=e.target;if(spIsNumField(t
 // ══ BASE DE DATOS + EXCEL (PROVEEDORES Y ÓRDENES) ══
 async function provCloudSync(){
   if(!cloudMode||!sb)return;
+  try{provFlushDeleted().catch(()=>{});}catch(e){} /* reintenta borrar de la nube lo que quedó pendiente */
   try{
     provPayments.forEach(p=>{if(!p.id)p.id=uid();});
     const reqs=[];
@@ -3239,7 +3375,8 @@ function escH(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,
 function provRefreshOrders(){[renderHistorial,renderProvPurchases,renderProvFicha,populatePagoOrdenes,renderProductsSelectInProv].forEach(function(f){try{f();}catch(e){}});}
 function ordDateInput(ts){const d=new Date(ts||Date.now()),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes());}
 function ordCalc(it,incl){const cost=spNum(it.cost),qty=spNum(it.qty)||1,discount=spNum(it.discount);const taxPct=incl?spNum(it.taxPct):0;const profitPct=spNum(it.profitPct);const rounding=spNum(it.rounding);it.subtotal=cost*qty-discount;it.priceWithoutIva=cost+cost*(profitPct/100);const base=it.priceWithoutIva*(1+taxPct/100);it.priceWithIva=rounding>0?Math.ceil(base/rounding)*rounding:Math.round(base*100)/100;}
-function ordTotals(){const total=ordDraft.items.reduce((s,it)=>s+spNum(it.priceWithIva)*spNum(it.qty),0);const paid=ordLegacy+ordPays.reduce((s,p)=>s+spNum(p.amount),0);ordDraft.totalCost=total;const t=$i('ord-total'),pd=$i('ord-paid'),pe=$i('ord-pending');if(t)t.textContent='$'+fn(total);if(pd)pd.textContent='$'+fn(paid);if(pe)pe.textContent='$'+fn(total-paid);return total;}
+function ordTotals(){const incl=!!ordDraft.includeIva;let sub=0,tax=0;ordDraft.items.forEach(it=>{const base=spNum(it.cost)*(spNum(it.qty)||1)-spNum(it.discount);sub+=base;if(incl)tax+=base*(spNum(it.taxPct)/100);});const total=sub+tax;const paid=ordLegacy+ordPays.reduce((s,p)=>s+spNum(p.amount),0);ordDraft.totalCost=total;ordDraft.subTotal=sub;ordDraft.taxTotal=tax;const t=$i('ord-total'),pd=$i('ord-paid'),pe=$i('ord-pending'),sb=$i('ord-subtotal'),tx=$i('ord-tax');if(sb)sb.textContent='$'+fn(sub);if(tx)tx.textContent='$'+fn(tax);if(t)t.textContent='$'+fn(total);if(pd)pd.textContent='$'+fn(paid);if(pe)pe.textContent='$'+fn(total-paid);return total;}
+function ordToggleIva(){if(!ordDraft)return;const cb=$i('ord-include-iva');ordDraft.includeIva=!!(cb&&cb.checked);ordRender();}
 function ordOpen(id){
   const o=provOrders.find(x=>x.id===id);
   if(!o){toast('Orden no encontrada','err');return;}
@@ -3253,6 +3390,7 @@ function ordOpen(id){
   $i('ord-date').value=ordDateInput(ordDraft.date);
   const st=$i('ord-status');st.value=ordDraft.status||'pendiente';if(!st.value)st.value='pendiente';
   $i('ord-notes').value=ordDraft.notes||'';
+  const oi=$i('ord-include-iva');if(oi)oi.checked=!!ordDraft.includeIva;
   $i('ord-pay-amt').value='';$i('ord-pay-type').value='efectivo';
   const dd=new Date(),pp=n=>String(n).padStart(2,'0');$i('ord-pay-date').value=dd.getFullYear()+'-'+pp(dd.getMonth()+1)+'-'+pp(dd.getDate());
   const sel=$i('ord-add-prod');
@@ -3265,7 +3403,7 @@ function ordRender(){
   ordDraft.items.forEach(it=>ordCalc(it,incl));
   const inp='padding:4px;border:1px solid var(--bd);border-radius:3px;color:var(--tx);background:var(--s1);text-align:center;font-size:.78rem';
   $i('ord-items').innerHTML=ordDraft.items.length?ordDraft.items.map((it,i)=>{
-    const sub=spNum(it.priceWithIva)*spNum(it.qty);
+    const sub=spNum(it.subtotal);
     return '<tr>'+
       '<td style="padding:4px"><input type="text" value="'+escH(it.name||'')+'" onchange="ordItem('+i+',\'name\',this.value)" style="width:100%;min-width:110px;'+inp+';text-align:left"></td>'+
       '<td style="padding:4px"><input type="text" inputmode="decimal" value="'+spDec(it.qty)+'" onchange="ordItem('+i+',\'qty\',this.value)" style="width:54px;'+inp+'"></td>'+
@@ -3293,7 +3431,7 @@ function ordItem(i,f,v){
   ordCalc(it,!!ordDraft.includeIva);
   const p=$i('ord-p'+i),s=$i('ord-s'+i);
   if(p)p.textContent='$'+fn(it.priceWithIva);
-  if(s)s.textContent='$'+fn(spNum(it.priceWithIva)*spNum(it.qty));
+  if(s)s.textContent='$'+fn(spNum(it.subtotal));
   ordTotals();
 }
 function ordAddItem(){
@@ -3304,7 +3442,7 @@ function ordAddItem(){
   }else{
     const p=products.find(x=>x.id===v);
     if(!p){toast('Producto no encontrado','err');return;}
-    ordDraft.items.push({id:'oi_'+Date.now(),productId:p.id,name:p.name,qty:1,cost:spNum(p.cost),discount:0,taxPct:p.taxPct==null?21:spNum(p.taxPct),profitPct:p.profitPct==null?20:spNum(p.profitPct),rounding:p.rounding==null?0:spNum(p.rounding),stock:p.stock||0,priceWithIva:0,priceWithoutIva:0});
+    ordDraft.items.push({id:'oi_'+Date.now(),productId:p.id,name:p.name,qty:1,cost:spNum(p.cost),discount:0,taxPct:p.taxPct==null?21:spNum(p.taxPct),profitPct:p.profitPct==null?provDefMargin():spNum(p.profitPct),rounding:p.rounding==null?0:spNum(p.rounding),stock:p.stock||0,priceWithIva:0,priceWithoutIva:0});
   }
   sel.value='';
   ordRender();
@@ -3328,8 +3466,13 @@ function ordSave(){
   const idx=provOrders.findIndex(o=>o.id===ordDraft.id);
   if(idx<0){toast('Orden no encontrada','err');return;}
   ordDraft.supplier=sup;ordDraft.date=new Date(fecha).getTime();ordDraft.notes=$i('ord-notes').value.trim();
+  ordDraft.includeIva=!!($i('ord-include-iva')&&$i('ord-include-iva').checked);
   ordDraft.items.forEach(it=>ordCalc(it,!!ordDraft.includeIva));
-  const total=ordDraft.items.reduce((s,it)=>s+spNum(it.priceWithIva)*spNum(it.qty),0);
+  /* Total = Subtotal (costo) + Impuesto (solo si está activado) */
+  let subTot=0,taxTot=0;
+  ordDraft.items.forEach(it=>{const base=spNum(it.cost)*(spNum(it.qty)||1)-spNum(it.discount);subTot+=base;if(ordDraft.includeIva)taxTot+=base*(spNum(it.taxPct)/100);});
+  const total=subTot+taxTot;
+  ordDraft.subTotal=subTot;ordDraft.taxTotal=taxTot;
   const paid=ordLegacy+ordPays.reduce((s,p)=>s+spNum(p.amount),0);
   ordDraft.totalCost=total;ordDraft.paid=paid;
   let st=$i('ord-status').value||ordDraft.status||'pendiente';
@@ -3351,10 +3494,15 @@ function ordDel(id){
   const o=provOrders.find(x=>x.id===id);if(!o)return;
   $i('confirm-msg').textContent='¿Eliminar la orden de '+(o.supplier||'')+'? Se borran también sus pagos (no revierte stock).';
   $i('confirm-ok').onclick=function(){
+    const payIds=provPayments.filter(p=>p.orderId===id).map(p=>p.id).filter(Boolean);
     provOrders=provOrders.filter(x=>x.id!==id);
     provPayments=provPayments.filter(p=>p.orderId!==id);
+    /* Marcar como borrado: sin esto, loadFromCloud() las restauraba cada 30s desde Supabase */
+    provMarkDeleted('prov_orders',id);
+    payIds.forEach(pid=>provMarkDeleted('prov_payments',pid));
     saveProvData();closeO('m-confirm');closeO('m-ord');ordDraft=null;ordPays=[];ordLegacy=0;
     provRefreshOrders();toast('Orden eliminada','err');
+    provFlushDeleted().catch(()=>{});
   };
   openO('m-confirm');
 }
@@ -3373,7 +3521,7 @@ function renderProvPurchases(){
     return '<div style="border:1px solid var(--bd);border-radius:8px;padding:12px;background:var(--s1)">'+
       '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">'+
         '<div><div style="font-weight:700">'+esc2(o.supplier||'Sin proveedor')+'</div>'+
-        '<div style="font-size:.75rem;color:var(--mu)">'+(o.date?fd(o.date):'—')+' · '+(o.items?o.items.length:0)+' productos'+(o.includeIva?' · IVA incluido':' · sin IVA')+'</div></div>'+
+        '<div style="font-size:.75rem;color:var(--mu)">'+(o.date?fd(o.date):'—')+' · '+(o.items?o.items.length:0)+' productos'+(o.taxTotal>0?' · Impuesto $'+fn(o.taxTotal):'')+(o.includeIva?' · IVA incluido':' · sin IVA')+'</div></div>'+
         '<div style="text-align:right"><div style="font-weight:700">$'+fn(o.totalCost||0)+'</div>'+
         '<div style="font-size:.78rem;font-weight:600;color:'+(stCol[st]||'var(--mu)')+'">'+(stLbl[st]||st)+'</div></div>'+
       '</div>'+
@@ -3400,7 +3548,8 @@ function toast(msg,type){const el=$i('toast');el.textContent=msg;el.className='t
 // ══ AUTH ══
 function initUsers(){if(!users||!users.length){localStorage.removeItem('stockpro_users');users=[{id:'u1',name:'Administrador',role:'admin',pin:'1234',avatar:'A'},{id:'u2',name:'Vendedor',role:'vendedor',pin:'0000',avatar:'V'}];localStorage.setItem('stockpro_users',JSON.stringify(users));$i('pin-err').textContent='';}}
 
-// Auto-inicializar al cargar y entrar directamente al sistema
+// Auto-inicializar al cargar: solo prepara los usuarios.
+// El login se muestra directamente (sin entrar antes al sistema).
 document.addEventListener('DOMContentLoaded', () => {
   // Si no hay usuarios, crearlos automáticamente
   if(!localStorage.getItem('stockpro_users')) {
@@ -3410,11 +3559,9 @@ document.addEventListener('DOMContentLoaded', () => {
     ]));
   }
   
-  // Cargar usuarios y entrar al sistema directamente
+  // Cargar usuarios (no se entra al sistema hasta hacer login)
   if(!users||!users.length) users = JSON.parse(localStorage.getItem('stockpro_users')||'[]');
-  
-  // Iniciar aplicación directamente (saltar pantalla de login)
-  startApp();
+  renderLoginUsers();
 });
 
 function roleL(r){return{admin:'Administrador',vendedor:'Vendedor',deposito:'Depósito'}[r]||r;}
@@ -3435,19 +3582,29 @@ function startApp(){
   if(!currentUser){currentUser={id:'u1',name:'Administrador',role:'admin',pin:'1234',avatar:'A'}}
   $i('login-screen').style.display='none';$i('app').style.display='block';
   $i('tav').textContent=currentUser.avatar||'👤';$i('tun').textContent=currentUser.name;$i('tro').textContent=' · '+roleL(currentUser.role);
-  if(currentUser.role!=='admin')$i('nav-u').style.display='none';
+  // Permisos por rol: Dashboard, Reportes y Usuarios son solo-administrador
+  const isAdmin=currentUser.role==='admin';
+  ['nav-u','nav-dash','nav-rep','nav-edc'].forEach(id=>{const el=$i(id);if(el)el.style.display=isAdmin?'':'none';});
+  // Cada ingreso arranca en el Punto de Venta (nadie queda en una vista de solo-admin)
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  $i('view-pos').classList.add('active');
+  document.querySelectorAll('.ni').forEach(b=>b.classList.remove('active'));
+  const posBtn=document.querySelector('.ni');if(posBtn)posBtn.classList.add('active');
   refreshAll();
   if(cloudMode)setInterval(async()=>{if(cloudMode&&sb&&currentUser){await loadFromCloud();refreshAll();}},30000);
 }
-function logout(){currentUser=null;$i('login-screen').style.display='flex';$i('app').style.display='none';$i('pin-input').value='';renderLoginUsers();}
+function logout(){currentUser=null;$i('login-screen').style.display='flex';$i('app').style.display='none';$i('pin-input').value='';document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));const pv=$i('view-pos');if(pv)pv.classList.add('active');renderLoginUsers();}
 
 // ══ NAV ══
 function nav(name,btn){
+  // Control de acceso: Dashboard, Reportes y Usuarios son solo-administrador
+  const adminOnly=['dashboard','reportes','usuarios','egresosdc'];
+  if(adminOnly.includes(name)&&(!currentUser||currentUser.role!=='admin')){toast('Sección disponible solo para el Administrador','err');return;}
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   $i('view-'+name).classList.add('active');
   if(btn){document.querySelectorAll('.ni').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
   closeSb();
-  const r={pos:renderPos,dashboard:renderDash,productos:renderTbl,ventas:renderSales,movimientos:renderMov,reportes:renderReportes,alertas:renderAlerts,categorias:renderCats,usuarios:renderUsers,backup:renderBackup,config:loadConfig,ayuda:()=>{},fichas:renderFichas,egresos:renderEgresos};
+  const r={pos:renderPos,dashboard:renderDash,productos:renderTbl,ventas:renderSales,movimientos:renderMov,reportes:renderReportes,alertas:renderAlerts,categorias:renderCats,usuarios:renderUsers,backup:renderBackup,config:loadConfig,ayuda:()=>{},fichas:renderFichas,egresos:renderEgresos,egresosdc:renderEgresosDC};
   if(r[name])r[name]();
 }
 function toggleSb(){$i('sidebar').classList.toggle('open');$i('sbo').classList.toggle('open');}
@@ -3472,14 +3629,19 @@ function loadConfig(){
   $i('cfg-autoprint').checked=c.autoprint!==false;$i('cfg-sound').checked=c.sound!==false;
   $i('cfg-sell-no-stock').checked=!!c.sellNoStock;$i('cfg-split-pay').checked=c.splitPay!==false;$i('cfg-currency').value=c.currency||'$';$i('cfg-combine-items').checked=c.combineCartItems!==false;
   $i('cfg-plu').checked=c.plu!==false;$i('cfg-plu-fmt').value=c.pluFmt||'2x5p5v';$i('cfg-plu-dec').value=String(c.pluDecimals!=null?c.pluDecimals:2);
+  const pm=$i('cfg-prov-margin');if(pm)pm.value=String(c.provMarginPct!=null?spNum(c.provMarginPct):55);
   $i('cfg-rank-mode').value=c.salesRankMode||'all';onRankModeChange();
-  const pw=String(c.paperW||80);const vals=['44','48','58','80','57','76'];
-  if(vals.includes(pw)){$i('cfg-pw').value=pw;$i('cfg-pw-custom').style.display='none';}
+  const pw=String(c.paperW||80);
+  // Se leen las opciones REALES del select (antes había una lista a mano que
+  // no coincidía con el HTML y valores como 46mm caían siempre en "custom").
+  const vals=Array.prototype.map.call($i('cfg-pw').options,function(o){return o.value;}).filter(function(v){return v!=='custom';});
+  if(vals.indexOf(pw)>=0){$i('cfg-pw').value=pw;$i('cfg-pw-custom').style.display='none';}
   else{$i('cfg-pw').value='custom';$i('cfg-pw-custom').style.display='';$i('cfg-pw-custom').value=pw;}
   $i('cfg-pw').onchange=function(){$i('cfg-pw-custom').style.display=this.value==='custom'?'':'none';updateTicketPreview();};
   const methods=c.payMethods||DEFAULT_PAY_METHODS;
   $i('cfg-pay-methods').innerHTML=methods.map(m=>'<label style="display:flex;align-items:center;gap:8px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:9px 12px;cursor:pointer"><input type="checkbox" data-pay="'+m.id+'" '+(m.active?'checked':'')+' style="width:16px;height:16px;cursor:pointer"><span style="font-size:.85rem;flex:1">'+m.icon+' '+m.label+'</span>'+(m.custom?'<span onclick="event.preventDefault();delPayMethod(\''+m.id+'\')" style="cursor:pointer;color:var(--mu);padding:2px 4px" title="Eliminar">🗑️</span>':'')+'</label>').join('');
   renderDiscPresetsCfg();
+  renderCfgUsers();
   updateTicketPreview();
 }
 function renderDiscPresetsCfg(){
@@ -3511,28 +3673,102 @@ function addDiscPreset(){
 function delDiscPreset(i){
   const c=cfg();c.discPresets=(c.discPresets||[]).filter((_,idx)=>idx!==i);saveCfg(c);renderDiscPresetsCfg();fillDiscPresets();
 }
-function saveConfig(){
-  const c=cfg();const pwSel=$i('cfg-pw').value;const pw=pwSel==='custom'?(parseInt($i('cfg-pw-custom').value)||80):parseInt(pwSel);
-  const methods=c.payMethods||DEFAULT_PAY_METHODS;
-  const newCfg={shop:$i('cfg-shop').value.trim()||'Mi Dietética',addr:$i('cfg-addr').value.trim(),tel:$i('cfg-tel').value.trim(),foot:$i('cfg-foot').value.trim(),cuit:$i('cfg-cuit').value.trim(),logo:$i('cfg-logo').value.trim(),paperW:pw,fontSize:parseInt($i('cfg-fs').value)||8,lineH:1.35,pad:4,showId:$i('cfg-showid').checked,showUser:false,autoprint:$i('cfg-autoprint').checked,sound:$i('cfg-sound').checked,sellNoStock:$i('cfg-sell-no-stock').checked,splitPay:$i('cfg-split-pay').checked,currency:$i('cfg-currency').value,plu:$i('cfg-plu').checked,pluFmt:$i('cfg-plu-fmt').value,payMethods:methods.map(m=>({...m,active:!!(document.querySelector('input[data-pay="'+m.id+'"]')||{}).checked})),discPresets:c.discPresets||DEFAULT_DISC_PRESETS,pluDecimals:parseInt($i('cfg-plu-dec').value)||0,salesRankMode:c.salesRankMode||'all',salesRankSince:c.salesRankSince||0,combineCartItems:$i('cfg-combine-items').checked};
-  saveCfg(newCfg);toast('✅ Configuración guardada');updateTicketPreview();
+function saveConfig(silent){
+  try{
+    const c=cfg();const pwSelEl=$i('cfg-pw');const pwSel=pwSelEl?pwSelEl.value:'80';
+    const pw=pwSel==='custom'?(parseInt(($i('cfg-pw-custom')||{}).value)||80):(parseInt(pwSel)||80);
+    const methods=c.payMethods||DEFAULT_PAY_METHODS;
+    /* Object.assign sobre la config actual: así ninguna clave se pierde si
+       aparece un ajuste nuevo. Antes se reconstruía desde cero. */
+    const newCfg=Object.assign({},c,{
+      shop:($i('cfg-shop').value||'').trim()||'Mi Dietética',
+      addr:($i('cfg-addr').value||'').trim(),
+      tel:($i('cfg-tel').value||'').trim(),
+      foot:($i('cfg-foot').value||'').trim(),
+      cuit:($i('cfg-cuit').value||'').trim(),
+      logo:($i('cfg-logo').value||'').trim(),
+      paperW:pw,
+      fontSize:parseInt($i('cfg-fs').value)||8,
+      showId:$i('cfg-showid').checked,
+      showUser:false,
+      autoprint:$i('cfg-autoprint').checked,
+      sound:$i('cfg-sound').checked,
+      sellNoStock:$i('cfg-sell-no-stock').checked,
+      splitPay:$i('cfg-split-pay').checked,
+      currency:$i('cfg-currency').value,
+      plu:$i('cfg-plu').checked,
+      pluFmt:$i('cfg-plu-fmt').value,
+      pluDecimals:parseInt($i('cfg-plu-dec').value),
+      combineCartItems:$i('cfg-combine-items').checked,
+      /* Ganancia por defecto en Proveedores. Si el campo no está en el DOM,
+         se conserva el valor guardado (nunca se pierde un ajuste). */
+      provMarginPct:(function(){const el=$i('cfg-prov-margin');const v=el?parseInt(el.value):NaN;if(!isNaN(v)&&v>=0)return v;return c.provMarginPct!=null?spNum(c.provMarginPct):55;})(),
+      salesRankMode:c.salesRankMode||'all',
+      salesRankSince:c.salesRankSince||0,
+      discPresets:c.discPresets||DEFAULT_DISC_PRESETS,
+      /* Si el checkbox no existe en el DOM, se conserva el valor anterior
+         en vez de marcarlo como inactivo y desactivar todos los medios de pago. */
+      payMethods:methods.map(function(m){
+        const box=document.querySelector('input[data-pay="'+m.id+'"]');
+        return Object.assign({},m,{active:box?!!box.checked:m.active!==false});
+      })
+    });
+    if(newCfg.pluDecimals==null||isNaN(newCfg.pluDecimals))newCfg.pluDecimals=2;
+    saveCfg(newCfg);
+    updateTicketPreview();
+    if(!silent)toast('✅ Configuración guardada');
+    return true;
+  }catch(e){
+    console.error('saveConfig:',e);
+    if(!silent)toast('⚠️ No se pudo guardar la configuración','err');
+    return false;
+  }
 }
+// ══ AUTOGUARDADO DE CONFIGURACIÓN ══
+// Antes había que acordarse de apretar "💾 Guardar". Si el usuario se iba de
+// la pantalla —o tocaba "agregar/quitar medio de pago", que llama loadConfig()
+// y redibuja el formulario— todo lo escrito sin guardar se perdía.
+// Ahora cualquier cambio en un campo cfg-* se guarda solo (sin toast).
+let cfgSaveT=null;
+function queueCfgSave(){
+  if(cfgSaveT)clearTimeout(cfgSaveT);
+  cfgSaveT=setTimeout(function(){cfgSaveT=null;saveConfig(true);},600);
+}
+function isCfgField(t){
+  if(!t)return false;
+  if(t.id&&t.id.indexOf('cfg-')===0)return true;
+  if(t.getAttribute&&t.getAttribute('data-pay')!==null)return true;
+  return false;
+}
+document.addEventListener('input',function(e){if(isCfgField(e.target))queueCfgSave();});
+document.addEventListener('change',function(e){if(isCfgField(e.target))queueCfgSave();});
 function updateTicketPreview(){
   try{
     const pw=($i('cfg-pw').value==='custom'?(parseInt($i('cfg-pw-custom').value)||80):parseInt($i('cfg-pw').value)||80);
     const fs=parseInt($i('cfg-fs').value)||8;const logo=$i('cfg-logo').value||'🌿';const shop=$i('cfg-shop').value||'Mi Dietética';
     const foot=$i('cfg-foot').value||'¡Gracias por su compra!';const showId=$i('cfg-showid').checked;const cur=$i('cfg-currency').value||'$';
     const prev={ts:Date.now(),id:'test01',items:[{qty:1,name:'Chía x500g',price:1150},{qty:2,name:'Almendras x250g',price:1950}],sub:5050,disc:0,total:5050,pay:'efectivo',pay2:null,pay2amount:0,recv:6000,note:'',user:'Vendedor'};
-    const c={shop,addr:'',tel:'',cuit:'',logo,foot,paperW:pw,fontSize:fs,lineH:1.35,pad:4,showId,showUser:false,currency:cur};
-    const origCfg=LS.get('cfg');saveCfg(c);const html=buildTicket(prev);if(origCfg)saveCfg(origCfg);else localStorage.removeItem('sp5-cfg');
-    const el=$i('tk-preview');el.style.cssText='width:'+pw+'mm;font-size:'+fs+'pt;line-height:1.35;padding:4mm;';el.innerHTML=html;
-  }catch(e){}
+    /* ANTES esta función guardaba una configuración de prueba POR ENCIMA de la
+       real (saveCfg) y recién después la restauraba. Si buildTicket fallaba
+       —o el navegador se interrumpía— la config real quedaba reemplazada por
+       ese objeto a medias: desaparecían nombre/dirección/teléfono/CUIT y los
+       ajustes de ticket. El catch(e){} lo ocultaba.
+       Ahora la config real NO se toca: se pasa como parámetro a buildTicket. */
+    const real=cfg();
+    const prevCfg=Object.assign({},real,{
+      shop:shop,logo:logo,foot:foot,paperW:pw,fontSize:fs,
+      addr:real.addr||'',tel:real.tel||'',cuit:real.cuit||'',
+      showId:showId,showUser:false,currency:cur
+    });
+    const html=buildTicket(prev,prevCfg);
+    const el=$i('tk-preview');el.style.cssText='width:'+pw+'mm;font-size:'+fs+'pt;line-height:'+(real.lineH||1.35)+';padding:'+(real.pad==null?4:real.pad)+'mm;';el.innerHTML=html;
+  }catch(e){console.warn('updateTicketPreview:',e);}
 }
 function testPrint(){saveConfig();const s={id:'TEST01',ts:Date.now(),items:[{qty:1,name:'Chía x500g',price:1150},{qty:2,name:'Barrita x30g',price:320}],sub:1790,disc:0,total:1790,pay:'efectivo',pay2:null,pay2amount:0,recv:2000,note:'TICKET DE PRUEBA',user:currentUser?currentUser.name:''};printTicketData(s);}
 
 // ══ TICKET ══
-function buildTicket(sale){
-  const c=cfg();const cur=c.currency||'$';const w=parseInt(c.paperW)||80;const charsPerLine=Math.floor((w-(parseInt(c.pad||4))*2)/2.1);
+function buildTicket(sale,cfgOvr){
+  const c=cfgOvr||cfg();const cur=c.currency||'$';const w=parseInt(c.paperW)||80;const charsPerLine=Math.floor((w-(parseInt(c.pad||4))*2)/2.1);
   const PAY_LABELS={efectivo:'Efectivo',qr:'QR',transferencia:'Transferencia',debito:'Débito',credito:'Crédito',cuenta:'Cuenta cte.',otro:'Otro'};
   const payLabel=PAY_LABELS[sale.pay]||sale.pay;const pay2Label=sale.pay2?(PAY_LABELS[sale.pay2]||sale.pay2):null;const chg=Math.max(0,(sale.recv||0)-sale.total);
   function row(left,right){const r=String(right);const l=String(left).slice(0,charsPerLine-r.length-1);return '<div class="tk-row"><span>'+l+'</span><span>'+r+'</span></div>';}
@@ -3562,11 +3798,15 @@ function buildTicket(sale){
     (sale.note?'<div class="tk-sub">'+sale.note+'</div>':'')+
     '<hr class="tk-sep"><div class="tk-foot">'+(c.foot||'¡Gracias por su compra!')+'</div>';
 }
+let printT=null;
 function printTicketData(sale){
   const c=cfg();const el=$i('ticket-content');
   el.style.cssText='width:'+(c.paperW||80)+'mm;font-size:'+(c.fontSize||8)+'pt;line-height:'+(c.lineH||1.35)+';padding:'+(c.pad||4)+'mm;';
   el.innerHTML=buildTicket(sale);$i('ticket-print').style.display='block';
-  setTimeout(()=>{window.print();setTimeout(()=>{$i('ticket-print').style.display='none';},800);},80);
+  /* Anti doble impresión: si algo llegara a llamar dos veces seguidas
+     (doble clic, autoprint + botón), solo se abre UN diálogo de impresión. */
+  if(printT)clearTimeout(printT);
+  printT=setTimeout(function(){printT=null;window.print();setTimeout(function(){$i('ticket-print').style.display='none';},800);},150);
 }
 function printTicket(){
   if(cart.length){const s={id:uid(),ts:Date.now(),items:cart.map(function(x){return Object.assign({},x,{subtotal:x.tipo==='kg'?x.price:x.price*x.qty});}),sub:cartSub(),disc:cartDisc(),total:cartTotal(),pay:'—',recv:0,note:'(vista previa)'};printTicketData(s);}
@@ -4049,7 +4289,7 @@ function renderPosSearch(){
     return nameNorm.includes(qNorm) || (p.barcode||'').includes(q) || skuNorm.includes(qNorm) || (p.pluCode||'').includes(q);
   }).slice(0,30);
   if(!list.length){box.innerHTML='<div style="padding:14px;text-align:center;color:var(--mu);font-size:.85rem">Sin resultados</div>';box.style.display='block';return;}
-  box.innerHTML=list.map(p=>{const out=p.stock<=0&&!c.sellNoStock;return '<div onclick="addToCart(\''+p.id+'\');clearPosSearch();" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--bd);cursor:pointer;'+(out?'opacity:.5':'')+'" onmouseover="this.style.background=\'var(--s3)\'" onmouseout="this.style.background=\'\'">'+'<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.name+'</div><div style="font-size:.72rem;color:var(--mu)">'+(p.tipo=='kg'?'⚖️ ':'📦 ')+fn(p.stock)+(p.tipo=='kg'?' kg':' uds')+(out?' · Sin stock':'')+'</div></div>'+'<div style="font-family:var(--fh);font-weight:700;color:var(--ac)">'+(c.currency||'$')+fn(p.price)+(p.tipo=='kg'?'/kg':'')+'</div>'+'</div>';}).join('');
+  box.innerHTML=list.map(p=>{const out=p.stock<=0&&!c.sellNoStock;return '<button type="button" class="psr-row'+(out?' is-out':'')+'" onmousedown="event.preventDefault()" onclick="addToCart(\''+p.id+'\');clearPosSearch()"><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left">'+p.name+'</div><div style="font-size:.72rem;color:var(--mu);text-align:left">'+(p.tipo=='kg'?'⚖️ ':'📦 ')+fn(p.stock)+(p.tipo=='kg'?' kg':' uds')+(out?' · Sin stock':'')+'</div></div><div style="font-family:var(--fh);font-weight:700;color:var(--ac);white-space:nowrap">'+(c.currency||'$')+fn(p.price)+(p.tipo=='kg'?'/kg':'')+'</div></button>';}).join('');
   box.style.display='block';
 }
 function clearPosSearch(){$i('pos-q').value='';hidePosSearch();}
@@ -4110,7 +4350,7 @@ function bulkEditOpen(){
 function bulkEditSave(){
   const cat=$i('bk-cat').value,min=$i('bk-min').value.trim(),cost=$i('bk-cost').value.trim(),price=$i('bk-price').value.trim(),delta=$i('bk-stock-delta').value.trim();
   let changed=0;
-  products.forEach(p=>{if(!selectedIds.has(p.id))return;if(cat)p.cat=cat;if(min!=='')p.min=parseInt(min)||0;if(cost!=='')p.cost=spNum(cost);if(price!=='')p.price=parseFloat(price)||0;if(delta!==''){if(delta.startsWith('+'))p.stock+=parseInt(delta.slice(1))||0;else if(delta.startsWith('-'))p.stock=Math.max(0,p.stock-(parseInt(delta.slice(1))||0));else{const v=parseInt(delta)||0;if(v!==p.stock){p.stock=Math.max(0,v);}}addMvt(p.id,'ajuste',p.stock,'Edición');}changed++;});
+  products.forEach(p=>{if(!selectedIds.has(p.id))return;if(cat)p.cat=cat;if(min!=='')p.min=parseInt(min)||0;if(cost!=='')setProdCostBase(p,spNum(cost));if(price!=='')p.price=parseFloat(price)||0;if(delta!==''){if(delta.startsWith('+'))p.stock+=parseInt(delta.slice(1))||0;else if(delta.startsWith('-'))p.stock=Math.max(0,p.stock-(parseInt(delta.slice(1))||0));else{const v=parseInt(delta)||0;if(v!==p.stock){p.stock=Math.max(0,v);}}addMvt(p.id,'ajuste',p.stock,'Edición');}changed++;});
   persist();closeO('m-bulk');selectedIds.clear();refreshAll();toast('✅ '+changed+' producto'+(changed!==1?'s':'')+' actualizado'+(changed!==1?'s':''));
 }
 
@@ -4286,7 +4526,24 @@ function openCatM(){$i('c-name').value='';$i('c-em').value='';$i('c-min').value=
 function saveCat(){const name=$i('c-name').value.trim();if(!name){toast('Nombre obligatorio','err');return;}categories.push({id:uid(),name,emoji:$i('c-em').value.trim()||'📦',min:parseInt($i('c-min').value)||5});persist();closeO('m-cat');renderCats();toast('Categoría creada ✓');}
 
 // ══ USUARIOS ══
-function renderUsers(){$i('users-tb').innerHTML=users.map(u=>'<tr><td>'+(u.avatar||'👤')+' <strong>'+u.name+'</strong></td><td><span class="ctag">'+roleL(u.role)+'</span></td><td><span style="letter-spacing:.18em">••••</span></td><td><button class="btn bg bs bic" onclick="openUserM(\''+u.id+'\')">✏️</button> <button class="btn bg bs bic" onclick="delUser(\''+u.id+'\')">🗑️</button></td></tr>').join('');}
+function renderUsers(){$i('users-tb').innerHTML=users.map(u=>'<tr><td>'+(u.avatar||'👤')+' <strong>'+u.name+'</strong></td><td><span class="ctag">'+roleL(u.role)+'</span></td><td><span style="letter-spacing:.18em">••••</span></td><td><button class="btn bg bs bic" onclick="openUserM(\''+u.id+'\')">✏️</button> <button class="btn bg bs bic" onclick="delUser(\''+u.id+'\')">🗑️</button></td></tr>').join('');renderCfgUsers();}
+
+// ══ USUARIOS Y CLAVES DENTRO DE CONFIGURACIÓN ══
+function renderCfgUsers(){
+  const box=$i('cfg-users-list');if(!box)return;
+  // Solo el administrador ve y puede editar las claves
+  const isAdmin=!!currentUser&&currentUser.role==='admin';
+  const sec=$i('cfg-users-section');if(sec)sec.style.display=isAdmin?'':'none';
+  if(!isAdmin){box.innerHTML='';return;}
+  if(!users||!users.length)initUsers();
+  box.innerHTML=users.map(u=>'<div style="display:flex;align-items:center;gap:10px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px"><div style="font-size:1.3rem">'+(u.avatar||'👤')+'</div><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:.88rem">'+u.name+'</div><div style="font-size:.72rem;color:var(--mu)">'+roleL(u.role)+' · Clave: <strong style="color:var(--ac);letter-spacing:.14em">'+(u.pin||'—')+'</strong></div></div><button class="btn bg bs bic" onclick="openUserM(\''+u.id+'\')" title="Editar usuario y clave">✏️</button><button class="btn bg bs bic" onclick="delUser(\''+u.id+'\')" title="Eliminar">🗑️</button></div>').join('')||'<div style="font-size:.8rem;color:var(--mu)">Sin usuarios cargados.</div>';
+}
+function genUserPin(){
+  let p='';for(let i=0;i<6;i++)p+=Math.floor(Math.random()*10);
+  const el=$i('u-pin');if(!el)return;el.value=p;
+  if(el.type==='password'){el.type='text';setTimeout(()=>{if(el)el.type='password';},4000);}
+  toast('Clave generada: '+p);
+}
 function openUserM(id){editUserId=id;['name','pin','av'].forEach(f=>$i('u-'+f).value='');$i('u-role').value='vendedor';if(id){const u=users.find(x=>x.id===id);if(u){$i('u-name').value=u.name;$i('u-role').value=u.role;$i('u-pin').value=u.pin;$i('u-av').value=u.avatar||'';}}openO('m-user');}
 function saveUser(){const name=$i('u-name').value.trim(),pin=$i('u-pin').value.trim();if(!name||!pin){toast('Nombre y PIN obligatorios','err');return;}if(editUserId){const idx=users.findIndex(x=>x.id===editUserId);if(idx>-1)users[idx]={...users[idx],name,role:$i('u-role').value,pin,avatar:$i('u-av').value.trim()||'👤'};toast('Usuario actualizado ✓');}else{users.push({id:uid(),name,role:$i('u-role').value,pin,avatar:$i('u-av').value.trim()||'👤'});toast('Usuario creado ✓');}persist();closeO('m-user');renderUsers();}
 function delUser(id){if(id===currentUser?.id){toast('No podés eliminarte','err');return;}$i('confirm-msg').textContent='¿Eliminar usuario?';$i('confirm-ok').onclick=function(){users=users.filter(x=>x.id!==id);persistDelUser(id);persist();renderUsers();closeO('m-confirm');toast('Eliminado','err');};openO('m-confirm');}
@@ -4294,8 +4551,8 @@ function delUser(id){if(id===currentUser?.id){toast('No podés eliminarte','err'
 // ══ PRODUCTOS CRUD ══
 function openProd(id){
   window._prodBack=null;editProdId=id;$i('mp-t').textContent=id?'✏️ Editar producto':'📦 Nuevo producto';
-  ['name','bc','sku','stk','min','cost','price','notes','marca','proveedor'].forEach(f=>$i('p-'+f).value='');$i('p-cat').value='';$i('p-margin-pct').value='';$i('p-round').value='0';$i('p-calc-result').textContent='';
-  if(id){const p=products.find(x=>x.id===id);if(p){$i('p-name').value=p.name||'';$i('p-bc').value=p.barcode||'';$i('p-sku').value=p.sku||'';$i('p-stk').value=p.stock||0;$i('p-min').value=p.min||5;$i('p-cost').value=spDec(p.cost);$i('p-price').value=p.price||'';$i('p-iva').value=p.iva||0;$i('p-notes').value=p.notes||'';$i('p-cat').value=p.cat||'';$i('p-marca').value=p.marca||'';$i('p-proveedor').value=p.proveedor||'';const rs=$i('p-round');const rv=p.rounding==null?'0':String(p.rounding);rs.value=rv;if(rs.value===''){const o=document.createElement('option');o.value=rv;o.textContent='Múltiplo $'+rv;rs.appendChild(o);rs.value=rv;}}}
+  ['name','bc','sku','stk','min','cost','price','notes','marca','proveedor'].forEach(f=>$i('p-'+f).value='');$i('p-cat').value='';$i('p-iva').value='0';$i('p-margin-pct').value='';$i('p-round').value='0';$i('p-calc-result').textContent='';
+  if(id){const p=products.find(x=>x.id===id);if(p){$i('p-name').value=p.name||'';$i('p-bc').value=p.barcode||'';$i('p-sku').value=p.sku||'';$i('p-stk').value=p.stock||0;$i('p-min').value=p.min||5;$i('p-cost').value=spDec(p.costNeto!=null?p.costNeto:p.cost);$i('p-price').value=p.price||'';$i('p-iva').value=p.iva||0;$i('p-notes').value=p.notes||'';$i('p-cat').value=p.cat||'';$i('p-marca').value=p.marca||'';$i('p-proveedor').value=p.proveedor||'';const rs=$i('p-round');const rv=p.rounding==null?'0':String(p.rounding);rs.value=rv;if(rs.value===''){const o=document.createElement('option');o.value=rv;o.textContent='Múltiplo $'+rv;rs.appendChild(o);rs.value=rv;}}}
   fillCatSel('p-cat');calcM();
   // set tipo
   const tipoVal=editProdId?(products.find(x=>x.id===editProdId)||{}).tipo||'unidad':'unidad';
@@ -4304,7 +4561,10 @@ function openProd(id){
   updateTipoVenta();
   openO('m-prod');
 }
-function goNuevoProducto(){nav('productos');openProd(null);window._prodBack='proveedores';}
+/* Antes hacía nav('productos'), que sacaba al usuario del módulo Proveedores.
+   El modal es una capa superpuesta: no hace falta cambiar de vista.
+   Al guardar, saveProd() vuelve a 'proveedores' (window._prodBack). */
+function goNuevoProducto(){openProd(null);window._prodBack='proveedores';}
 function fillCatSel(sid){const s=$i(sid);const cv=s.value;s.innerHTML='<option value="">Sin categoría</option>';categories.forEach(c=>{const o=document.createElement('option');o.value=c.name;o.textContent=c.emoji+' '+c.name;s.appendChild(o);});s.value=cv;}
 function updateTipoVenta(){
   const isKg=$i('p-tipo-kg')&&$i('p-tipo-kg').checked;
@@ -4313,17 +4573,47 @@ function updateTipoVenta(){
   if(lblK) lblK.style.borderColor=isKg?'var(--ac)':'var(--bd)';
   if(hint) hint.textContent=isKg?'El precio ingresado es por kilogramo (ej: $1200/kg).':'El precio ingresado es por unidad.';
   const lc=$i('lbl-cost'),lp=$i('lbl-price');
-  if(lc) lc.textContent=isKg?'Precio costo ($/kg)':'Precio costo ($)';
+  if(lc) lc.textContent=isKg?'Precio costo sin IVA ($/kg)':'Precio costo sin IVA ($)';
   if(lp) lp.textContent=isKg?'Precio venta ($/kg)':'Precio venta ($)';
 }
 
-function updMarginInfo(){const c=spNum($i('p-cost').value),p=parseFloat($i('p-price').value)||0,st=parseFloat($i('p-stk').value)||0;const g=p-c,m=mg(c,p),mk2=mk(c,p);const cls=g>=0?'pos':'neg';$i('mi-g').textContent='$'+fn(g);$i('mi-g').className='miv '+cls;$i('mi-m').textContent=m.toFixed(1)+'%';$i('mi-m').className='miv '+cls;$i('mi-mk').textContent=mk2.toFixed(1)+'%';$i('mi-mk').className='miv '+cls;$i('mi-sv').textContent='$'+fn(c*st);}
+/* ══ IVA DEL PRODUCTO SUMADO AL PRECIO DE COSTO ══
+   El campo "IVA (%)" se guardaba pero no se usaba para nada.
+   Ahora: costo real = precio de costo (sin IVA) × (1 + IVA/100).
+   - p.costNeto = lo que se escribe en el campo "Precio costo"
+   - p.cost     = costo real (con IVA) y es el que usan margen, stock,
+                  Proveedores y compras. */
+function pEffCost(){
+  const elc=$i('p-cost'),eli=$i('p-iva');
+  const c=spNum(elc?elc.value:0),iv=spNum(eli?eli.value:0);
+  return iv>0?Math.round(c*(1+iv/100)*100)/100:c;
+}
+/* setProdCostBase: el número que se escribe en el formulario es SIN iva. */
+function setProdCostBase(p,base){
+  if(!p)return;
+  p.costNeto=spNum(base);
+  const iv=spNum(p.iva);
+  p.cost=iv>0?Math.round(p.costNeto*(1+iv/100)*100)/100:p.costNeto;
+}
+/* setProdCost: el número que llega desde una compra es lo que SE PAGA (ya con
+   iva si corresponde). Se deriva la base sin iva para no sumar el iva dos veces. */
+function setProdCost(p,final){
+  if(!p)return;
+  p.cost=spNum(final);
+  const iv=spNum(p.iva);
+  p.costNeto=iv>0?Math.round(p.cost/(1+iv/100)*100)/100:p.cost;
+}
+function updMarginInfo(){const c=pEffCost(),p=parseFloat($i('p-price').value)||0,st=parseFloat($i('p-stk').value)||0;const g=p-c,m=mg(c,p),mk2=mk(c,p);const cls=g>=0?'pos':'neg';$i('mi-g').textContent='$'+fn(g);$i('mi-g').className='miv '+cls;$i('mi-m').textContent=m.toFixed(1)+'%';$i('mi-m').className='miv '+cls;$i('mi-mk').textContent=mk2.toFixed(1)+'%';$i('mi-mk').className='miv '+cls;$i('mi-sv').textContent='$'+fn(c*st);}
 function calcM(){updMarginInfo();if($i('p-margin-pct').value)calcPriceFromMargin();}
-function calcPriceFromMargin(){const cost=spNum($i('p-cost').value),pct=spNum($i('p-margin-pct').value)||0,round=Math.max(0,parseInt($i('p-round').value)||0),res=$i('p-calc-result');if(!cost||!pct){res.textContent='';return;}let price=cost*(1+pct/100);if(round>=1)price=Math.ceil(price/round)*round;res.innerHTML='Precio sugerido: <strong style="color:var(--ac)">$'+fn(price)+'</strong> · Ganancia: $'+fn(price-cost);$i('p-price').value=price.toFixed(2);updMarginInfo();}
-function applyPriceFromMargin(){const cost=spNum($i('p-cost').value),pct=spNum($i('p-margin-pct').value)||0,round=Math.max(0,parseInt($i('p-round').value)||0);if(!cost||!pct){toast('Ingresá costo y % ganancia','err');return;}let price=cost*(1+pct/100);if(round>=1)price=Math.ceil(price/round)*round;$i('p-price').value=price.toFixed(2);updMarginInfo();toast('Precio aplicado: $'+fn(price));}
+function calcPriceFromMargin(){const cost=pEffCost(),pct=spNum($i('p-margin-pct').value)||0,round=Math.max(0,parseInt($i('p-round').value)||0),res=$i('p-calc-result');if(!cost||!pct){res.textContent='';return;}let price=cost*(1+pct/100);if(round>=1)price=Math.ceil(price/round)*round;res.innerHTML='Precio sugerido: <strong style="color:var(--ac)">$'+fn(price)+'</strong> · Ganancia: $'+fn(price-cost);$i('p-price').value=price.toFixed(2);updMarginInfo();}
+function applyPriceFromMargin(){const cost=pEffCost(),pct=spNum($i('p-margin-pct').value)||0,round=Math.max(0,parseInt($i('p-round').value)||0);if(!cost||!pct){toast('Ingresá costo y % ganancia','err');return;}let price=cost*(1+pct/100);if(round>=1)price=Math.ceil(price/round)*round;$i('p-price').value=price.toFixed(2);updMarginInfo();toast('Precio aplicado: $'+fn(price));}
 function saveProd(){
   const name=$i('p-name').value.trim();if(!name){toast('Nombre obligatorio','err');return;}
-  const sv=parseInt($i('p-stk').value)||0;const tipo=($i('p-tipo-kg')&&$i('p-tipo-kg').checked)?'kg':'unidad';const d={name,barcode:$i('p-bc').value.trim(),sku:$i('p-sku').value.trim(),cat:$i('p-cat').value,marca:$i('p-marca').value.trim(),proveedor:$i('p-proveedor').value.trim(),stock:sv,min:parseInt($i('p-min').value)||5,cost:spNum($i('p-cost').value),price:parseFloat($i('p-price').value)||0,iva:parseFloat($i('p-iva').value)||0,notes:$i('p-notes').value.trim(),tipo};const rs=$i('p-round');if(rs&&rs.value!=='')d.rounding=parseInt(rs.value)||0;
+  const sv=parseInt($i('p-stk').value)||0;const tipo=($i('p-tipo-kg')&&$i('p-tipo-kg').checked)?'kg':'unidad';
+  /* "Precio costo" es SIN iva. El IVA se suma al costo: p.cost = costo real. */
+  const costNeto=spNum($i('p-cost').value),ivaVal=parseFloat($i('p-iva').value)||0;
+  const costReal=ivaVal>0?Math.round(costNeto*(1+ivaVal/100)*100)/100:costNeto;
+  const d={name,barcode:$i('p-bc').value.trim(),sku:$i('p-sku').value.trim(),cat:$i('p-cat').value,marca:$i('p-marca').value.trim(),proveedor:$i('p-proveedor').value.trim(),stock:sv,min:parseInt($i('p-min').value)||5,cost:costReal,costNeto:costNeto,price:parseFloat($i('p-price').value)||0,iva:ivaVal,notes:$i('p-notes').value.trim(),tipo};const rs=$i('p-round');if(rs&&rs.value!=='')d.rounding=parseInt(rs.value)||0;
   if(editProdId){const idx=products.findIndex(x=>x.id===editProdId);if(idx>-1){const diff=sv-products[idx].stock;products[idx]={...products[idx],...d};if(diff!==0)addMvt(editProdId,'ajuste',Math.abs(sv),'Edición');}toast('Producto actualizado ✓');}
   else{const p={id:uid(),...d,createdAt:Date.now()};products.push(p);if(sv>0)addMvt(p.id,'entrada',sv,'Stock inicial');toast('Producto agregado ✓');}
   persist();closeO('m-prod');refreshAll();
@@ -4671,12 +4961,18 @@ function onEgProvChange(){
   const sel=$i('eg-prov');const opt=sel.options[sel.selectedIndex];const isCliente=opt&&opt.dataset.type==='cliente';
   const cuentaOpt=$i('eg-pay').querySelector('option[value="cuenta"]');
   if(cuentaOpt)cuentaOpt.textContent=isCliente?'Descontar de su cuenta corriente (trueque)':'A cuenta corriente (queda pendiente)';
-  $i('eg-prov-hint').textContent=isCliente?'Este cliente te trae mercadería — se puede descontar del saldo que te debe.':'';
+  $i('eg-prov-hint').textContent=isCliente?'Este cliente te trae mercadería — se acredita en su cuenta corriente y suma al stock.':'';
+  /* Trueque con cliente: SIEMPRE va a cuenta corriente (nunca "pagado ahora") */
+  const egPay=$i('eg-pay');
+  if(isCliente){egPay.value='cuenta';egPay.disabled=true;}
+  else{egPay.disabled=false;}
 }
-function openEgresoM(){
+function isEgCliente(){const sel=$i('eg-prov');if(!sel)return false;const opt=sel.options[sel.selectedIndex];return !!(opt&&opt.dataset.type==='cliente');}
+function openEgresoM(modo){
+  egModo=(modo==='dc')?'dc':'eg';
   egEditingId=null;
   egCart=[];fillEgSelects();$i('eg-search').value='';$i('eg-search-results').style.display='none';$i('eg-new-prod-form').style.display='none';$i('eg-new-prov-form').style.display='none';$i('eg-pay').value='pagado';$i('eg-note').value='';$i('eg-round').value='1';
-  $i('eg-modal-title').textContent='📤 Nueva compra a proveedor';$i('eg-save-btn').textContent='✅ Guardar compra';
+  $i('eg-modal-title').textContent=(egModo==='dc')?'🍳 Nueva compra — Doña Cocina':'📤 Nueva compra a proveedor';$i('eg-save-btn').textContent='✅ Guardar compra';
   renderEgProvList();renderEgCart();openO('m-egreso');
 }
 function renderEgSearch(){
@@ -4740,10 +5036,13 @@ function saveEgreso(){
   if(!provider){toast('Seleccioná un proveedor o cliente','err');return;}
   if(!egCart.length){toast('Agregá al menos un producto a la compra','err');return;}
   const note=$i('eg-note').value.trim();
-  const nowPaid=$i('eg-pay').value==='pagado';
+  /* Trueque (contacto tipo cliente): el movimiento SIEMPRE se registra en su
+     cuenta corriente y el stock ya se suma más abajo. Se ignora "pagado ahora". */
+  const isTrueque=provider.type==='cliente';
+  const nowPaid=isTrueque?false:$i('eg-pay').value==='pagado';
 
   if(egEditingId){
-    const orig=egresos.find(x=>x.id===egEditingId);
+    const orig=egArr().find(x=>x.id===egEditingId);
     if(!orig){toast('Compra no encontrada','err');return;}
     const origQty={};orig.items.forEach(i=>{if(i.productId)origQty[i.productId]=(origQty[i.productId]||0)+i.qty;});
     const newQty={};
@@ -4763,7 +5062,7 @@ function saveEgreso(){
       const delta=(newQty[pid]||0)-(origQty[pid]||0);
       if(delta!==0){products[idx].stock=Math.max(0,(products[idx].stock||0)+delta);addMvt(pid,'ajuste',Math.abs(delta),'Edición de compra a '+provider.name);}
       const matching=egCart.find(x=>x.productId===pid);
-      if(matching){products[idx].cost=matching.unitCost;if(matching.sellPrice)products[idx].price=matching.sellPrice;}
+      if(matching){setProdCost(products[idx],matching.unitCost);if(matching.sellPrice)products[idx].price=matching.sellPrice;}
     });
     const total=items.reduce((a,x)=>a+x.total,0);
     Object.assign(orig,{providerId,providerName:provider.name,items,total,note,paid:nowPaid});
@@ -4784,62 +5083,158 @@ function saveEgreso(){
       if(np.cat&&!categories.find(c=>c.name===np.cat))categories.push({id:uid(),name:np.cat,emoji:'📦',min:5});
     }
     const idx=products.findIndex(p=>p.id===productId);
-    if(idx>-1){products[idx].stock=(products[idx].stock||0)+it.qty;products[idx].cost=it.unitCost;if(it.sellPrice)products[idx].price=it.sellPrice;addMvt(productId,'entrada',it.qty,'Compra a '+provider.name+(note?' — '+note:''));}
+    if(idx>-1){products[idx].stock=(products[idx].stock||0)+it.qty;setProdCost(products[idx],it.unitCost);if(it.sellPrice)products[idx].price=it.sellPrice;addMvt(productId,'entrada',it.qty,'Compra a '+provider.name+(note?' — '+note:''));}
     return{productId,name:it.name,qty:it.qty,unitCost:it.unitCost,total:it.qty*it.unitCost};
   });
   const total=items.reduce((a,x)=>a+x.total,0);
-  const eg={id:uid(),ts:Date.now(),providerId,providerName:provider.name,items,total,note,paid:nowPaid};
-  egresos.unshift(eg);
+  const eg={id:uid(),ts:Date.now(),providerId,providerName:provider.name,items,total,note,paid:nowPaid,type:'compra'};
+  if(egModo==='dc')eg.mod='dc';
+  egArr().unshift(eg);
   if(!nowPaid){
     if(provider.type==='cliente')ctaMovs.unshift({id:uid(),contactId:providerId,ts:Date.now(),type:'pago',amount:total,note:'Mercadería recibida (trueque): '+items.map(i=>i.name).join(', '),ref:eg.id});
     else ctaMovs.unshift({id:uid(),contactId:providerId,ts:Date.now(),type:'cargo',amount:total,note:'Compra: '+items.map(i=>i.name).join(', '),ref:eg.id});
   }
   persist();refreshAll();closeO('m-egreso');toast('✅ Compra registrada');
 }
-function renderEgresos(){
-  if(!$i('egresos-tb'))return;
-  $i('egresos-tb').innerHTML=egresos.length?egresos.map(e=>{
-    const isGasto=e.type==='gasto';
-    const concepto=isGasto?('📋 '+e.category):e.providerName;
-    const detalle=isGasto?(e.note||'—'):e.items.map(i=>i.qty+'x '+i.name).join(', ');
-    const editBtn=isGasto?('editGasto(\''+e.id+'\')'):('editEgreso(\''+e.id+'\')');
-    const tipoPago=e.tipoPago||(isGasto?'efectivo':'');
-    const tipoPagoBadge=tipoPago?('<span style="font-size:.65rem;background:var(--s3);padding:2px 4px;border-radius:3px;margin-left:4px">'+tipoPago+'</span>'):'';
-    return '<tr><td>'+fd(e.ts)+'</td><td>'+concepto+'</td><td>'+detalle+'</td><td>$'+fn(e.total)+'</td><td>'+(e.paid?'Pagado':(isGasto?'Pendiente':'A cta. cte.'))+tipoPagoBadge+'</td><td style="white-space:nowrap"><button class="btn bg bs bic" onclick="'+editBtn+'" title="Ver / editar">✏️</button><button class="btn bg bs bic" onclick="delEgreso(\''+e.id+'\')" title="Eliminar">🗑️</button></td></tr>';
-  }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:16px">Sin egresos registrados</td></tr>';
+function renderEgresos(){renderEgresosList('eg');}
+function renderEgresosDC(){renderEgresosList('dc');}
+function renderEgresosList(modo){
+  const dc=(modo==='dc'),mk=dc?',\'dc\'':'';
+  const tb=$i(dc?'egresosdc-tb':'egresos-tb');
+  if(!tb)return;
+  /* En Egresos (y en Egresos Doña Cocina) solo se listan GASTOS.
+     Las compras a proveedor ya no se cargan ni se muestran acá:
+     se administran desde el módulo Proveedores.
+     Se acepta también lo que no traiga `type` pero tampoco tenga items
+     (gastos guardados por versiones anteriores de la app). */
+  const esGasto=e=>e.type==='gasto'||!Array.isArray(e.items)||!e.items.length;
+  const arr=(dc?egresosDC:egresos).filter(esGasto);
+  tb.innerHTML=arr.length?arr.map(e=>{
+    const tot=spNum(e.total),pg=egPaid(e),sal=Math.max(0,tot-pg),ok=sal<=0.005;
+    const estado=ok?'<span style="color:var(--ok);font-weight:700">✓ Pagado</span>'
+      :'<span style="color:var(--warn);font-weight:700">⚠ $'+fn(pg)+' / $'+fn(tot)+'</span><div style="font-size:.62rem;color:var(--mu)">Saldo $'+fn(sal)+'</div>';
+    const tipoPago=e.tipoPago?('<span style="font-size:.65rem;background:var(--s3);padding:2px 4px;border-radius:3px;margin-left:4px">'+e.tipoPago+'</span>'):'';
+    return '<tr><td>'+fd(e.ts)+'</td><td>📋 '+escH(e.category||'Egreso')+'</td><td>'+escH(e.note||'—')+'</td><td>$'+fn(tot)+'</td><td>'+estado+tipoPago+'</td><td style="white-space:nowrap"><button class="btn bg bs bic" onclick="openEgPay(\''+e.id+'\''+mk+')" title="Registrar pago (parcial o total)">💳</button><button class="btn bg bs bic" onclick="editGasto(\''+e.id+'\''+mk+')" title="Ver / editar">✏️</button><button class="btn bg bs bic" onclick="delEgreso(\''+e.id+'\''+mk+')" title="Eliminar">🗑️</button></td></tr>';
+  }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:16px">'+(dc?'Sin egresos de Doña Cocina':'Sin egresos registrados')+'</td></tr>';
 }
-function openGastoM(){
-  $i('gasto-cat').value='';$i('gasto-amount').value='';$i('gasto-note').value='';$i('gasto-tipo-pago').value='efectivo';$i('gasto-pay').value='pagado';$i('gasto-editing-id').value='';
+
+// ══ PAGOS PARCIALES DE EGRESOS ══
+// Cada gasto guarda su lista de pagos (monto + fecha + detalle).
+// Los gastos viejos, que solo traían `paid:true/false`, siguen funcionando.
+function egPaid(e){
+  if(!e)return 0;
+  if(Array.isArray(e.pays)&&e.pays.length)return e.pays.reduce((s,p)=>s+spNum(p.amount),0);
+  return e.paid?spNum(e.total):0;
+}
+function egPayArr(modo){return (modo==='dc')?egresosDC:egresos;}
+function egPayRec(){
+  const id=$i('egpay-id').value,arr=egPayArr($i('egpay-modo').value);
+  const e=arr.find(x=>x.id===id);
+  /* Migra los gastos antiguos: su pago total se convierte en un pago fechado */
+  if(e&&!Array.isArray(e.pays))e.pays=e.paid?[{id:uid(),amount:spNum(e.total),date:e.ts||Date.now(),detail:'Pago registrado anteriormente',tipo:e.tipoPago||'efectivo'}]:[];
+  return e;
+}
+function openEgPay(id,modo){
+  const e=egPayArr(modo==='dc'?'dc':'eg').find(x=>x.id===id);
+  if(!e)return;
+  $i('egpay-id').value=id;$i('egpay-modo').value=(modo==='dc')?'dc':'eg';
+  $i('egpay-amt').value='';$i('egpay-detail').value='';$i('egpay-tipo').value=e.tipoPago||'efectivo';
+  const d=new Date(),p=n=>String(n).padStart(2,'0');
+  $i('egpay-date').value=d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+  $i('egpay-title').textContent='💳 Pago · '+(e.category||e.providerName||'Egreso');
+  egPayRec();renderEgPay();
+  openO('m-egpay');
+}
+function renderEgPay(){
+  const e=egPayRec();if(!e)return;
+  const tot=spNum(e.total),pg=egPaid(e),sal=Math.max(0,tot-pg);
+  $i('egpay-sum').innerHTML='Total: <b>$'+fn(tot)+'</b> · Pagado: <b style="color:var(--ok)">$'+fn(pg)+'</b> · Saldo: <b style="color:'+(sal>0.005?'var(--err)':'var(--ok)')+'">$'+fn(sal)+'</b>';
+  const PL={efectivo:'Efectivo',transferencia:'Transferencia',tarjeta:'Tarjeta',cuenta:'Cuenta cte.',cheque:'Cheque',otros:'Otros'};
+  const arr=Array.isArray(e.pays)?e.pays:[];
+  $i('egpay-list').innerHTML=arr.length?arr.map((p,i)=>{
+    return '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;border:1px solid var(--bd);border-radius:6px;padding:7px 9px;background:var(--s1);font-size:.8rem">'+
+      '<span>'+(p.date?fd(p.date):'—')+' · '+(PL[p.tipo]||p.tipo||'Otro')+(p.detail?' · '+escH(p.detail):'')+'</span>'+
+      '<span style="display:flex;gap:8px;align-items:center"><b>$'+fn(spNum(p.amount))+'</b>'+
+      '<button class="btn bs bic" onclick="delEgPay('+i+')" title="Quitar pago" style="padding:3px 7px">🗑️</button></span></div>';
+  }).join('') : '<div style="color:var(--mu);font-size:.8rem;text-align:center;padding:8px">Sin pagos registrados.</div>';
+}
+function egPaySync(e){
+  const sum=(Array.isArray(e.pays)?e.pays:[]).reduce((s,p)=>s+spNum(p.amount),0);
+  e.paid=sum>=spNum(e.total)-0.005;
+}
+function saveEgPay(){
+  const e=egPayRec();if(!e){toast('Egreso no encontrado','err');return;}
+  const amt=spNum($i('egpay-amt').value);
+  if(amt<=0){toast('Ingresá un monto','err');return;}
+  const fecha=$i('egpay-date').value;
+  if(!Array.isArray(e.pays))e.pays=[];
+  e.pays.push({id:uid(),amount:amt,date:fecha?new Date(fecha).getTime():Date.now(),detail:$i('egpay-detail').value.trim(),tipo:$i('egpay-tipo').value});
+  egPaySync(e);
+  persist();refreshAll();renderEgPay();
+  $i('egpay-amt').value='';$i('egpay-detail').value='';
+  toast('✅ Pago registrado');
+}
+function delEgPay(i){
+  const e=egPayRec();if(!e||!Array.isArray(e.pays))return;
+  e.pays.splice(i,1);egPaySync(e);
+  persist();refreshAll();renderEgPay();
+  toast('Pago eliminado','err');
+}
+function openGastoM(modo){
+  egModo=(modo==='dc')?'dc':'eg';
+  fillGastoCats('');
+  $i('gasto-amount').value='';$i('gasto-note').value='';$i('gasto-tipo-pago').value='efectivo';$i('gasto-pay').value='pagado';$i('gasto-editing-id').value='';
+  onGastoCatChg();
+  const l=$i('gasto-cats-list');if(l)l.style.display='none';
+  $i('gasto-title').textContent=(egModo==='dc')?'🍳 Nuevo gasto — Doña Cocina':'📤 Nuevo gasto';
   openO('m-gasto');
 }
 function saveGasto(){
-  const category=$i('gasto-cat').value;
+  let category=$i('gasto-cat').value;
+  if(category==='__new__'){category=saveGastoCatNew();if(!category)return;}
+  if(!category){toast('Seleccioná un tipo de gasto','err');return;}
   const amount=parseFloat($i('gasto-amount').value)||0;
   const tipoPago=$i('gasto-tipo-pago').value;
   if(!amount){toast('Ingresá un monto','err');return;}
   const note=$i('gasto-note').value.trim();
-  const paid=$i('gasto-pay').value==='pagado';
+  const fullPaid=$i('gasto-pay').value==='pagado';
   const editId=$i('gasto-editing-id').value;
+  const arr=egArr();
+  const extra=(egModo==='dc')?{mod:'dc'}:{};
   if(editId){
-    const g=egresos.find(x=>x.id===editId);
-    if(g)Object.assign(g,{category,total:amount,note,paid,tipoPago});
+    const g=arr.find(x=>x.id===editId);
+    if(!g){toast('Gasto no encontrado','err');return;}
+    /* Migra gastos antiguos (solo tenían paid:true/false) a lista de pagos */
+    if(!Array.isArray(g.pays))g.pays=g.paid?[{id:uid(),amount:spNum(g.total),date:g.ts||Date.now(),detail:'Pago registrado anteriormente',tipo:g.tipoPago||'efectivo'}]:[];
+    Object.assign(g,{category,total:amount,note,tipoPago},extra);
+    /* "Pagado" completa los pagos hasta llegar al total; los pagos parciales
+       que ya estaban cargados se respetan (no se borran). */
+    if(fullPaid){const rest=Math.round((amount-egPaid(g))*100)/100;if(rest>0.005)g.pays.push({id:uid(),amount:rest,date:Date.now(),detail:'Pago restante',tipo:tipoPago});}
+    egPaySync(g);
   } else {
-    egresos.unshift({id:uid(),ts:Date.now(),type:'gasto',category,providerName:category,items:[],total:amount,note,paid,tipoPago});
+    const pays=fullPaid?[{id:uid(),amount:amount,date:Date.now(),detail:'Pago completo',tipo:tipoPago}]:[];
+    arr.unshift(Object.assign({id:uid(),ts:Date.now(),type:'gasto',category,providerName:category,items:[],total:amount,note,tipoPago,pays,paid:pays.length>0},extra));
   }
   persist();refreshAll();closeO('m-gasto');toast('✅ Gasto registrado');
 }
-function editGasto(id){
-  const g=egresos.find(x=>x.id===id);if(!g)return;
-  $i('gasto-cat').value=g.category||'Otro';$i('gasto-amount').value=g.total;$i('gasto-note').value=g.note||'';$i('gasto-pay').value=g.paid?'pagado':'pendiente';$i('gasto-tipo-pago').value=g.tipoPago||'efectivo';
+function editGasto(id,modo){
+  egModo=(modo==='dc')?'dc':'eg';
+  const g=egArr().find(x=>x.id===id);if(!g)return;
+  fillGastoCats(g.category||'Otro');
+  $i('gasto-amount').value=g.total;$i('gasto-note').value=g.note||'';$i('gasto-pay').value=g.paid?'pagado':'pendiente';$i('gasto-tipo-pago').value=g.tipoPago||'efectivo';
   $i('gasto-editing-id').value=id;
+  onGastoCatChg();
+  const l=$i('gasto-cats-list');if(l)l.style.display='none';
+  $i('gasto-title').textContent=(egModo==='dc')?'✏️ Editar gasto — Doña Cocina':'✏️ Editar gasto';
   openO('m-gasto');
 }
-function editEgreso(id){
-  const e=egresos.find(x=>x.id===id);if(!e)return;
+function editEgreso(id,modo){
+  egModo=(modo==='dc')?'dc':'eg';
+  const e=egArr().find(x=>x.id===id);if(!e)return;
   egEditingId=id;
   fillEgSelects();
   $i('eg-prov').value=e.providerId;onEgProvChange();
-  $i('eg-pay').value=e.paid?'pagado':'cuenta';
+  if(!isEgCliente())$i('eg-pay').value=e.paid?'pagado':'cuenta';
   $i('eg-note').value=e.note||'';
   $i('eg-round').value='1';
   egCart=e.items.map(it=>{
@@ -4848,10 +5243,85 @@ function editEgreso(id){
     return{productId:it.productId,name:it.name,tipo:p?p.tipo:'unidad',qty:it.qty,unitCost:cost,sellPrice,marginPct:cost?parseFloat(((sellPrice-cost)/cost*100).toFixed(1)):0,isNew:false};
   });
   $i('eg-search').value='';$i('eg-search-results').style.display='none';$i('eg-new-prod-form').style.display='none';
-  $i('eg-modal-title').textContent='✏️ Editar compra';$i('eg-save-btn').textContent='✅ Guardar cambios';
+  $i('eg-modal-title').textContent=(egModo==='dc')?'🍳 Editar compra — Doña Cocina':'✏️ Editar compra';$i('eg-save-btn').textContent='✅ Guardar cambios';
   renderEgProvList();renderEgCart();openO('m-egreso');
 }
-function delEgreso(id){$i('confirm-msg').textContent='¿Eliminar este egreso? (no revierte stock ni cuenta corriente)';$i('confirm-ok').onclick=function(){egresos=egresos.filter(e=>e.id!==id);persistDelEgreso(id);persist();closeO('m-confirm');renderEgresos();toast('Eliminado','err');};openO('m-confirm');}
+function delEgreso(id,modo){const dc=(modo==='dc');$i('confirm-msg').textContent='¿Eliminar este egreso? (no revierte stock ni cuenta corriente)';$i('confirm-ok').onclick=function(){if(dc)egresosDC=egresosDC.filter(e=>e.id!==id);else egresos=egresos.filter(e=>e.id!==id);persistDelEgreso(id);persist();closeO('m-confirm');renderEgresos();renderEgresosDC();toast('Eliminado','err');};openO('m-confirm');}
+
+// ══ EGRESOS · MÓDULOS Y CATEGORÍAS DE GASTO ══
+// Arreglo original: había DOS `renderEgresos()` en el mismo <script> y ganaba la
+// última (la de Proveedores, que pintaba #prov-egresos). Por eso #egresos-tb
+// nunca se actualizaba y "no se agregaban gastos en Egresos".
+const EG_CATS_DEF=['Insumos','Sueldos','Alquiler','Servicios','Impuestos','Mantenimiento','Transporte','Marketing','Seguridad','Limpieza','Otro'];
+function egArr(){return (egModo==='dc')?egresosDC:egresos;}
+function gEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function egCats(){
+  if(!egresoCats||!Array.isArray(egresoCats)||!egresoCats.length)egresoCats=EG_CATS_DEF.slice();
+  return egresoCats;
+}
+function fillGastoCats(sel){
+  const selEl=$i('gasto-cat');if(!selEl)return;
+  const list=egCats();
+  const want=(sel==null)?(selEl.value||''):(sel||'');
+  if(want&&want!=='__new__'&&list.indexOf(want)<0){list.push(want);egresoCats=list;LS.set('egcats',list);}
+  const cur=(want&&want!=='__new__'&&list.indexOf(want)>=0)?want:'';
+  selEl.innerHTML='<option value="">-- Seleccionar tipo --</option>'+list.map(c=>'<option value="'+gEsc(c)+'">'+gEsc(c)+'</option>').join('')+'<option value="__new__">➕ Nueva categoría…</option>';
+  selEl.value=cur;
+  const cnt=$i('gasto-cat-count');if(cnt)cnt.textContent=list.length;
+}
+function onGastoCatChg(){
+  const selEl=$i('gasto-cat');const wrap=$i('gasto-cat-new-wrap');
+  if(!selEl||!wrap)return;
+  wrap.style.display=(selEl.value==='__new__')?'':'none';
+}
+function saveGastoCatNew(){
+  const inp=$i('gasto-cat-new');const name=((inp&&inp.value)||'').trim();
+  if(!name){toast('Ingresá el nombre de la categoría','err');return null;}
+  const list=egCats();
+  const found=list.find(c=>c.toLowerCase()===name.toLowerCase());
+  if(found)return found;
+  list.push(name);egresoCats=list;LS.set('egcats',list);
+  return name;
+}
+function addGastoCatQuick(){
+  const inp=$i('gasto-cat-new');const list=egCats();
+  const name=((inp&&inp.value)||'').trim();
+  if(!name){
+    if($i('gasto-cat'))$i('gasto-cat').value='__new__';
+    onGastoCatChg();
+    const box=$i('gasto-cat-new');if(box)box.focus();
+    toast('Escribí la categoría y volvé a pulsar ➕','err');
+    return;
+  }
+  const found=list.find(c=>c.toLowerCase()===name.toLowerCase());
+  const final=found||name;
+  if(!found){list.push(name);egresoCats=list;LS.set('egcats',list);}
+  if(inp)inp.value='';
+  fillGastoCats(final);onGastoCatChg();renderGastoCats();
+  const l=$i('gasto-cats-list');if(l)l.style.display='block';
+  toast('✅ Categoría "'+final+'" agregada');
+}
+function toggleGastoCats(){
+  const box=$i('gasto-cats-list');if(!box)return;
+  const hidden=(box.style.display==='none'||box.style.display==='');
+  box.style.display=hidden?'block':'none';
+  if(hidden)renderGastoCats();
+}
+function renderGastoCats(){
+  const box=$i('gasto-cats-list');if(!box)return;
+  const list=egCats();
+  const custom=list.map((c,i)=>({c:c,i:i})).filter(o=>EG_CATS_DEF.indexOf(o.c)<0);
+  box.innerHTML=custom.length
+    ? custom.map(o=>'<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 4px;font-size:.8rem;border-bottom:1px dashed var(--bd)"><span style="word-break:break-word">'+gEsc(o.c)+'</span><button type="button" class="btn bg bs bic" onclick="delGastoCat('+o.i+')" title="Eliminar categoría">🗑️</button></div>').join('')
+    : '<div style="text-align:center;color:var(--mu);font-size:.75rem;padding:8px 4px">Todavía no creaste categorías propias.<br>Usá «➕ Agregar categoría» para crear una.</div>';
+}
+function delGastoCat(i){
+  const list=egCats();const name=list[i];
+  if(name&&EG_CATS_DEF.indexOf(name)>=0){toast('No se puede eliminar una categoría base','err');return;}
+  egresoCats=list.filter((_,k)=>k!==i);LS.set('egcats',egresoCats);
+  fillGastoCats('');onGastoCatChg();renderGastoCats();
+  toast('Categoría eliminada');
+}
 
 // ══ DESCUENTOS RÁPIDOS ══
 function fillDiscPresets(){
@@ -4865,7 +5335,7 @@ function applyDiscPreset(){
 
 // ══ REFRESH ALL ══
 function refreshAll(){
-  renderDash();renderTbl();renderMov();renderAlerts();renderCats();renderUsers();renderSales();renderPos();renderPosSales();renderBackup();renderFichas();renderEgresos();renderProvPurchases();
+  renderDash();renderTbl();renderMov();renderAlerts();renderCats();renderUsers();renderSales();renderPos();renderPosSales();renderBackup();renderFichas();renderEgresos();renderEgresosDC();renderProvPurchases();
   updFilters();fillCatSel('p-cat');fillPosCats();fillCartClientes();fillDiscPresets();
   $i('nfoot').textContent='v3.1 · '+products.length+' productos · '+sales.length+' ventas';
 }
@@ -4873,13 +5343,17 @@ function refreshAll(){
 // ══ INIT ══
 (async function(){
   try{
-    $i('login-screen').style.display='none';$i('setup-banner').style.display='none';
+    $i('login-screen').style.display='flex';$i('setup-banner').style.display='none';
     if(localStorage.getItem('sp5-sb-hidden')==='1')document.querySelector('.layout').classList.add('sb-hidden');
     const hasCloud=await tryAutoConnect();
-    if(hasCloud){$i('login-screen').style.display='flex';}
-    else{const savedUrl=LS.get('sb-url');if(savedUrl&&savedUrl!=='null'){cloudMode=false;$i('login-screen').style.display='flex';toast('Sin conexion a la nube — datos locales','err');}else{cloudMode=false;$i('login-screen').style.display='flex';}}
+    if(!hasCloud){const savedUrl=LS.get('sb-url');cloudMode=false;if(savedUrl&&savedUrl!=='null')toast('Sin conexion a la nube — datos locales','err');}
     if(!users.length)initUsers();if(!products.length)loadDemo();renderLoginUsers();
-  }catch(e){console.error('Init error:',e);users=[{id:'u1',name:'Administrador',role:'admin',pin:'1234',avatar:'👨\u200d💼'},{id:'u2',name:'Vendedor',role:'vendedor',pin:'0000',avatar:'🧑\u200d💼'}];$i('login-screen').style.display='flex';renderLoginUsers();}
+    /* Mientras se conectaba a la nube el usuario pudo haber hecho login.
+       En ese caso NO se vuelve a mostrar la pantalla de login: tapaba la app
+       y obligaba a ingresar dos veces. */
+    if(currentUser){$i('login-screen').style.display='none';$i('app').style.display='block';refreshAll();}
+    else{$i('login-screen').style.display='flex';}
+  }catch(e){console.error('Init error:',e);users=[{id:'u1',name:'Administrador',role:'admin',pin:'1234',avatar:'👨\u200d💼'},{id:'u2',name:'Vendedor',role:'vendedor',pin:'0000',avatar:'🧑\u200d💼'}];if(currentUser){$i('login-screen').style.display='none';$i('app').style.display='block';}else{$i('login-screen').style.display='flex';}renderLoginUsers();}
 })();
 
 
@@ -5481,7 +5955,7 @@ function showProvTab(tabName){
   document.getElementById('prov-tab-' + tabName).style.display = 'block';
   document.getElementById('tab-prov-' + tabName).classList.add('bg');
   
-  if(tabName === 'compras') { renderProductsSelectInProv(); renderProvCarrito(); renderProvPurchases(); }
+  if(tabName === 'compras') { renderProductsSelectInProv(); provRecalcAll(); renderProvPurchases(); }
   if(tabName === 'pagos') populatePagoOrdenes();
   if(tabName === 'historial') renderHistorial();
   if(tabName === 'egresos') renderEgresos();
@@ -5566,8 +6040,10 @@ function addProvItem(productId){
   const p = productId ? products.find(x => x.id === productId) : null;
   provCarrito.push({
     id: 'pi_' + Date.now(), productId: productId || '', name: p ? p.name : '',
-    qty: 1, cost: p ? spNum(p.cost) : 0, discount: 0,
-    taxPct: p ? (p.taxPct==null?21:p.taxPct) : 21, profitPct: p ? (p.profitPct==null?20:p.profitPct) : 20,
+    /* Se precarga con el costo SIN iva (costNeto): el impuesto del carrito
+       se suma aparte con la casilla "% Impuesto". */
+    qty: 1, cost: p ? spNum(p.costNeto!=null?p.costNeto:p.cost) : 0, discount: 0,
+    taxPct: p ? (p.taxPct==null?21:p.taxPct) : 21, profitPct: p ? (p.profitPct==null?provDefMargin():p.profitPct) : provDefMargin(),
     rounding: p ? (p.rounding==null?1:p.rounding) : 1, stock: p ? (p.stock || 0) : 0
   });
   calculateItemPrices(provCarrito[provCarrito.length-1]);
@@ -5587,7 +6063,7 @@ function updateProvItem(id, field, value){
 
 function calculateItemPrices(item){
   const cost=spNum(item.cost), qty=spNum(item.qty)||1, discount=spNum(item.discount);
-  const taxPct=provIvaOn()?(item.taxPct==null?21:spNum(item.taxPct)):0, profitPct=item.profitPct==null?20:spNum(item.profitPct), rounding=item.rounding==null?1:spNum(item.rounding);
+  const taxPct=provIvaOn()?(item.taxPct==null?21:spNum(item.taxPct)):0, profitPct=item.profitPct==null?provDefMargin():spNum(item.profitPct), rounding=item.rounding==null?1:spNum(item.rounding);
   item.subtotal=cost*qty-discount;
   item.costWithIva=cost*(1+taxPct/100)*qty;
   item.marginAmount=cost*(profitPct/100);
@@ -5599,7 +6075,7 @@ function calculateItemPrices(item){
 function renderProvCarrito(){
   const html=provCarrito.map(item=>{
     const cost=spNum(item.cost),qty=spNum(item.qty)||1,discount=spNum(item.discount);
-    const taxPct=item.taxPct==null?21:spNum(item.taxPct),profitPct=item.profitPct==null?20:spNum(item.profitPct),rounding=item.rounding==null?1:spNum(item.rounding);
+    const taxPct=item.taxPct==null?21:spNum(item.taxPct),profitPct=item.profitPct==null?provDefMargin():spNum(item.profitPct),rounding=item.rounding==null?1:spNum(item.rounding);
     const effTax=provIvaOn()?taxPct:0;
     const subtotal=cost*qty-discount;
     const costWithIva=cost*(1+effTax/100)*qty;
@@ -5625,11 +6101,18 @@ function renderProvCarrito(){
   }).join('');
   const carritoEl=document.getElementById('prov-carrito-items');
   if(carritoEl) carritoEl.innerHTML=html||'<tr><td colspan="12" style="text-align:center;padding:20px;color:var(--mu)">Sin productos en el carrito</td></tr>';
-  const ts=provCarrito.reduce((a,i)=>a+((i.cost||0)*(i.qty||1)-(i.discount||0)),0);
-  const tw=provCarrito.reduce((a,i)=>a+(i.priceWithIva||0)*(i.qty||1),0);
+  /* Totales del resumen: se calculan SIEMPRE en base al costo real de la compra
+     y con el estado ACTUAL de la casilla "% Impuesto".
+     Antes se usaba el precio de venta guardado (priceWithIva), por lo que el
+     TOTAL no era Subtotal + Impuesto y el impuesto parecía "sumarse" aunque
+     la casilla estuviera desactivada. */
+  const on=provIvaOn();
+  let ts=0,tax=0;
+  provCarrito.forEach(i=>{const base=(spNum(i.cost))*(spNum(i.qty)||1)-spNum(i.discount);ts+=base;if(on)tax+=base*((i.taxPct==null?21:spNum(i.taxPct))/100);});
+  const total=ts+tax;
   const f=v=>'$'+Number(v||0).toFixed(2).replace('.',',');
   const se=document.getElementById('prov-subtotal'),ie=document.getElementById('prov-iva-total'),te=document.getElementById('prov-total');
-  const twNoIva=provCarrito.reduce((a,i)=>{const r=i.rounding==null?1:spNum(i.rounding),b=spNum(i.priceWithoutIva!==undefined?i.priceWithoutIva:(i.priceWithIva||0));return a+(r>0?Math.ceil(b/r)*r:Math.round(b*100)/100)*(i.qty||1);},0);if(se)se.textContent=f(ts);if(ie)ie.textContent=f(Math.max(0,tw-twNoIva));if(te)te.textContent=f(tw);
+  if(se)se.textContent=f(ts);if(ie)ie.textContent=f(tax);if(te)te.textContent=f(total);
 }
 
 function filterProducts(){
@@ -5682,8 +6165,9 @@ function openProductModal(){
   const name=prompt('Nombre del producto:');if(!name)return;
   const sku=prompt('SKU (opcional):')||'',barcode=prompt('Código de barras (opcional):')||'';
   const cost=parseFloat(prompt('Costo base:'))||0,stock=parseInt(prompt('Stock inicial:'))||0;
+  const dm=provDefMargin();
   const taxPct=parseFloat(prompt('% Impuesto (ej: 21):')||'21')||21;
-  const profitPct=parseFloat(prompt('% Ganancia (ej: 20):')||'20')||20;
+  const profitPct=parseFloat(prompt('% Ganancia (ej: '+dm+'):',String(dm))||String(dm))||dm;
   const rounding=parseFloat(prompt('Redondeo (ej: 1, 0.50, 5):')||'1')||1;
   const price=parseFloat(prompt('Precio de venta:')||'0')||0;
   products.push({id:'prod_'+Date.now(),name,sku,barcode,cost,stock,taxPct,profitPct,rounding,price,category:'Sin categoría',description:''});
@@ -5697,10 +6181,18 @@ function savePurchaseOrder(){
   if(!supplier){alert('Selecciona un proveedor');return;}
   if(!date){alert('Selecciona una fecha');return;}
   if(!provCarrito.length){alert('Agrega al menos un producto');return;}
-  const totalCost=provCarrito.reduce((a,i)=>a+(i.priceWithIva||0)*(i.qty||1),0);
+  /* Recalcula todo antes de guardar, por si quedaron valores viejos en memoria */
+  provCarrito.forEach(calculateItemPrices);
   const affectPrice=document.getElementById('prov-affect-price').checked;
   const includeIva=document.getElementById('prov-include-iva').checked;
-  provOrders.push({id:'order_'+Date.now(),supplier,date:new Date(date).getTime(),items:provCarrito.map(i=>({...i})),totalCost,paid:0,status,notes:'',affectPrice,includeIva});
+  /* Total de la COMPRA = lo que se le paga al proveedor: costo + impuesto
+     (el impuesto solo se suma si la casilla "% Impuesto" está activada).
+     Antes se guardaba la suma de precios de VENTA, por eso el total nunca
+     coincidía con Subtotal + Impuesto. */
+  let subTot=0,taxTot=0;
+  provCarrito.forEach(i=>{const base=spNum(i.cost)*(spNum(i.qty)||1)-spNum(i.discount);subTot+=base;if(includeIva)taxTot+=base*((i.taxPct==null?21:spNum(i.taxPct))/100);});
+  const totalCost=subTot+taxTot;
+  provOrders.push({id:'order_'+Date.now(),supplier,date:new Date(date).getTime(),items:provCarrito.map(i=>({...i})),totalCost,subTotal:subTot,taxTotal:taxTot,paid:0,status,notes:'',affectPrice,includeIva});
   provCarrito.forEach(item=>{const product=products.find(p=>p.id===item.productId);if(product&&item.productId)product.stock=(product.stock||0)+(item.qty||0);});
   if(affectPrice)provCarrito.forEach(item=>{if(!item.productId)return;const product=products.find(p=>p.id===item.productId);if(product&&spNum(item.priceWithIva)>0)product.price=Math.round(spNum(item.priceWithIva)*100)/100;});
   saveProductsData();
@@ -5880,6 +6372,31 @@ function spToday(id){
   if(el.type==='date')el.value=ymd;
   else if(el.type==='datetime-local')el.value=ymd+'T00:00';
 }
+
+// ══════════════════════════════════════════════════════════════════
+// IMPORTANTE: en este archivo hay DOS copias del módulo Proveedores.
+// La de más arriba vuelve a declarar `renderEgresos()` y, como gana la
+// última declaración del <script>, pisaba a la de la tabla #egresos-tb.
+// Ese era el bug: los gastos se guardaban pero la tabla nunca se redibujaba.
+// Se redeclara al FINAL para que SIEMPRE pinte la tabla de Egresos y,
+// de paso, la lista del tab "💸 Egresos" de Proveedores.
+// ══════════════════════════════════════════════════════════════════
+function renderProvEgresosList(){
+  try{
+    const box=document.getElementById('prov-egresos');
+    if(!box||!Array.isArray(provEgresos))return;
+    const html=provEgresos.slice().sort((a,b)=>b.date-a.date).map(e=>
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid var(--bd);border-radius:6px">'+
+        '<div>'+
+          '<div style="font-weight:600">'+e.desc+'</div>'+
+          '<div style="font-size:12px;color:var(--mu)">'+new Date(e.date).toLocaleDateString()+'</div>'+
+        '</div>'+
+        '<div style="font-weight:700;color:var(--err)">-$'+fn(e.monto)+'</div>'+
+      '</div>').join('');
+    box.innerHTML=html||'<div style="text-align:center;color:var(--mu);padding:20px">Sin egresos</div>';
+  }catch(err){console.warn('renderProvEgresosList:',err);}
+}
+function renderEgresos(){renderEgresosList('eg');renderProvEgresosList();}
 </script>
 
 </body></html>
