@@ -3400,7 +3400,7 @@ function importProvExcel(input){
   });
 }
 // ══ ÓRDENES: EDITAR / PAGOS / ELIMINAR ══
-let ordDraft=null,ordPays=[],ordLegacy=0;
+let ordDraft=null,ordPays=[],ordLegacy=0,ordItemsSnap='';
 function escH(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function provRefreshOrders(){[renderHistorial,renderProvPurchases,renderProvFicha,populatePagoOrdenes,renderProductsSelectInProv].forEach(function(f){try{f();}catch(e){}});}
 function ordDateInput(ts){const d=new Date(ts||Date.now()),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes());}
@@ -3426,6 +3426,10 @@ function ordOpen(id){
   const sel=$i('ord-add-prod');
   sel.innerHTML='<option value="">-- Elegir producto --</option><option value="__libre__">✏️ Item libre (a mano)</option>'+products.slice().sort((a,b)=>String(a.name).localeCompare(String(b.name))).map(p=>'<option value="'+escH(p.id)+'">'+escH(p.name)+'</option>').join('');
   ordRender();
+  /* Fotografía de los ítems: en ordSave() se compara para saber si hubo
+     cambios en la compra. Así, agregar un PAGO no vuelve a pisar los precios
+     de Productos con valores viejos de la orden. */
+  ordItemsSnap=JSON.stringify(ordDraft.items);
   openO('m-ord');
 }
 function ordRender(){
@@ -3472,7 +3476,10 @@ function ordAddItem(){
   }else{
     const p=products.find(x=>x.id===v);
     if(!p){toast('Producto no encontrado','err');return;}
-    ordDraft.items.push({id:'oi_'+Date.now(),productId:p.id,name:p.name,qty:1,cost:spNum(p.cost),discount:0,taxPct:p.taxPct==null?21:spNum(p.taxPct),profitPct:p.profitPct==null?provDefMargin():spNum(p.profitPct),rounding:p.rounding==null?0:spNum(p.rounding),stock:p.stock||0,priceWithIva:0,priceWithoutIva:0});
+    /* Base SIN iva (costNeto): p.cost ya trae el IVA sumado cuando el
+       producto se cargó con impuesto, y el % Imp. de la orden lo suma aparte. */
+    const pNet=p.costNeto!=null?spNum(p.costNeto):spNum(p.cost);
+    ordDraft.items.push({id:'oi_'+Date.now(),productId:p.id,name:p.name,qty:1,cost:pNet,discount:0,taxPct:p.taxPct==null?21:spNum(p.taxPct),profitPct:p.profitPct==null?provDefMargin():spNum(p.profitPct),rounding:p.rounding==null?0:spNum(p.rounding),stock:p.stock||0,priceWithIva:0,priceWithoutIva:0});
   }
   sel.value='';
   ordRender();
@@ -3498,6 +3505,15 @@ function ordSave(){
   ordDraft.supplier=sup;ordDraft.date=new Date(fecha).getTime();ordDraft.notes=$i('ord-notes').value.trim();
   ordDraft.includeIva=!!($i('ord-include-iva')&&$i('ord-include-iva').checked);
   ordDraft.items.forEach(it=>ordCalc(it,!!ordDraft.includeIva));
+  /* Si cambiaron los ítems, reflejarlos en Productos: el costo pasa a ser lo
+     que se paga por unidad (con el impuesto si la orden lo incluye) y el
+     precio de venta solo se toca si la orden está marcada "Actualizó precios".
+     Si solo se tocaron pagos o el estado, no se toca nada, para no pisar
+     precios que se hayan corregido a mano en Productos. */
+  if(JSON.stringify(ordDraft.items)!==ordItemsSnap){
+    provApplyItemsToProducts(ordDraft.items,!!ordDraft.includeIva,!!ordDraft.affectPrice);
+    saveProductsData();
+  }
   /* Total = Subtotal (costo) + Impuesto (solo si está activado) */
   let subTot=0,taxTot=0;
   ordDraft.items.forEach(it=>{const base=spNum(it.cost)*(spNum(it.qty)||1)-spNum(it.discount);subTot+=base;if(ordDraft.includeIva)taxTot+=base*(spNum(it.taxPct)/100);});
@@ -4728,6 +4744,33 @@ function setProdCost(p,final){
   p.cost=spNum(final);
   const iv=spNum(p.iva);
   p.costNeto=iv>0?Math.round(p.cost/(1+iv/100)*100)/100:p.cost;
+}
+/* ══ COMPRA A PROVEEDORES → PRODUCTOS ══
+   El costo del producto pasa a ser lo que se PAGA por unidad:
+   - con "% Impuesto" activado → p.iva = % de la compra,
+     p.costNeto = base sin iva y p.cost = base × (1+iva/100)
+     (el desglose "Precio costo 1000 + IVA 21%" que se ve en Productos);
+   - sin impuesto → p.iva = 0 y p.cost = lo pagado (sin sumar nada).
+   El precio de VENTA solo se toca si está marcada "Afectar precio de venta".
+   Lo usan savePurchaseOrder() y ordSave(); Egresos/Doña Cocina ya hacía
+   esto con setProdCost y a Proveedores le faltaba. */
+function provApplyItemsToProducts(items,includeIva,affectPrice){
+  if(!Array.isArray(items))return false;
+  let touched=false;
+  items.forEach(item=>{
+    if(!item||!item.productId)return;
+    const product=products.find(p=>p.id===item.productId);
+    if(!product)return;
+    const q=spNum(item.qty)||1;
+    /* Neto por unidad de la línea con el descuento repartido: es lo mismo
+       que usa el total de la compra (base = costo × cant − descuento). */
+    const net=Math.round(((spNum(item.cost)*q-spNum(item.discount))/q)*100)/100;
+    product.iva=includeIva?(item.taxPct==null?21:spNum(item.taxPct)):0;
+    setProdCostBase(product,net);
+    if(affectPrice&&spNum(item.priceWithIva)>0)product.price=Math.round(spNum(item.priceWithIva)*100)/100;
+    touched=true;
+  });
+  return touched;
 }
 function updMarginInfo(){const c=pEffCost(),p=parseFloat($i('p-price').value)||0,st=parseFloat($i('p-stk').value)||0;const g=p-c,m=mg(c,p),mk2=mk(c,p);const cls=g>=0?'pos':'neg';$i('mi-g').textContent='$'+fn(g);$i('mi-g').className='miv '+cls;$i('mi-m').textContent=m.toFixed(1)+'%';$i('mi-m').className='miv '+cls;$i('mi-mk').textContent=mk2.toFixed(1)+'%';$i('mi-mk').className='miv '+cls;$i('mi-sv').textContent='$'+fn(c*st);}
 function calcM(){updMarginInfo();if($i('p-margin-pct').value)calcPriceFromMargin();}
@@ -6331,7 +6374,11 @@ function savePurchaseOrder(){
   const totalCost=subTot+taxTot;
   provOrders.push({id:'order_'+Date.now(),supplier,date:new Date(date).getTime(),items:provCarrito.map(i=>({...i})),totalCost,subTotal:subTot,taxTotal:taxTot,paid:0,status,notes:'',affectPrice,includeIva});
   provCarrito.forEach(item=>{const product=products.find(p=>p.id===item.productId);if(product&&item.productId)product.stock=(product.stock||0)+(item.qty||0);});
-  if(affectPrice)provCarrito.forEach(item=>{if(!item.productId)return;const product=products.find(p=>p.id===item.productId);if(product&&spNum(item.priceWithIva)>0)product.price=Math.round(spNum(item.priceWithIva)*100)/100;});
+  /* Costo del producto = lo que se paga por unidad (con el impuesto si está
+     activado) y precio de venta solo si está marcada "Afectar precio de venta".
+     Antes solo se actualizaba el precio de venta: en Productos el costo seguía
+     sin el IVA y el Margen se calculaba contra un costo viejo. */
+  provApplyItemsToProducts(provCarrito,includeIva,affectPrice);
   saveProductsData();
   if(!provSuppliers.includes(supplier))provSuppliers.push(supplier);
   saveProvData();alert('✅ Orden creada. Stock actualizado.');
