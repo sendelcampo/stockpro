@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<!-- saved from url=(0048)file:///C:/Users/nigab/Downloads/stockpro_3.html -->
 <html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
@@ -582,7 +581,7 @@ function filterProducts(){
   if(!filtered.length){resultsDiv.innerHTML='<div style="padding:12px;text-align:center;color:var(--mu)">Sin productos encontrados</div>';resultsDiv.style.display='block';return;}
   const fmt=v=>'$'+Number(v||0).toFixed(2).replace('.',',');
   resultsDiv.innerHTML=filtered.map(p=>{
-    const stockText=p.stock>0?'<span style="color:green">Stock:'+p.stock+'</span>':'<span style="color:red">Sin stock</span>';
+    const stockText=p.stock>0?'<span style="color:green">Stock:'+fqty(p.stock)+'</span>':'<span style="color:red">Sin stock</span>';
     return '<div style="display:grid;grid-template-columns:3fr 1fr 1fr;gap:8px;padding:8px;border-bottom:1px solid var(--bd);cursor:pointer;background:var(--s2)" onclick="selectProduct(\''+p.id+'\')">'+
       '<div><div style="font-weight:600">'+(p.name||'Sin nombre')+'</div><div style="font-size:.75rem;color:var(--mu)">SKU: '+(p.sku||'')+'</div></div>'+
       '<div style="text-align:center;font-size:.8rem">'+fmt(p.cost||0)+'</div>'+
@@ -598,7 +597,7 @@ function showProductSearch(){
   if(!query||query.length<2){
     const fmt=v=>'$'+Number(v||0).toFixed(2).replace('.',',');
     resultsDiv.innerHTML=products.map(p=>{
-      const stockText=p.stock>0?'<span style="color:green">Stock:'+p.stock+'</span>':'<span style="color:red">Sin stock</span>';
+      const stockText=p.stock>0?'<span style="color:green">Stock:'+fqty(p.stock)+'</span>':'<span style="color:red">Sin stock</span>';
       return '<div style="display:grid;grid-template-columns:3fr 1fr 1fr;gap:8px;padding:8px;border-bottom:1px solid var(--bd);cursor:pointer;background:var(--s2)" onclick="selectProduct(\''+p.id+'\')">'+
         '<div><div style="font-weight:600">'+(p.name||'Sin nombre')+'</div><div style="font-size:.75rem;color:var(--mu)">SKU: '+(p.sku||'')+'</div></div>'+
         '<div style="text-align:center;font-size:.8rem">'+fmt(p.cost||0)+'</div>'+
@@ -629,6 +628,10 @@ function openProductModal(){
   const profitPct=parseFloat(prompt('% Ganancia (ej: '+dm+'):',String(dm))||String(dm))||dm;
   const rounding=parseFloat(prompt('Redondeo (ej: 1, 0.50, 5):')||'1')||1;
   const price=parseFloat(prompt('Precio de venta:')||'0')||0;
+  /* Mismo criterio que la ficha: no se crean dos productos con el mismo
+     código de barras/PLU ni con el mismo SKU (escanear abriría el otro). */
+  if(barcode){const c=products.find(x=>String(x.barcode||'')===barcode);if(c){toast('Ese código ya existe en: '+c.name,'err');return;}}
+  if(sku){const c=products.find(x=>String(x.sku||'')===sku);if(c){toast('Ese SKU ya existe en: '+c.name,'err');return;}}
   products.push({id:'prod_'+Date.now(),name,sku,barcode,cost,stock,taxPct,profitPct,rounding,price,category:'Sin categoría',description:''});
   saveProductsData();toast('✅ Producto creado: '+name);renderProvCarrito();
 }
@@ -1367,7 +1370,7 @@ function filterProducts(){
   if(!filtered.length){resultsDiv.innerHTML='<div style="padding:12px;text-align:center;color:var(--mu)">Sin productos encontrados</div>';resultsDiv.style.display='block';return;}
   const fmt=v=>'$'+Number(v||0).toFixed(2).replace('.',',');
   resultsDiv.innerHTML=filtered.map(p=>{
-    const stockText=p.stock>0?'<span style="color:green">Stock:'+p.stock+'</span>':'<span style="color:red">Sin stock</span>';
+    const stockText=p.stock>0?'<span style="color:green">Stock:'+fqty(p.stock)+'</span>':'<span style="color:red">Sin stock</span>';
     return '<div style="display:grid;grid-template-columns:3fr 1fr 1fr;gap:8px;padding:8px;border-bottom:1px solid var(--bd);cursor:pointer;background:var(--s2)" onclick="selectProduct(\''+p.id+'\')">'+
       '<div><div style="font-weight:600">'+(p.name||'Sin nombre')+'</div><div style="font-size:.75rem;color:var(--mu)">SKU: '+(p.sku||'')+'</div></div>'+
       '<div style="text-align:center;font-size:.8rem">'+fmt(p.cost||0)+'</div>'+
@@ -1383,7 +1386,7 @@ function showProductSearch(){
   if(!query||query.length<2){
     const fmt=v=>'$'+Number(v||0).toFixed(2).replace('.',',');
     resultsDiv.innerHTML=products.map(p=>{
-      const stockText=p.stock>0?'<span style="color:green">Stock:'+p.stock+'</span>':'<span style="color:red">Sin stock</span>';
+      const stockText=p.stock>0?'<span style="color:green">Stock:'+fqty(p.stock)+'</span>':'<span style="color:red">Sin stock</span>';
       return '<div style="display:grid;grid-template-columns:3fr 1fr 1fr;gap:8px;padding:8px;border-bottom:1px solid var(--bd);cursor:pointer;background:var(--s2)" onclick="selectProduct(\''+p.id+'\')">'+
         '<div><div style="font-weight:600">'+(p.name||'Sin nombre')+'</div><div style="font-size:.75rem;color:var(--mu)">SKU: '+(p.sku||'')+'</div></div>'+
         '<div style="text-align:center;font-size:.8rem">'+fmt(p.cost||0)+'</div>'+
@@ -1414,6 +1417,10 @@ function openProductModal(){
   const profitPct=parseFloat(prompt('% Ganancia (ej: '+dm+'):',String(dm))||String(dm))||dm;
   const rounding=parseFloat(prompt('Redondeo (ej: 1, 0.50, 5):')||'1')||1;
   const price=parseFloat(prompt('Precio de venta:')||'0')||0;
+  /* Mismo criterio que la ficha: no se crean dos productos con el mismo
+     código de barras/PLU ni con el mismo SKU (escanear abriría el otro). */
+  if(barcode){const c=products.find(x=>String(x.barcode||'')===barcode);if(c){toast('Ese código ya existe en: '+c.name,'err');return;}}
+  if(sku){const c=products.find(x=>String(x.sku||'')===sku);if(c){toast('Ese SKU ya existe en: '+c.name,'err');return;}}
   products.push({id:'prod_'+Date.now(),name,sku,barcode,cost,stock,taxPct,profitPct,rounding,price,category:'Sin categoría',description:''});
   saveProductsData();toast('✅ Producto creado: '+name);renderProvCarrito();
 }
@@ -1714,6 +1721,7 @@ tr:hover td{background:rgba(255,255,255,.012);}
 .prod-card:hover{border-color:var(--ac);transform:translateY(-1px);}
 .prod-card.out-of-stock{opacity:.4;pointer-events:none;}
 .pc-name{font-size:.68rem;font-weight:500;line-height:1.25;margin-bottom:2px;}
+.pc-hot{display:inline-block;background:var(--ac);color:#000;border-radius:4px;font-size:.55rem;padding:0 4px;font-weight:700;margin-right:4px;vertical-align:middle;}
 .pc-price{font-family:var(--fh);font-size:.8rem;font-weight:700;color:var(--ac);}
 .pc-stock{font-size:.6rem;color:var(--mu);margin-top:1px;}
 .pc-out{position:absolute;top:4px;right:4px;background:var(--err);color:#fff;border-radius:4px;font-size:.55rem;padding:1px 4px;}
@@ -2392,7 +2400,7 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
                     <th style="padding:8px;text-align:right;border:1px solid var(--bd);font-size:.72rem">COSTO+IVA</th>
                     <th style="padding:8px;text-align:center;border:1px solid var(--bd);font-size:.72rem">MARGEN</th>
                     <th style="padding:8px;text-align:right;border:1px solid var(--bd);font-size:.72rem">PRECIO SIN IVA</th>
-                    <th style="padding:8px;text-align:right;border:1px solid var(--bd);font-size:.72rem">PRECIO+IVA</th>
+                    <th style="padding:8px;text-align:right;border:1px solid var(--bd);font-size:.72rem" title="Se puede editar a mano">PRECIO VENTA ✎</th>
                     <th style="padding:8px;text-align:center;border:1px solid var(--bd);font-size:.72rem">REDONDEO</th>
                     <th style="padding:8px;text-align:center;border:1px solid var(--bd);font-size:.72rem">-</th>
                   </tr>
@@ -3102,7 +3110,12 @@ async function fetchAllRows(table,orderCol){
   let all=[],from=0;const pageSize=1000;
   while(true){
     const{data,error}=await sb.from(table).select('*').order(orderCol).range(from,from+pageSize-1);
-    if(error||!data||!data.length)break;
+    /* null = no se pudo leer completo. Los llamados hacen if(x&&x.length), así
+       que null deja todo como estaba; nunca debe confundirse con "tabla vacía"
+       porque loadFromCloud() libera los marcadores de borrado si viene vacía. */
+    if(error){console.error('fetchAllRows:',table,error);return null;}
+    if(!data)return null;
+    if(!data.length)break;
     all=all.concat(data);
     if(data.length<pageSize)break;
     from+=pageSize;
@@ -3125,31 +3138,40 @@ function provIsDeleted(table,id){
   const key=table==='prov_payments'?'payments':'orders';
   return provDeleted[key].indexOf(id)>=0;
 }
-async function provFlushDeleted(){
-  if(!cloudMode||!sb)return; /* sin nube queda pendiente para la próxima conexión */
+/* ══ TUMBA: borrado LÓGICO en la nube ══
+   El marcador de arriba vive solo en este navegador. Si otra pestaña o equipo
+   todavía tiene la compra en memoria, su próximo sync la vuelve a subir limpia
+   y reaparece. Antes de intentar el DELETE se sube la fila con deleted:true:
+   loadFromCloud() la descarta aunque el marcador no exista. */
+let provTomb=JSON.parse(localStorage.getItem('prov_tombs')||'[]');
+if(!Array.isArray(provTomb))provTomb=[];
+function provTombSave(){try{localStorage.setItem('prov_tombs',JSON.stringify(provTomb.slice(0,200)));}catch(e){}}
+function provTombPush(table,row){
+  if(!row||!row.id||!cloudMode||!sb)return;
+  provTomb=provTomb.filter(t=>!(t&&t.t===table&&t.id===row.id));
+  provTomb.push({t:table,id:row.id,r:row});
+  provTombSave();
+}
+function provFlushDeleted(){
+  if(!cloudMode||!sb)return Promise.resolve(); /* sin nube queda pendiente */
   const pairs=[['prov_orders','orders'],['prov_payments','payments']];
-  for(let pi=0;pi<pairs.length;pi++){
-    const table=pairs[pi][0],key=pairs[pi][1];
-    const pend=provDeleted[key].slice();
-    for(let i=0;i<pend.length;i++){
-      let gone=false;
-      try{
-        const r=await sb.from(table).delete().eq('id',pend[i]);
-        if(r&&r.error)console.error('provFlushDeleted:',r.error);
-        /* PostgREST responde {error:null} AUNQUE no haya borrado nada (RLS sin
-           permiso de DELETE). Con eso se liberaba el marcador y loadFromCloud()
-           restauraba la compra cada 30 s. Hay que comprobar con un SELECT que la
-           fila ya no la ve este navegador: es exactamente la misma visibilidad
-           que usa loadFromCloud(), así que si acá sigue viéndola se conserva el
-           marcador y la compra queda oculta (y se reintenta el borrado). */
-        const chk=await sb.from(table).select('id').eq('id',pend[i]);
-        gone=!!(chk&&!chk.error&&Array.isArray(chk.data)&&!chk.data.length);
-      }
-      catch(e){console.error('provFlushDeleted:',e);gone=false;}
-      if(gone){const ix=provDeleted[key].indexOf(pend[i]);if(ix>=0)provDeleted[key].splice(ix,1);}
-    }
-  }
-  provSaveDeleted();
+  let chain=Promise.resolve();
+  pairs.forEach(function(pair){
+    const table=pair[0],key=pair[1];
+    provDeleted[key].forEach(function(id){
+      if(!id)return;
+      chain=chain.then(function(){
+        return Promise.resolve(sb.from(table).delete().eq('id',id)).then(function(r){
+          if(r&&r.error)console.error('provFlushDeleted:',r.error);
+        },function(e){console.error('provFlushDeleted:',e);});
+      });
+    });
+  });
+  /* El marcador NO se libera acá: eso permitía que una lectura de loadFromCloud()
+     ya en curso (con la lista vieja) restaurara la compra y persist() volviera a
+     subirla a Supabase. Se libera recién en loadFromCloud(), cuando una lectura
+     fresca confirma que la fila ya no existe. */
+  return chain;
 }
 async function loadFromCloud(){
   if(!sb)return;
@@ -3165,8 +3187,35 @@ async function loadFromCloud(){
     /* Si la nube viene vacia o con error, NO se pisa lo local: persist() sube lo local y lo repone. */
     if(rp&&rp.length)products=rp.map(r=>r.data);if(rc&&rc.length)categories=rc.map(r=>r.data);if(ru&&ru.length)users=ru.map(r=>r.data);if(rct&&rct.length)contacts=rct.map(r=>r.data);
     if(rm.data&&rm.data.length)movements=rm.data.map(r=>r.data);if(rs.data&&rs.data.length)sales=rs.data.map(r=>r.data);if(rcm.data&&rcm.data.length)ctaMovs=rcm.data.map(r=>r.data);if(reg.data&&reg.data.length){const allEg=reg.data.map(r=>r.data);egresos=allEg.filter(e=>e.mod!=='dc');egresosDC=allEg.filter(e=>e.mod==='dc');}
-    if(rpo&&rpo.length){const ids=new Set(rpo.map(r=>r.id));const dOrd=provDeleted.orders;provOrders=rpo.map(r=>r.data).filter(o=>dOrd.indexOf(o.id)<0).concat(provOrders.filter(o=>!ids.has(o.id)&&dOrd.indexOf(o.id)<0));}
-    if(rpy&&rpy.length){const ids=new Set(rpy.map(r=>r.id));const dPay=provDeleted.payments;provPayments=rpy.map(r=>r.data).filter(p=>dPay.indexOf(p.id)<0).concat(provPayments.filter(p=>(!p.id||!ids.has(p.id))&&dPay.indexOf(p.id)<0));}
+    if(Array.isArray(rpo)){
+      if(rpo.length){
+        const ids=new Set(rpo.map(r=>r.id));
+        const dOrd=provDeleted.orders;
+        provOrders=rpo.map(r=>r.data).filter(o=>o&&o.deleted!==true&&dOrd.indexOf(o.id)<0)
+          .concat(provOrders.filter(o=>o&&o.deleted!==true&&!ids.has(o.id)&&dOrd.indexOf(o.id)<0));
+      }
+      /* Liberar el marcador SOLO acá: una lectura fresca y completa ya no trae
+         la fila. Si se liberaba apenas se confirmaba el DELETE, una lectura
+         anterior (en curso) con la lista vieja restauraba la compra y persist()
+         la volvía a subir a Supabase: era el motivo de que "volvieran a
+         aparecer". Mientras la fila exista (aunque sea como tumba) se conserva. */
+      const still=new Set(rpo.map(r=>r&&r.id));
+      const n0=provDeleted.orders.length;
+      provDeleted.orders=provDeleted.orders.filter(x=>still.has(x));
+      if(provDeleted.orders.length!==n0)provSaveDeleted();
+    }
+    if(Array.isArray(rpy)){
+      if(rpy.length){
+        const ids=new Set(rpy.map(r=>r.id));
+        const dPay=provDeleted.payments;
+        provPayments=rpy.map(r=>r.data).filter(p=>p&&p.deleted!==true&&dPay.indexOf(p.id)<0)
+          .concat(provPayments.filter(p=>p&&p.deleted!==true&&(!p.id||!ids.has(p.id))&&dPay.indexOf(p.id)<0));
+      }
+      const stillP=new Set(rpy.map(r=>r&&r.id));
+      const n1=provDeleted.payments.length;
+      provDeleted.payments=provDeleted.payments.filter(x=>stillP.has(x));
+      if(provDeleted.payments.length!==n1)provSaveDeleted();
+    }
     if(rps&&rps.length){const ids=new Set(rps.map(r=>r.id));provSuppliers=rps.map(r=>r.data).concat(provSuppliers.filter(s=>!ids.has(s)));}
     persist();
   }catch(e){console.error('loadFromCloud:',e);}
@@ -3275,13 +3324,19 @@ document.addEventListener('click',function(e){const t=e.target;if(spIsNumField(t
 // ══ BASE DE DATOS + EXCEL (PROVEEDORES Y ÓRDENES) ══
 async function provCloudSync(){
   if(!cloudMode||!sb)return;
-  try{provFlushDeleted().catch(()=>{});}catch(e){} /* reintenta borrar de la nube lo que quedó pendiente */
   try{
+    const dOrd=provDeleted.orders,dPay=provDeleted.payments;
     provPayments.forEach(p=>{if(!p.id)p.id=uid();});
+    /* Nunca se vuelve a subir algo marcado como borrado (otra pestaña pudo
+       dejarlo en memoria antes de que este navegador lo borrara). */
+    const ord=provOrders.filter(o=>o&&o.deleted!==true&&dOrd.indexOf(o.id)<0);
+    const pay=provPayments.filter(p=>p&&p.deleted!==true&&dPay.indexOf(p.id)<0);
     const reqs=[];
-    if(provOrders.length)reqs.push(sb.from('prov_orders').upsert(provOrders.map(o=>({id:o.id,data:o})),{onConflict:'id'}));
-    if(provPayments.length)reqs.push(sb.from('prov_payments').upsert(provPayments.map(p=>({id:p.id,data:p})),{onConflict:'id'}));
+    if(ord.length)reqs.push(sb.from('prov_orders').upsert(ord.map(o=>({id:o.id,data:o})),{onConflict:'id'}));
+    if(pay.length)reqs.push(sb.from('prov_payments').upsert(pay.map(p=>({id:p.id,data:p})),{onConflict:'id'}));
     if(provSuppliers.length)reqs.push(sb.from('prov_suppliers').upsert(provSuppliers.map(s=>({id:s,data:s})),{onConflict:'id'}));
+    /* Tumbas (borrado lógico) junto con el resto de las subidas. */
+    provTomb.forEach(t=>{if(t&&t.r&&t.t)reqs.push(sb.from(t.t).upsert({id:t.id,data:t.r},{onConflict:'id'}));});
     const rs=await Promise.all(reqs);
     /* Supabase no lanza excepcion ante un 4xx: el error viene devuelto en {error}.
        Antes eso quedaba silenciado y las subidas fallaban sin ningun aviso. */
@@ -3289,8 +3344,11 @@ async function provCloudSync(){
     if(mal){
       console.error('provCloudSync:',mal.error);
       toast('⚠️ Guardado local: no se pudo subir a la nube ('+(mal.error.code||mal.error.message)+')','err');
-    }
+    }else{provTomb=[];provTombSave();}
   }catch(e){console.error('provCloudSync:',e);}
+  /* El DELETE recién DESPUÉS de subir las tumbas: si corría primero podía borrar
+     la fila y el upsert dejarla limpia otra vez. */
+  provFlushDeleted();
 }
 let _xlq=null;
 function ensureXLSX(cb){
@@ -3404,7 +3462,7 @@ let ordDraft=null,ordPays=[],ordLegacy=0,ordItemsSnap='';
 function escH(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function provRefreshOrders(){[renderHistorial,renderProvPurchases,renderProvFicha,populatePagoOrdenes,renderProductsSelectInProv].forEach(function(f){try{f();}catch(e){}});}
 function ordDateInput(ts){const d=new Date(ts||Date.now()),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes());}
-function ordCalc(it,incl){const cost=spNum(it.cost),qty=spNum(it.qty)||1,discount=spNum(it.discount);const taxPct=incl?spNum(it.taxPct):0;const profitPct=spNum(it.profitPct);const rounding=spNum(it.rounding);it.subtotal=cost*qty-discount;it.priceWithoutIva=cost+cost*(profitPct/100);const base=it.priceWithoutIva*(1+taxPct/100);it.priceWithIva=rounding>0?Math.ceil(base/rounding)*rounding:Math.round(base*100)/100;}
+function ordCalc(it,incl){const cost=spNum(it.cost),qty=spNum(it.qty)||1,discount=spNum(it.discount);const taxPct=incl?spNum(it.taxPct):0;const profitPct=spNum(it.profitPct);const rounding=spNum(it.rounding);it.subtotal=cost*qty-discount;const manual=spNum(it.priceManual);let price;if(manual>0){price=manual;it.priceWithoutIva=taxPct>0?manual/(1+taxPct/100):manual;}else{it.priceWithoutIva=cost+cost*(profitPct/100);const base=it.priceWithoutIva*(1+taxPct/100);price=rounding>0?Math.ceil(base/rounding)*rounding:Math.round(base*100)/100;}it.priceWithIva=Math.round(price*100)/100;const cu=cost*(1+taxPct/100);it.marginPct=cu>0?Math.round((it.priceWithIva/cu-1)*10000)/100:0;}
 function ordTotals(){const incl=!!ordDraft.includeIva;let sub=0,tax=0;ordDraft.items.forEach(it=>{const base=spNum(it.cost)*(spNum(it.qty)||1)-spNum(it.discount);sub+=base;if(incl)tax+=base*(spNum(it.taxPct)/100);});const total=sub+tax;const paid=ordLegacy+ordPays.reduce((s,p)=>s+spNum(p.amount),0);ordDraft.totalCost=total;ordDraft.subTotal=sub;ordDraft.taxTotal=tax;const t=$i('ord-total'),pd=$i('ord-paid'),pe=$i('ord-pending'),sb=$i('ord-subtotal'),tx=$i('ord-tax');if(sb)sb.textContent='$'+fn(sub);if(tx)tx.textContent='$'+fn(tax);if(t)t.textContent='$'+fn(total);if(pd)pd.textContent='$'+fn(paid);if(pe)pe.textContent='$'+fn(total-paid);return total;}
 function ordToggleIva(){if(!ordDraft)return;const cb=$i('ord-include-iva');ordDraft.includeIva=!!(cb&&cb.checked);ordRender();}
 function ordOpen(id){
@@ -3444,7 +3502,7 @@ function ordRender(){
       '<td style="padding:4px"><input type="text" inputmode="decimal" value="'+spDec(it.cost)+'" onchange="ordItem('+i+',\'cost\',this.value)" style="width:76px;'+inp+'"></td>'+
       '<td style="padding:4px"><input type="text" inputmode="decimal" value="'+spDec(it.discount)+'" onchange="ordItem('+i+',\'discount\',this.value)" style="width:60px;'+inp+'"></td>'+
       '<td style="padding:4px"><input type="text" inputmode="decimal" value="'+spDec(it.taxPct)+'" onchange="ordItem('+i+',\'taxPct\',this.value)" style="width:50px;'+inp+'"></td>'+
-      '<td style="padding:4px"><input type="text" inputmode="decimal" value="'+spDec(it.profitPct)+'" onchange="ordItem('+i+',\'profitPct\',this.value)" style="width:52px;'+inp+'"></td>'+
+      '<td style="padding:4px"><input type="text" inputmode="decimal" value="'+spDec(it.marginPct!=null?it.marginPct:it.profitPct)+'" onchange="ordItem('+i+',\'profitPct\',this.value)" title="% de ganancia REAL (sale del precio final)" style="width:52px;'+inp+'"></td>'+
       '<td style="padding:4px"><input type="text" inputmode="decimal" value="'+spDec(it.rounding)+'" onchange="ordItem('+i+',\'rounding\',this.value)" style="width:54px;'+inp+'"></td>'+
       '<td id="ord-p'+i+'" style="padding:4px;text-align:right;white-space:nowrap">$'+fn(it.priceWithIva)+'</td>'+
       '<td id="ord-s'+i+'" style="padding:4px;text-align:right;white-space:nowrap">$'+fn(sub)+'</td>'+
@@ -3462,6 +3520,9 @@ function ordRender(){
 function ordItem(i,f,v){
   const it=ordDraft&&ordDraft.items[i];if(!it)return;
   if(['qty','cost','discount','taxPct','profitPct','rounding'].indexOf(f)>-1)it[f]=spNum(v);else it[f]=v;
+  /* Igual que en el carrito: al tocar costo, % de ganancia o redondeo se
+     descarta un precio de venta cargado a mano para que vuelva a salir del %. */
+  if(f==='cost'||f==='profitPct'||f==='rounding')it.priceManual=0;
   ordCalc(it,!!ordDraft.includeIva);
   const p=$i('ord-p'+i),s=$i('ord-s'+i);
   if(p)p.textContent='$'+fn(it.priceWithIva);
@@ -3476,10 +3537,10 @@ function ordAddItem(){
   }else{
     const p=products.find(x=>x.id===v);
     if(!p){toast('Producto no encontrado','err');return;}
-    /* Base SIN iva (costNeto): p.cost ya trae el IVA sumado cuando el
-       producto se cargó con impuesto, y el % Imp. de la orden lo suma aparte. */
-    const pNet=p.costNeto!=null?spNum(p.costNeto):spNum(p.cost);
-    ordDraft.items.push({id:'oi_'+Date.now(),productId:p.id,name:p.name,qty:1,cost:pNet,discount:0,taxPct:p.taxPct==null?21:spNum(p.taxPct),profitPct:p.profitPct==null?provDefMargin():spNum(p.profitPct),rounding:p.rounding==null?0:spNum(p.rounding),stock:p.stock||0,priceWithIva:0,priceWithoutIva:0});
+    /* Mismos valores que la ficha: costo SIN iva (costNeto), % de impuesto,
+       % de ganancia y precio de venta vigente. */
+    const s=provSeedFromProduct(p,0);
+    ordDraft.items.push(Object.assign({id:'oi_'+Date.now(),productId:p.id,name:p.name,qty:1,discount:0,priceWithIva:0,priceWithoutIva:0},s));
   }
   sel.value='';
   ordRender();
@@ -3540,15 +3601,18 @@ function ordDel(id){
   const o=provOrders.find(x=>x.id===id);if(!o)return;
   $i('confirm-msg').textContent='¿Eliminar la orden de '+(o.supplier||'')+'? Se borran también sus pagos (no revierte stock).';
   $i('confirm-ok').onclick=function(){
-    const payIds=provPayments.filter(p=>p.orderId===id).map(p=>p.id).filter(Boolean);
+    const payObjs=provPayments.filter(p=>p.orderId===id);
     provOrders=provOrders.filter(x=>x.id!==id);
     provPayments=provPayments.filter(p=>p.orderId!==id);
     /* Marcar como borrado: sin esto, loadFromCloud() las restauraba cada 30s desde Supabase */
     provMarkDeleted('prov_orders',id);
-    payIds.forEach(pid=>provMarkDeleted('prov_payments',pid));
+    payObjs.forEach(p=>{if(p.id)provMarkDeleted('prov_payments',p.id);});
+    /* Tumba en la nube (borrado lógico): protege aunque se pierda el marcador
+       local o alguna otra pestaña vuelva a subir la compra sin borrar. */
+    provTombPush('prov_orders',Object.assign({},o,{deleted:true}));
+    payObjs.forEach(p=>{if(p.id)provTombPush('prov_payments',Object.assign({},p,{deleted:true}));});
     saveProvData();closeO('m-confirm');closeO('m-ord');ordDraft=null;ordPays=[];ordLegacy=0;
     provRefreshOrders();toast('Orden eliminada','err');
-    provFlushDeleted().catch(()=>{});
   };
   openO('m-confirm');
 }
@@ -4269,7 +4333,7 @@ async function scanFromPhotoTarget(input,target){
 function testScanInput(inp){
   const code=inp.value.trim();if(!code)return;
   const p=products.find(x=>x.barcode===code);const plu=decodePLU(code);const res=$i('scan-test-result');
-  if(p)res.innerHTML='<span style="color:var(--ok)">✅ Producto: <strong>'+p.name+'</strong> — Stock: '+p.stock+' — $'+fn(p.price)+'</span>';
+  if(p)res.innerHTML='<span style="color:var(--ok)">✅ Producto: <strong>'+p.name+'</strong> — Stock: '+fqty(p.stock)+' — $'+fn(p.price)+'</span>';
   else if(plu)res.innerHTML='<span style="color:var(--ac2)">⚖️ PLU #'+plu.pluCode+' — '+fqty(plu.pluWeight||0)+' kg — $'+fn(amt(plu.pluPrice))+(plu.product?' — '+plu.product.name:' (sin asignar)')+'</span>';
   else res.innerHTML='<span style="color:var(--warn)">⚠️ Código: <strong>'+code+'</strong> — No registrado</span>';
 }
@@ -4362,7 +4426,7 @@ function renderPosGrid(){
   const rank=getSalesRank();list.sort((a,b)=>{if(a.stock>0&&b.stock<=0)return -1;if(a.stock<=0&&b.stock>0)return 1;return(rank[b.id]||0)-(rank[a.id]||0);});
   const grid=$i('pos-grid');const c=cfg();const allowNoStock=c.sellNoStock;
   if(!list.length){grid.innerHTML='<div class="empty"><div class="eic">🔍</div>Sin resultados</div>';return;}
-  grid.innerHTML=list.map(p=>{const out=p.stock<=0;const sold=rank[p.id]||0;const hot=sold>0?'<span style="position:absolute;top:5px;left:5px;background:var(--ac);color:#000;border-radius:4px;font-size:.58rem;padding:1px 5px;font-weight:700">🔥'+fqty(sold)+'</span>':'';return '<div class="prod-card'+(out&&!allowNoStock?' out-of-stock':'')+'" onclick="addToCart(\''+p.id+'\')">'+hot+(out?'<span class="pc-out">'+(allowNoStock?'⚠️0':'SIN STOCK')+'</span>':'')+'<div class="pc-name">'+p.name+'</div>'+'<div class="pc-price">'+(c.currency||'$')+fn(p.price)+(p.tipo=='kg'?'/kg':'')+'</div>'+'<div class="pc-stock">'+(p.tipo=='kg'?'⚖️ ':'📦 ')+p.stock+(p.tipo=='kg'?' kg':' uds')+'</div></div>';}).join('');
+  grid.innerHTML=list.map(p=>{const out=p.stock<=0;const sold=rank[p.id]||0;const hot=sold>0?'<span class="pc-hot">🔥'+fqty(sold)+'</span>':'';return '<div class="prod-card'+(out&&!allowNoStock?' out-of-stock':'')+'" onclick="addToCart(\''+p.id+'\')">'+(out?'<span class="pc-out">'+(allowNoStock?'⚠️0':'SIN STOCK')+'</span>':'')+'<div class="pc-name">'+hot+p.name+'</div>'+'<div class="pc-price">'+(c.currency||'$')+fn(p.price)+(p.tipo=='kg'?'/kg':'')+'</div>'+'<div class="pc-stock">'+(p.tipo=='kg'?'⚖️ ':'📦 ')+fqty(p.stock)+(p.tipo=='kg'?' kg':' uds')+'</div></div>';}).join('');
 }
 
 function normalizeStr(str){
@@ -4497,7 +4561,7 @@ function renderSdGrid(){
   const rank=getSalesRank();const c=cfg();const allowNoStock=c.sellNoStock;
   let list=products.filter(p=>{const mq=!q||normalizeStr(p.name).includes(q)||normalizeStr(p.barcode).includes(q)||normalizeStr(p.sku).includes(q);return mq&&(!cat||p.cat===cat);});
   list.sort((a,b)=>(rank[b.id]||0)-(rank[a.id]||0));
-  grid.innerHTML=list.map(p=>{const out=p.stock<=0&&!allowNoStock;return '<div class="prod-card'+(out?' out-of-stock':'')+'" onclick="'+(out?'':'sdAddProduct(\''+p.id+'\')')+'" style="font-size:.78rem'+(out?';opacity:.4':'')+'">'+( out?'<span class="pc-out">SIN STOCK</span>':'')+'<div style="font-size:1.3rem;margin-bottom:4px">'+(catEm(p.cat)||'📦')+'</div><div class="pc-name" style="font-size:.75rem">'+p.name+'</div><div class="pc-price" style="font-size:.85rem">'+(c.currency||'$')+fn(p.price)+'</div><div class="pc-stock" style="font-size:.65rem">Stock: '+p.stock+'</div></div>';}).join('')||'<div class="empty" style="font-size:.8rem;grid-column:1/-1"><div class="eic">🔍</div>Sin resultados</div>';
+  grid.innerHTML=list.map(p=>{const out=p.stock<=0&&!allowNoStock;return '<div class="prod-card'+(out?' out-of-stock':'')+'" onclick="'+(out?'':'sdAddProduct(\''+p.id+'\')')+'" style="font-size:.78rem'+(out?';opacity:.4':'')+'">'+( out?'<span class="pc-out">SIN STOCK</span>':'')+'<div style="font-size:1.3rem;margin-bottom:4px">'+(catEm(p.cat)||'📦')+'</div><div class="pc-name" style="font-size:.75rem">'+p.name+'</div><div class="pc-price" style="font-size:.85rem">'+(c.currency||'$')+fn(p.price)+'</div><div class="pc-stock" style="font-size:.65rem">Stock: '+fqty(p.stock)+'</div></div>';}).join('')||'<div class="empty" style="font-size:.8rem;grid-column:1/-1"><div class="eic">🔍</div>Sin resultados</div>';
 }
 function sdAddProduct(pid,overridePrice,overrideQty){
   const s=sales.find(x=>x.id===editingSaleId);if(!s)return;const p=products.find(x=>x.id===pid);if(!p)return;
@@ -4635,7 +4699,7 @@ function saveQuickStock(){
   persist();refreshAll();closeO('m-quick-stock');toast('✅ Stock actualizado');
 }
 function openMov(type){const s=$i('m-prod-sel');s.innerHTML=products.length?products.map(p=>'<option value="'+p.id+'">'+p.name+'</option>').join(''):'<option>Sin productos</option>';$i('m-tp').value=type;$i('m-qty').value='';$i('m-note').value='';updMovSt();openO('m-mov');}
-function updMovSt(){const p=products.find(x=>x.id===$i('m-prod-sel').value);$i('m-cur-st').textContent=p?'Stock actual: '+p.stock+' unidades':'';}
+function updMovSt(){const p=products.find(x=>x.id===$i('m-prod-sel').value);$i('m-cur-st').textContent=p?'Stock actual: '+fqty(p.stock)+' unidades':'';}
 function saveMov(){
   const pid=$i('m-prod-sel').value,type=$i('m-tp').value,qty=parseInt($i('m-qty').value)||0,note=$i('m-note').value.trim();
   if(!pid||qty<=0){toast('Completá todos los campos','err');return;}
@@ -4650,7 +4714,7 @@ function renderAlerts(){
   const out=products.filter(p=>sst(p)==='out'),low=products.filter(p=>sst(p)==='low');const pill=$i('apill');const tot=out.length+low.length;
   pill.style.display=tot?'':'none';pill.textContent=tot;
   const el=$i('alerts-list');if(!tot){el.innerHTML='<div class="empty"><div class="eic">✅</div>¡Todo en orden!</div>';return;}
-  el.innerHTML=[...out.map(p=>'<div class="ali crit"><div><strong>'+p.name+'</strong><br><small style="color:var(--mu)">Sin stock — mín: '+(p.min||5)+'</small></div><button class="btn bp bs" onclick="openMov(\'entrada\');$i(\'m-prod-sel\').value=\''+p.id+'\';updMovSt()">Reponer</button></div>'),...low.map(p=>'<div class="ali"><div><strong>'+p.name+'</strong><br><small style="color:var(--mu)">Stock: '+p.stock+' / mín: '+(p.min||5)+'</small></div><button class="btn bg bs" onclick="openMov(\'entrada\');$i(\'m-prod-sel\').value=\''+p.id+'\';updMovSt()">Reponer</button></div>')].join('');
+  el.innerHTML=[...out.map(p=>'<div class="ali crit"><div><strong>'+p.name+'</strong><br><small style="color:var(--mu)">Sin stock — mín: '+(p.min||5)+'</small></div><button class="btn bp bs" onclick="openMov(\'entrada\');$i(\'m-prod-sel\').value=\''+p.id+'\';updMovSt()">Reponer</button></div>'),...low.map(p=>'<div class="ali"><div><strong>'+p.name+'</strong><br><small style="color:var(--mu)">Stock: '+fqty(p.stock)+' / mín: '+(p.min||5)+'</small></div><button class="btn bg bs" onclick="openMov(\'entrada\');$i(\'m-prod-sel\').value=\''+p.id+'\';updMovSt()">Reponer</button></div>')].join('');
 }
 
 // ══ CATEGORÍAS ══
@@ -4663,7 +4727,7 @@ function renderCats(){
 }
 function selectCat(n){selCat=selCat===n?null:n;renderCats();}
 function addDC(d){if(categories.find(c=>c.name===d.name))return;categories.push({id:uid(),...d});persist();renderCats();toast(d.emoji+' '+d.name+' agregada ✓');}
-function renderCatProds(){const el=$i('cat-prods');if(!selCat){el.innerHTML='<div style="color:var(--mu);font-size:.83rem">Seleccioná una categoría.</div>';return;}const list=products.filter(p=>p.cat===selCat);if(!list.length){el.innerHTML='<div class="empty"><div class="eic">📦</div>Sin productos</div>';return;}const c=cfg();el.innerHTML='<div class="tblw"><table><thead><tr><th>Producto</th><th>Stock</th><th>Precio</th><th>Margen</th><th>Estado</th></tr></thead><tbody>'+list.map(p=>{const m=mg(p.cost,p.price);return '<tr><td>'+p.name+'</td><td>'+p.stock+'</td><td>'+(p.price?(c.currency||'$')+fn(p.price):'—')+'</td><td>'+(p.cost&&p.price?'<span style="color:'+(m>=0?'var(--ok)':'var(--err)')+'">'+m.toFixed(1)+'%</span>':'—')+'</td><td>'+sbdg(sst(p))+'</td></tr>';}).join('')+'</tbody></table></div>';}
+function renderCatProds(){const el=$i('cat-prods');if(!selCat){el.innerHTML='<div style="color:var(--mu);font-size:.83rem">Seleccioná una categoría.</div>';return;}const list=products.filter(p=>p.cat===selCat);if(!list.length){el.innerHTML='<div class="empty"><div class="eic">📦</div>Sin productos</div>';return;}const c=cfg();el.innerHTML='<div class="tblw"><table><thead><tr><th>Producto</th><th>Stock</th><th>Precio</th><th>Margen</th><th>Estado</th></tr></thead><tbody>'+list.map(p=>{const m=mg(p.cost,p.price);return '<tr><td>'+p.name+'</td><td>'+fqty(p.stock)+'</td><td>'+(p.price?(c.currency||'$')+fn(p.price):'—')+'</td><td>'+(p.cost&&p.price?'<span style="color:'+(m>=0?'var(--ok)':'var(--err)')+'">'+m.toFixed(1)+'%</span>':'—')+'</td><td>'+sbdg(sst(p))+'</td></tr>';}).join('')+'</tbody></table></div>';}
 function openCatM(){$i('c-name').value='';$i('c-em').value='';$i('c-min').value=5;openO('m-cat');}
 function saveCat(){const name=$i('c-name').value.trim();if(!name){toast('Nombre obligatorio','err');return;}categories.push({id:uid(),name,emoji:$i('c-em').value.trim()||'📦',min:parseInt($i('c-min').value)||5});persist();closeO('m-cat');renderCats();toast('Categoría creada ✓');}
 
@@ -4694,7 +4758,9 @@ function delUser(id){if(id===currentUser?.id){toast('No podés eliminarte','err'
 function openProd(id){
   window._prodBack=null;editProdId=id;$i('mp-t').textContent=id?'✏️ Editar producto':'📦 Nuevo producto';
   ['name','bc','sku','stk','min','cost','price','notes','marca','proveedor'].forEach(f=>$i('p-'+f).value='');$i('p-cat').value='';$i('p-iva').value='0';$i('p-margin-pct').value='';$i('p-round').value='0';$i('p-calc-result').textContent='';
-  if(id){const p=products.find(x=>x.id===id);if(p){$i('p-name').value=p.name||'';$i('p-bc').value=p.barcode||'';$i('p-sku').value=p.sku||'';$i('p-stk').value=p.stock||0;$i('p-min').value=p.min||5;$i('p-cost').value=spDec(p.costNeto!=null?p.costNeto:p.cost);$i('p-price').value=p.price||'';$i('p-iva').value=p.iva||0;$i('p-notes').value=p.notes||'';$i('p-cat').value=p.cat||'';$i('p-marca').value=p.marca||'';$i('p-proveedor').value=p.proveedor||'';const rs=$i('p-round');const rv=p.rounding==null?'0':String(p.rounding);rs.value=rv;if(rs.value===''){const o=document.createElement('option');o.value=rv;o.textContent='Múltiplo $'+rv;rs.appendChild(o);rs.value=rv;}}}
+  if(id){const p=products.find(x=>x.id===id);if(p){$i('p-name').value=p.name||'';$i('p-bc').value=p.barcode||'';$i('p-sku').value=p.sku||'';$i('p-stk').value=p.stock||0;$i('p-min').value=p.min||5;$i('p-cost').value=spDec(p.costNeto!=null?p.costNeto:p.cost);$i('p-price').value=p.price||'';$i('p-iva').value=p.iva||0;$i('p-notes').value=p.notes||'';$i('p-cat').value=p.cat||'';$i('p-marca').value=p.marca||'';$i('p-proveedor').value=p.proveedor||'';$i('p-margin-pct').value=(p.profitPct==null?'':spDec(p.profitPct));const rs=$i('p-round');const rv=p.rounding==null?'0':String(p.rounding);rs.value=rv;if(rs.value===''){const o=document.createElement('option');o.value=rv;o.textContent='Múltiplo $'+rv;rs.appendChild(o);rs.value=rv;}}}
+  /* calcM() ya no escribe el precio de venta: solo muestra la info de margen y
+     el precio sugerido, así el precio guardado en la ficha nunca se pisa al abrir. */
   fillCatSel('p-cat');calcM();
   // set tipo
   const tipoVal=editProdId?(products.find(x=>x.id===editProdId)||{}).tipo||'unidad':'unidad';
@@ -4773,16 +4839,32 @@ function provApplyItemsToProducts(items,includeIva,affectPrice){
   return touched;
 }
 function updMarginInfo(){const c=pEffCost(),p=parseFloat($i('p-price').value)||0,st=parseFloat($i('p-stk').value)||0;const g=p-c,m=mg(c,p),mk2=mk(c,p);const cls=g>=0?'pos':'neg';$i('mi-g').textContent='$'+fn(g);$i('mi-g').className='miv '+cls;$i('mi-m').textContent=m.toFixed(1)+'%';$i('mi-m').className='miv '+cls;$i('mi-mk').textContent=mk2.toFixed(1)+'%';$i('mi-mk').className='miv '+cls;$i('mi-sv').textContent='$'+fn(c*st);}
-function calcM(){updMarginInfo();if($i('p-margin-pct').value)calcPriceFromMargin();}
-function calcPriceFromMargin(){const cost=pEffCost(),pct=spNum($i('p-margin-pct').value)||0,round=Math.max(0,parseInt($i('p-round').value)||0),res=$i('p-calc-result');if(!cost||!pct){res.textContent='';return;}let price=cost*(1+pct/100);if(round>=1)price=Math.ceil(price/round)*round;res.innerHTML='Precio sugerido: <strong style="color:var(--ac)">$'+fn(price)+'</strong> · Ganancia: $'+fn(price-cost);$i('p-price').value=price.toFixed(2);updMarginInfo();}
+function calcM(){updMarginInfo();calcSuggest();}
+/* Solo refresca la info y muestra el precio SUGERIDO: NO escribe en "Precio
+   venta". Antes, con el % de ganancia precargado, tocar el costo (o teclear el
+   precio a mano) pisaba el precio al instante. El precio de la ficha cambia solo
+   al tipear el % de ganancia o al pulsar "Aplicar →". */
+function calcSuggest(){const cost=pEffCost(),pct=spNum($i('p-margin-pct').value)||0,round=Math.max(0,parseInt($i('p-round').value)||0),res=$i('p-calc-result');if(!cost||!pct){res.textContent='';return 0;}let price=cost*(1+pct/100);if(round>=1)price=Math.ceil(price/round)*round;res.innerHTML='Precio sugerido: <strong style="color:var(--ac)">$'+fn(price)+'</strong> · Ganancia: $'+fn(price-cost);return price;}
+function calcPriceFromMargin(){const price=calcSuggest(),cost=pEffCost(),pct=spNum($i('p-margin-pct').value)||0;if(cost&&pct&&price)$i('p-price').value=price.toFixed(2);updMarginInfo();}
 function applyPriceFromMargin(){const cost=pEffCost(),pct=spNum($i('p-margin-pct').value)||0,round=Math.max(0,parseInt($i('p-round').value)||0);if(!cost||!pct){toast('Ingresá costo y % ganancia','err');return;}let price=cost*(1+pct/100);if(round>=1)price=Math.ceil(price/round)*round;$i('p-price').value=price.toFixed(2);updMarginInfo();toast('Precio aplicado: $'+fn(price));}
 function saveProd(){
   const name=$i('p-name').value.trim();if(!name){toast('Nombre obligatorio','err');return;}
+  /* Sin códigos duplicados: dos productos con el mismo código de barras/PLU (o
+     el mismo SKU) hacen que escanear en el POS abra el equivocado. Se compara
+     contra los demás productos; si al editar el código no cambió, no se bloquea. */
+  const bc=$i('p-bc').value.trim(),sku=$i('p-sku').value.trim();
+  const prevP=editProdId?products.find(x=>x.id===editProdId):null;
+  const bcOld=prevP?(prevP.barcode||''):'',skuOld=prevP?(prevP.sku||''):'';
+  if(bc&&bc!==bcOld){const c=products.find(x=>x.id!==editProdId&&String(x.barcode||'')===bc);if(c){toast('Ese código ya existe en: '+c.name,'err');return;}}
+  if(sku&&sku!==skuOld){const c=products.find(x=>x.id!==editProdId&&String(x.sku||'')===sku);if(c){toast('Ese SKU ya existe en: '+c.name,'err');return;}}
   const sv=parseInt($i('p-stk').value)||0;const tipo=($i('p-tipo-kg')&&$i('p-tipo-kg').checked)?'kg':'unidad';
   /* "Precio costo" es SIN iva. El IVA se suma al costo: p.cost = costo real. */
   const costNeto=spNum($i('p-cost').value),ivaVal=parseFloat($i('p-iva').value)||0;
   const costReal=ivaVal>0?Math.round(costNeto*(1+ivaVal/100)*100)/100:costNeto;
   const d={name,barcode:$i('p-bc').value.trim(),sku:$i('p-sku').value.trim(),cat:$i('p-cat').value,marca:$i('p-marca').value.trim(),proveedor:$i('p-proveedor').value.trim(),stock:sv,min:parseInt($i('p-min').value)||5,cost:costReal,costNeto:costNeto,price:parseFloat($i('p-price').value)||0,iva:ivaVal,notes:$i('p-notes').value.trim(),tipo};const rs=$i('p-round');if(rs&&rs.value!=='')d.rounding=parseInt(rs.value)||0;
+  /* % de ganancia de la ficha: el carrito de Proveedores lo toma de acá para
+     cargar el mismo margen. Vacío = se deriva del precio de venta. */
+  const mp=$i('p-margin-pct');d.profitPct=(mp&&mp.value.trim()!=='')?spNum(mp.value):null;
   if(editProdId){const idx=products.findIndex(x=>x.id===editProdId);if(idx>-1){const diff=sv-products[idx].stock;products[idx]={...products[idx],...d};if(diff!==0)addMvt(editProdId,'ajuste',Math.abs(sv),'Edición');}toast('Producto actualizado ✓');}
   else{const p={id:uid(),...d,createdAt:Date.now()};products.push(p);if(sv>0)addMvt(p.id,'entrada',sv,'Stock inicial');toast('Producto agregado ✓');}
   persist();closeO('m-prod');refreshAll();
@@ -5159,7 +5241,7 @@ function renderEgSearch(){
   if(!q){res.style.display='none';res.innerHTML='';return;}
   const list=products.filter(p=>normalizeStr(p.name).includes(q)||normalizeStr(p.sku).includes(q)||normalizeStr(p.barcode).includes(q)).slice(0,20);
   res.style.display=list.length?'':'none';
-  res.innerHTML=list.map(p=>'<div onclick="addEgCartItem(\''+p.id+'\')" style="padding:8px 12px;border-bottom:1px solid var(--bd);cursor:pointer;display:flex;justify-content:space-between;font-size:.85rem" onmouseover="this.style.background=\'var(--s3)\'" onmouseout="this.style.background=\'\'"><span>'+p.name+'</span><span style="color:var(--mu)">Stock: '+p.stock+' · Costo actual: $'+fn(p.cost||0)+'</span></div>').join('');
+  res.innerHTML=list.map(p=>'<div onclick="addEgCartItem(\''+p.id+'\')" style="padding:8px 12px;border-bottom:1px solid var(--bd);cursor:pointer;display:flex;justify-content:space-between;font-size:.85rem" onmouseover="this.style.background=\'var(--s3)\'" onmouseout="this.style.background=\'\'"><span>'+p.name+'</span><span style="color:var(--mu)">Stock: '+fqty(p.stock)+' · Costo actual: $'+fn(p.cost||0)+'</span></div>').join('');
 }
 function addEgCartItem(pid){
   const p=products.find(x=>x.id===pid);if(!p)return;
@@ -6215,16 +6297,28 @@ function populateSuppliers(){
 
 // ── PROVEEDORES CARRITO AVANZADO 12 COLUMNAS ──
 
+/* ══ FICHA DE PRODUCTOS ↔ CARRITO DE COMPRAS ══
+   Al elegir un producto el carrito se carga con los MISMOS valores que muestra
+   la ficha: costo sin IVA (campo "Precio costo"), % de impuesto, % de ganancia
+   y precio de venta vigente. El precio queda aparte (priceManual) para que se
+   muestre tal cual está cargado; si la ficha no guardó el % de ganancia se
+   recupera del precio de venta. */
+function provSeedFromProduct(p,defRounding){
+  const cost=p?(p.costNeto!=null?spNum(p.costNeto):spNum(p.cost)):0;
+  const taxPct=p?(p.taxPct!=null?spNum(p.taxPct):(p.iva!=null?spNum(p.iva):21)):21;
+  const price=p&&spNum(p.price)>0?Math.round(spNum(p.price)*100)/100:0;
+  let profitPct=p&&p.profitPct!=null?spNum(p.profitPct):null;
+  if(profitPct==null)profitPct=(price>0&&cost>0)?Math.round(((price/(1+taxPct/100))/cost-1)*10000)/100:provDefMargin();
+  return {cost:cost,taxPct:taxPct,profitPct:profitPct,
+          rounding:p&&p.rounding!=null?spNum(p.rounding):defRounding,
+          stock:p?(p.stock||0):0,priceManual:price};
+}
 function addProvItem(productId){
   const p = productId ? products.find(x => x.id === productId) : null;
-  provCarrito.push({
+  provCarrito.push(Object.assign({
     id: 'pi_' + Date.now(), productId: productId || '', name: p ? p.name : '',
-    /* Se precarga con el costo SIN iva (costNeto): el impuesto del carrito
-       se suma aparte con la casilla "% Impuesto". */
-    qty: 1, cost: p ? spNum(p.costNeto!=null?p.costNeto:p.cost) : 0, discount: 0,
-    taxPct: p ? (p.taxPct==null?21:p.taxPct) : 21, profitPct: p ? (p.profitPct==null?provDefMargin():p.profitPct) : provDefMargin(),
-    rounding: p ? (p.rounding==null?1:p.rounding) : 1, stock: p ? (p.stock || 0) : 0
-  });
+    qty: 1, discount: 0
+  }, provSeedFromProduct(p,1)));
   calculateItemPrices(provCarrito[provCarrito.length-1]);
   renderProvCarrito();
 }
@@ -6235,7 +6329,11 @@ function removeAllProvItems(){ provCarrito = []; renderProvCarrito(); }
 function updateProvItem(id, field, value){
   const item = provCarrito.find(i => i.id === id);
   if(item) {
-    item[field] = ['qty','cost','discount','taxPct','profitPct','rounding'].includes(field) ? spNum(value) : value;
+    item[field] = ['qty','cost','discount','taxPct','profitPct','rounding','priceManual'].includes(field) ? spNum(value) : value;
+    /* El precio de venta cargado a mano se descarta cuando cambian las
+       variables que lo generan: costo, % de ganancia o redondeo. Así, si se
+       tocó el costo de la compra, el precio vuelve a salir del % de ganancia. */
+    if(field==='cost'||field==='profitPct'||field==='rounding')item.priceManual=0;
     calculateItemPrices(item); renderProvCarrito();
   }
 }
@@ -6245,23 +6343,37 @@ function calculateItemPrices(item){
   const taxPct=provIvaOn()?(item.taxPct==null?21:spNum(item.taxPct)):0, profitPct=item.profitPct==null?provDefMargin():spNum(item.profitPct), rounding=item.rounding==null?1:spNum(item.rounding);
   item.subtotal=cost*qty-discount;
   item.costWithIva=cost*(1+taxPct/100)*qty;
-  item.marginAmount=cost*(profitPct/100);
-  item.priceWithoutIva=cost+cost*(profitPct/100);
-  const basePrice=item.priceWithoutIva*(1+taxPct/100);
-  item.priceWithIva=rounding>0?Math.ceil(basePrice/rounding)*rounding:Math.round(basePrice*100)/100;
+  const manual=spNum(item.priceManual);
+  let priceWithIva;
+  if(manual>0){
+    /* Precio de venta cargado a mano: manda sobre % de ganancia y redondeo. */
+    priceWithIva=manual;
+    item.priceWithoutIva=taxPct>0?manual/(1+taxPct/100):manual;
+  }else{
+    item.priceWithoutIva=cost+cost*(profitPct/100);
+    const basePrice=item.priceWithoutIva*(1+taxPct/100);
+    priceWithIva=rounding>0?Math.ceil(basePrice/rounding)*rounding:Math.round(basePrice*100)/100;
+  }
+  item.priceWithIva=Math.round(priceWithIva*100)/100;
+  /* % de ganancia REAL: sale del precio final (del redondeo o del precio
+     cargado a mano) y es lo que se muestra en el carrito. El % tipeado sigue
+     viviendo en item.profitPct como base de cálculo, para que el redondeo no
+     se "acumule" cada vez que se vuelve a calcular. */
+  const costUnitEff=cost*(1+taxPct/100);
+  item.marginPct=costUnitEff>0?Math.round((item.priceWithIva/costUnitEff-1)*10000)/100:0;
+  item.marginAmount=Math.round((item.priceWithoutIva-cost)*100)/100;
 }
 
 function renderProvCarrito(){
   const html=provCarrito.map(item=>{
+    /* Un único origen de cálculo: así lo que se muestra es exactamente lo que
+       guarda la compra (costo, % impuesto, % ganancia real y precio de venta). */
+    calculateItemPrices(item);
     const cost=spNum(item.cost),qty=spNum(item.qty)||1,discount=spNum(item.discount);
-    const taxPct=item.taxPct==null?21:spNum(item.taxPct),profitPct=item.profitPct==null?provDefMargin():spNum(item.profitPct),rounding=item.rounding==null?1:spNum(item.rounding);
-    const effTax=provIvaOn()?taxPct:0;
-    const subtotal=cost*qty-discount;
-    const costWithIva=cost*(1+effTax/100)*qty;
-    const marginAmount=cost*(profitPct/100);
-    const priceWithoutIva=cost+marginAmount;
-    const basePrice=priceWithoutIva*(1+effTax/100);
-    const priceWithIva=rounding>0?Math.ceil(basePrice/rounding)*rounding:Math.round(basePrice*100)/100;
+    const taxPct=item.taxPct==null?21:spNum(item.taxPct),rounding=item.rounding==null?1:spNum(item.rounding);
+    const subtotal=item.subtotal, costWithIva=item.costWithIva;
+    const marginAmount=item.marginAmount, marginPct=item.marginPct;
+    const priceWithoutIva=item.priceWithoutIva, priceWithIva=item.priceWithIva;
     const fmt=v=>Number(v||0).toFixed(2).replace('.',',');
     return '<tr style="border-bottom:1px solid var(--bd)">'+
       '<td style="padding:6px;font-weight:600;font-size:.75rem;white-space:nowrap;color:var(--tx)" title="'+(item.name||'')+'">'+(item.name||'Sin nombre')+'</td>'+
@@ -6271,9 +6383,9 @@ function renderProvCarrito(){
       '<td style="padding:4px;text-align:right;font-size:.72rem;color:var(--tx)">$'+fmt(subtotal)+'</td>'+
       '<td style="padding:4px;text-align:center"><input type="number" value="'+spDec(taxPct)+'" onchange="updateProvItem(\''+item.id+'\',\'taxPct\',this.value)" step="1" min="0" max="100" style="width:50px;padding:3px;border:1px solid var(--bd);border-radius:3px;text-align:center;font-size:.72rem;color:var(--tx);background:var(--s1)"></td>'+
       '<td style="padding:4px;text-align:right;font-size:.72rem;color:var(--tx)">$'+fmt(costWithIva)+'</td>'+
-      '<td style="padding:4px;text-align:center;white-space:nowrap"><input type="text" inputmode="decimal" value="'+spDec(profitPct)+'" onchange="updateProvItem(\''+item.id+'\',\'profitPct\',this.value)" title="% de ganancia" style="width:46px;padding:3px;border:1px solid var(--bd);border-radius:3px;text-align:center;font-size:.72rem;color:var(--tx);background:var(--s1)">%<div style="font-size:.6rem;color:var(--mu)">$'+fmt(marginAmount)+'</div></td>'+
+      '<td style="padding:4px;text-align:center;white-space:nowrap"><input type="text" inputmode="decimal" value="'+spDec(marginPct)+'" onchange="updateProvItem(\''+item.id+'\',\'profitPct\',this.value)" title="% de ganancia REAL (sale del precio final, después del redondeo)" style="width:46px;padding:3px;border:1px solid var(--bd);border-radius:3px;text-align:center;font-size:.72rem;color:var(--tx);background:var(--s1)">%<div style="font-size:.6rem;color:var(--mu)">$'+fmt(marginAmount)+'</div></td>'+
       '<td style="padding:4px;text-align:right;font-size:.72rem;color:var(--tx)">$'+fmt(priceWithoutIva)+'</td>'+
-      '<td style="padding:4px;text-align:right;font-weight:700;font-size:.75rem;color:var(--ac2)">$'+fmt(priceWithIva)+'</td>'+
+      '<td style="padding:4px;text-align:center"><input type="text" inputmode="decimal" data-noscan="1" value="'+spDec(priceWithIva)+'" onchange="updateProvItem(\''+item.id+'\',\'priceManual\',this.value)" title="Precio de venta (se puede cargar a mano)" style="width:82px;padding:3px;border:1px solid var(--bd);border-radius:3px;text-align:right;font-weight:700;font-size:.75rem;color:var(--ac2);background:var(--s1)"></td>'+
       '<td style="padding:4px;text-align:center"><input type="text" inputmode="decimal" value="'+spDec(rounding)+'" onchange="updateProvItem(\''+item.id+'\',\'rounding\',this.value)" title="Múltiplo a redondear hacia arriba (ej: 5; 0 = sin redondeo)" style="width:60px;padding:3px;border:1px solid var(--bd);border-radius:3px;text-align:center;font-size:.72rem;color:var(--tx);background:var(--s1)"></td>'+
       '<td style="padding:4px;text-align:center"><button class="btn bs" onclick="removeProvItem(\''+item.id+'\')" style="width:24px;height:24px;padding:0;font-size:.65rem">✕</button></td>'+
     '</tr>';
@@ -6303,7 +6415,7 @@ function filterProducts(){
   if(!filtered.length){resultsDiv.innerHTML='<div style="padding:12px;text-align:center;color:var(--mu)">Sin productos encontrados</div>';resultsDiv.style.display='block';return;}
   const fmt=v=>'$'+Number(v||0).toFixed(2).replace('.',',');
   resultsDiv.innerHTML=filtered.map(p=>{
-    const stockText=p.stock>0?'<span style="color:green">Stock:'+p.stock+'</span>':'<span style="color:red">Sin stock</span>';
+    const stockText=p.stock>0?'<span style="color:green">Stock:'+fqty(p.stock)+'</span>':'<span style="color:red">Sin stock</span>';
     return '<div style="display:grid;grid-template-columns:3fr 1fr 1fr;gap:8px;padding:8px;border-bottom:1px solid var(--bd);cursor:pointer;background:var(--s2)" onclick="selectProduct(\''+p.id+'\')">'+
       '<div><div style="font-weight:600">'+(p.name||'Sin nombre')+'</div><div style="font-size:.75rem;color:var(--mu)">SKU: '+(p.sku||'')+'</div></div>'+
       '<div style="text-align:center;font-size:.8rem">'+fmt(p.cost||0)+'</div>'+
@@ -6319,7 +6431,7 @@ function showProductSearch(){
   if(!query||query.length<2){
     const fmt=v=>'$'+Number(v||0).toFixed(2).replace('.',',');
     resultsDiv.innerHTML=products.map(p=>{
-      const stockText=p.stock>0?'<span style="color:green">Stock:'+p.stock+'</span>':'<span style="color:red">Sin stock</span>';
+      const stockText=p.stock>0?'<span style="color:green">Stock:'+fqty(p.stock)+'</span>':'<span style="color:red">Sin stock</span>';
       return '<div style="display:grid;grid-template-columns:3fr 1fr 1fr;gap:8px;padding:8px;border-bottom:1px solid var(--bd);cursor:pointer;background:var(--s2)" onclick="selectProduct(\''+p.id+'\')">'+
         '<div><div style="font-weight:600">'+(p.name||'Sin nombre')+'</div><div style="font-size:.75rem;color:var(--mu)">SKU: '+(p.sku||'')+'</div></div>'+
         '<div style="text-align:center;font-size:.8rem">'+fmt(p.cost||0)+'</div>'+
@@ -6350,6 +6462,10 @@ function openProductModal(){
   const profitPct=parseFloat(prompt('% Ganancia (ej: '+dm+'):',String(dm))||String(dm))||dm;
   const rounding=parseFloat(prompt('Redondeo (ej: 1, 0.50, 5):')||'1')||1;
   const price=parseFloat(prompt('Precio de venta:')||'0')||0;
+  /* Mismo criterio que la ficha: no se crean dos productos con el mismo
+     código de barras/PLU ni con el mismo SKU (escanear abriría el otro). */
+  if(barcode){const c=products.find(x=>String(x.barcode||'')===barcode);if(c){toast('Ese código ya existe en: '+c.name,'err');return;}}
+  if(sku){const c=products.find(x=>String(x.sku||'')===sku);if(c){toast('Ese SKU ya existe en: '+c.name,'err');return;}}
   products.push({id:'prod_'+Date.now(),name,sku,barcode,cost,stock,taxPct,profitPct,rounding,price,category:'Sin categoría',description:''});
   saveProductsData();toast('✅ Producto creado: '+name);renderProvCarrito();
 }
@@ -6372,7 +6488,7 @@ function savePurchaseOrder(){
   let subTot=0,taxTot=0;
   provCarrito.forEach(i=>{const base=spNum(i.cost)*(spNum(i.qty)||1)-spNum(i.discount);subTot+=base;if(includeIva)taxTot+=base*((i.taxPct==null?21:spNum(i.taxPct))/100);});
   const totalCost=subTot+taxTot;
-  provOrders.push({id:'order_'+Date.now(),supplier,date:new Date(date).getTime(),items:provCarrito.map(i=>({...i})),totalCost,subTotal:subTot,taxTotal:taxTot,paid:0,status,notes:'',affectPrice,includeIva});
+  provOrders.push({id:'order_'+uid(),supplier,date:new Date(date).getTime(),items:provCarrito.map(i=>({...i})),totalCost,subTotal:subTot,taxTotal:taxTot,paid:0,status,notes:'',affectPrice,includeIva});
   provCarrito.forEach(item=>{const product=products.find(p=>p.id===item.productId);if(product&&item.productId)product.stock=(product.stock||0)+(item.qty||0);});
   /* Costo del producto = lo que se paga por unidad (con el impuesto si está
      activado) y precio de venta solo si está marcada "Afectar precio de venta".
