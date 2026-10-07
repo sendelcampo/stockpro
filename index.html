@@ -673,6 +673,130 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
     <!-- AYUDA -->
     <div class="view" id="view-ayuda">
       <div class="sec-hdr"><div class="sec-t">❓ Ayuda y tutoriales</div></div>
+
+      <!-- ══ MANUAL DE USO — es la fuente única: se lee en pantalla y se imprime tal cual ══ -->
+      <div class="cfg-section">
+        <div class="cfg-title">📖 Manual de uso</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+          <button class="btn bp bs" onclick="imprimirManual()" title="Abre el diálogo de impresión: elegí Guardar como PDF">🖨️ Imprimir / Guardar como PDF</button>
+          <span style="font-size:.76rem;color:var(--mu)">Se abre la impresión del navegador → elegí <b style="color:var(--tx)">Guardar como PDF</b>.</span>
+        </div>
+        <div id="manual-cuerpo" class="mnl-sheet">
+
+          <div class="mnl-t">MANUAL DE USO — StockPro</div>
+          <div class="mnl-sub">Punto de venta · guía rápida de uso</div>
+
+          <div class="mnl-h">1 · Entrar y usuarios</div>
+          <ul class="mnl-ul">
+            <li class="mnl-li">Al abrir el sistema aparece la pantalla de acceso: cargá tu <b>PIN</b> y entrás.</li>
+            <li class="mnl-li">Los usuarios se cargan en <b>👥 Usuarios</b> o en <b>⚙️ Configuración → 🔑 Usuarios y claves (PIN)</b>: nombre, PIN y rol.</li>
+            <li class="mnl-li"><b>Administrador:</b> ve todo (Dashboard, Reportes, Usuarios, Egresos Doña Cocina).</li>
+            <li class="mnl-li"><b>Vendedor:</b> sólo el Punto de Venta y sus ventas.</li>
+            <li class="mnl-li">Si olvidaste un PIN, el administrador abre el usuario, escribe uno nuevo y guarda.</li>
+          </ul>
+          <div class="mnl-tip">💡 Entrá con tu propio PIN: cada venta queda registrada con el nombre de quien la hizo.</div>
+
+          <div class="mnl-h">2 · Menú lateral</div>
+          <ul class="mnl-ul">
+            <li class="mnl-li"><b>🛒 Punto de Venta</b> — se cobra. <b>📦 Productos</b> — altas, precios y stock.</li>
+            <li class="mnl-li"><b>🧾 Historial Ventas</b> — ver, reimprimir o anular. <b>↕️ Movimientos</b> — entradas y salidas de stock.</li>
+            <li class="mnl-li"><b>🗂️ Fichas (Cta. Cte.)</b> — saldos de clientes. <b>📤 Egresos</b> — gastos del negocio.</li>
+            <li class="mnl-li"><b>🍳 Egresos Doña Cocina</b> — gastos de cocina, aparte (solo administrador).</li>
+            <li class="mnl-li"><b>🏭 Proveedores</b> — compras, pagos y fichas de proveedores.</li>
+            <li class="mnl-li"><b>📊 Dashboard</b> y <b>📊 Reportes</b> — números del negocio (solo administrador).</li>
+            <li class="mnl-li"><b>🔔 Alertas</b> — productos con poco stock. <b>🏷️ Categorías</b> — alta de rubros.</li>
+            <li class="mnl-li"><b>👥 Usuarios</b> · <b>⚙️ Configuración</b> · <b>💾 Copias de seguridad</b> · <b>❓ Ayuda</b>.</li>
+          </ul>
+
+          <div class="mnl-h">3 · Vender (Punto de Venta)</div>
+          <ol class="mnl-ol">
+            <li class="mnl-li">Buscá el producto: escribí en el buscador (encuentra por nombre, código o categoría, con o sin acentos), escaneá el código de barras o tocá la foto.</li>
+            <li class="mnl-li">Al tocarlo se suma al carrito. Tocá la fila para cambiar la <b>cantidad</b>, agregar un <b>descuento</b> o sacarlo.</li>
+            <li class="mnl-li">Tocá <b>💳 COBRAR</b>, elegí el medio de pago y cargá el dinero recibido: el sistema calcula el <b>vuelto</b>.</li>
+            <li class="mnl-li">Tocá <b>✅ Confirmar venta</b>. El ticket se imprime solo si está activado en Configuración (o con 🖨 del ticket).</li>
+          </ol>
+          <div class="mnl-tip">💡 <b>Pago dividido:</b> en el cobro elegí un segundo medio de pago con su monto (por ejemplo $5.000 en efectivo y el resto en QR).</div>
+          <div class="mnl-tip">💡 <b>Cuenta corriente:</b> si elegís «Cuenta cte.» seleccioná el cliente; el importe queda como saldo y se cobra desde 🗂️ Fichas con «💰 Cobrar saldo».</div>
+          <div class="mnl-tip">💡 <b>Descuentos:</b> hay descuento por fila (dentro del carrito), descuento general en el cobro y botones rápidos de descuento.</div>
+          <div class="mnl-warn">⚠️ Al anular una venta desde 🧾 Historial (🗑 Eliminar) <b>el stock no se repone</b>: si fue un error, cargá la entrada a mano en 📦 Productos o ↕️ Movimientos.</div>
+
+          <div class="mnl-h">4 · Productos, precios y stock</div>
+          <ul class="mnl-ul">
+            <li class="mnl-li"><b>+ Agregar</b>: nombre, categoría, tipo (unidad o kilo), precio de costo, precio de venta, stock y stock mínimo.</li>
+            <li class="mnl-li">El precio se carga a mano o se calcula solo con el <b>margen de ganancia</b> de Configuración.</li>
+            <li class="mnl-li">Cada producto tiene <b>código de barras</b> (escáner) y código secundario; los de kilo generan su <b>PLU</b> para la balanza.</li>
+            <li class="mnl-li">✏️ Editar o 🗑 eliminar desde la lista; <b>✏️ Editar seleccionados</b> cambia precios o stock de varios productos a la vez.</li>
+            <li class="mnl-li"><b>📋 Actualizar stock rápido</b> carga mercadería entrante sin abrir producto por producto.</li>
+            <li class="mnl-li">El stock baja solo cuando se vende y las <b>🔔 Alertas</b> avisan cuando queda por debajo del mínimo.</li>
+          </ul>
+
+          <div class="mnl-h">5 · Importar y exportar Excel</div>
+          <ul class="mnl-ul">
+            <li class="mnl-li">En 📦 Productos: <b>📤 Importar</b> → <b>⬇️ plantilla</b> → completarla → <b>📂 Seleccionar archivo</b> → revisar la vista previa → <b>✅ Importar</b>.</li>
+            <li class="mnl-li">Si el producto ya existe (mismo nombre o código) se <b>actualiza</b>, no se duplica.</li>
+            <li class="mnl-li"><b>📊 Exportar Excel</b> baja inventario, ventas, movimientos y alertas. <b>⚖️ Exportar PLU</b> baja los códigos de balanza en CSV.</li>
+            <li class="mnl-li">En 🏭 Proveedores hay <b>📤 Exportar</b>, <b>⬇️ Modelo</b> (plantilla) y <b>📥 Importar</b> de proveedores y órdenes de compra.</li>
+            <li class="mnl-li">La planilla se arma en el propio navegador: funciona aunque no haya internet.</li>
+          </ul>
+
+          <div class="mnl-h">6 · Proveedores: compras y pagos</div>
+          <ol class="mnl-ol">
+            <li class="mnl-li">Pestaña <b>🛒 Compras</b>: elegí proveedor, fecha y estado, y agregá productos con costo, cantidad, % de impuesto, margen y precio de venta.</li>
+            <li class="mnl-li">Abajo podés poner un <b>descuento</b> (en $ o %) o fijar el <b>precio final</b>, más una nota.</li>
+            <li class="mnl-li">Antes de guardar elegí el pago: <b>No pagado</b>, <b>Pago parcial</b> (con monto) o <b>Pago realizado</b>.</li>
+            <li class="mnl-li"><b>✅ Guardar compra</b>: actualiza el stock y los costos de los productos.</li>
+            <li class="mnl-li">Pestaña <b>💳 Pagos</b>: registrá pagos parciales o totales (monto, fecha y forma).</li>
+            <li class="mnl-li">Pestaña <b>📋 Historial</b>: todas las órdenes con estado, total, pagado y saldo pendiente.</li>
+            <li class="mnl-li">Pestaña <b>👤 Ficha</b>: resumen del proveedor, saldo, registro de pagos y últimos pagos.</li>
+          </ol>
+
+          <div class="mnl-h">7 · Egresos y Fichas de clientes</div>
+          <ul class="mnl-ul">
+            <li class="mnl-li"><b>📤 Egresos → + Nuevo gasto</b>: categoría, monto, forma de pago y estado (pagado, parcial o no pagado).</li>
+            <li class="mnl-li">Las categorías de gasto se cargan y se renombran en la misma pantalla.</li>
+            <li class="mnl-li"><b>🗂️ Fichas</b>: saldo de cada cliente, movimientos y botones para cobrar o cargar un pago.</li>
+          </ul>
+
+          <div class="mnl-h">8 · Dashboard y Reportes</div>
+          <ul class="mnl-ul">
+            <li class="mnl-li"><b>📊 Dashboard</b>: resumen, productos más vendidos, horarios punta y medios de pago.</li>
+            <li class="mnl-li"><b>📊 Reportes</b>: ventas por día, semana o mes, con top de productos y exportación a Excel.</li>
+            <li class="mnl-li"><b>🧾 Historial Ventas</b> permite abrir una venta para reimprimir el ticket o eliminarla.</li>
+          </ul>
+
+          <div class="mnl-h">9 · Configuración</div>
+          <ul class="mnl-ul">
+            <li class="mnl-li"><b>🏪 Datos del comercio</b>: nombre, dirección, teléfono, logo y pie del ticket.</li>
+            <li class="mnl-li"><b>🖨️ Ticket e impresora</b>: ancho del papel, tamaño de letra y ticket de prueba.</li>
+            <li class="mnl-li"><b>🛒 Punto de Venta</b>: impresión automática, sonido, venta sin stock y redondeo a pesos enteros.</li>
+            <li class="mnl-li"><b>💳 Medios de pago</b> y <b>🏷️ Descuentos rápidos</b>: qué aparece en el cobro.</li>
+            <li class="mnl-li"><b>📦 Proveedores</b> y <b>🔖 Código PLU</b>: impuesto en compras y formato de balanza.</li>
+            <li class="mnl-li">Todo queda guardado solo y se sincroniza con la nube.</li>
+          </ul>
+
+          <div class="mnl-h">10 · Copias de seguridad</div>
+          <ul class="mnl-ul">
+            <li class="mnl-li"><b>⬇️ Descargar backup</b>: baja un archivo .json con todo — productos, ventas, compras a proveedores, egresos y configuración.</li>
+            <li class="mnl-li"><b>📂 Restaurar</b>: reemplaza los datos actuales por los del archivo (se pide confirmación).</li>
+            <li class="mnl-li"><b>🕐 Backups locales</b>: las últimas 10 copias quedan guardadas en el equipo.</li>
+            <li class="mnl-li"><b>☁️ Nube</b>: sincronización automática cada 30 segundos; <b>🔄 Sincronizar</b> la fuerza.</li>
+            <li class="mnl-li">Recomendación: guardá una copia al final del día y subila a Google Drive o mandala por WhatsApp.</li>
+          </ul>
+
+          <div class="mnl-h">11 · Problemas frecuentes</div>
+          <ul class="mnl-ul">
+            <li class="mnl-li"><b>No funciona la cámara:</b> abierta con doble clic (file://) Chrome la bloquea. Usá el archivo .bat, Google Drive o Netlify (está explicado más abajo en esta pantalla).</li>
+            <li class="mnl-li"><b>No aparece un producto en la búsqueda:</b> probá con parte del nombre, el código o elegí la categoría correcta.</li>
+            <li class="mnl-li"><b>Quiero pasar todo a otro equipo:</b> 💾 Copias de seguridad → ⬇️ Descargar backup y en el otro equipo 📂 Restaurar.</li>
+            <li class="mnl-li"><b>Borré algo por error:</b> restaurá la copia local del día o el .json que tengas guardado.</li>
+            <li class="mnl-li"><b>Los datos no coinciden entre equipos:</b> cerrá todas las pestañas y esperá la sincronización (30 segundos) o tocá 🔄 Sincronizar.</li>
+            <li class="mnl-li"><b>Para actualizar el sistema:</b> pedile el archivo index.html nuevo al encargado y reemplazá el anterior.</li>
+          </ul>
+
+          <div class="mnl-foot">StockPro · Manual de uso · Para guardarlo en PDF: 🖨 Imprimir / Guardar como PDF</div>
+        </div>
+      </div>
+
       <div class="cfg-section">
         <div class="cfg-title">📷 Cómo usar el escáner de cámara</div>
         <div style="background:rgba(240,114,114,.1);border:1px solid var(--err);border-radius:10px;padding:14px;margin-bottom:12px;font-size:.83rem;line-height:1.8">
@@ -737,7 +861,6 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
           <button class="btn bg" id="tab-prov-compras" onclick="showProvTab('compras')" style="border-bottom:3px solid var(--ac);margin-bottom:-2px">🛒 Compras</button>
           <button class="btn" id="tab-prov-pagos" onclick="showProvTab('pagos')">💳 Pagos</button>
           <button class="btn" id="tab-prov-historial" onclick="showProvTab('historial')">📋 Historial</button>
-          <button class="btn" id="tab-prov-egresos" onclick="showProvTab('egresos')">💸 Egresos</button>
             <button class="btn" id="tab-prov-ficha" onclick="showProvTab('ficha')">👤 Ficha</button>
         </div>
         
@@ -861,6 +984,37 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
               </div>
             </div>
 
+            <!-- PAGO DE ESTA COMPRA (debajo de descuento/nota, arriba del botón) -->
+            <div style="background:var(--s2);padding:12px;border-radius:8px;margin-top:10px">
+              <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+                <div style="font-size:.72rem;color:var(--ac);text-transform:uppercase;letter-spacing:.05em">💳 Pago de esta compra</div>
+                <div id="prov-pay-hint" style="font-size:.78rem;color:var(--mu)"></div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end">
+                <div>
+                  <div style="font-size:.78rem;color:var(--mu);margin-bottom:4px">Estado del pago</div>
+                  <select id="prov-pay-status" onchange="provPayForm(1)" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s1)">
+                    <option value="none">❌ No pagado</option>
+                    <option value="parcial">⚠️ Pago parcial</option>
+                    <option value="total">✅ Pago realizado</option>
+                  </select>
+                </div>
+                <div id="prov-pay-amount-wrap" style="display:none">
+                  <div style="font-size:.78rem;color:var(--mu);margin-bottom:4px">Monto pagado</div>
+                  <input type="text" inputmode="decimal" id="prov-pay-amount" value="" oninput="provPayForm()" placeholder="0" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s1)">
+                </div>
+                <div id="prov-pay-type-wrap" style="display:none">
+                  <div style="font-size:.78rem;color:var(--mu);margin-bottom:4px">Forma de pago</div>
+                  <select id="prov-pay-type" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s1)">
+                    <option value="transfer">Transferencia</option>
+                    <option value="efectivo">Efectivo</option>
+                    <option value="cheque">Cheque</option>
+                    <option value="otro">Otro</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
             <button class="btn bg" onclick="savePurchaseOrder()" style="width:100%;padding:12px;font-weight:700;margin-top:12px;font-size:1rem">✅ Guardar compra</button>
 
             <!-- COMPRAS A PROVEEDORES REALIZADAS -->
@@ -869,6 +1023,7 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
                 <h3 style="margin-top:0;margin-bottom:0">📦 Compras a proveedores</h3>
                 <div style="display:flex;gap:6px;flex-wrap:wrap">
                   <button class="btn bg bs" type="button" onclick="exportProvExcel()">📤 Exportar Excel</button>
+                  <button class="btn bb bs" type="button" onclick="dlProvTemplate()" title="Descargar el modelo de Excel con las hojas Proveedores y Ordenes">⬇️ Modelo</button>
                   <button class="btn bp bs" type="button" onclick="triggerProvImport()">📥 Importar Excel</button>
                   <input type="file" id="prov-imp-file" accept=".xlsx,.xls" style="display:none" onchange="importProvExcel(this)">
                 </div>
@@ -926,32 +1081,6 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
         <div id="prov-tab-historial" style="display:none">
           <h3>Órdenes de Compra</h3>
           <div id="prov-historial" style="display:grid;gap:12px"></div>
-        </div>
-        
-        <!-- TAB: EGRESOS -->
-        <div id="prov-tab-egresos" style="display:none">
-          <h3>Egresos Varios</h3>
-          <div style="background:var(--s2);padding:16px;border-radius:8px;max-width:600px;margin-bottom:20px">
-            <div style="margin-bottom:12px">
-              <label style="display:block;font-weight:600;margin-bottom:4px">Descripción</label>
-              <input type="text" id="egr-desc" placeholder="Concepto" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
-            </div>
-            
-            <div style="margin-bottom:12px">
-              <label style="display:block;font-weight:600;margin-bottom:4px">Monto</label>
-              <input type="number" id="egr-monto" placeholder="0.00" step="0.01" min="0" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
-            </div>
-            
-            <div style="margin-bottom:12px">
-              <label style="display:block;font-weight:600;margin-bottom:4px">Fecha</label>
-              <input type="date" id="egr-fecha" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px">
-            </div>
-            
-            <button class="btn bg" onclick="registrarEgreso()" style="width:100%;padding:10px;font-weight:600">Registrar Egreso</button>
-          </div>
-          
-          <h4>Egresos Registrados</h4>
-          <div id="prov-egresos" style="display:grid;gap:8px"></div>
         </div>
         
         <!-- TAB: FICHA DEL PROVEEDOR -->
@@ -1911,6 +2040,33 @@ function exportProvExcel(){
     }catch(err){toast('Error al exportar: '+err.message,'err');}
   });
 }
+/* ══ MODELO DE EXCEL para importar en Proveedores ══
+   Genera las dos hojas que lee importProvExcel(): "Proveedores" (columna A =
+   nombre) y "Ordenes" (ID, Fecha, Proveedor, Estado, Ítems, Total, Pagado,
+   Pendiente, IVA, Notas). Las filas son de ejemplo: se borran y se cargan las
+   tuyas. Importar una orden NO toca stock: sólo historia y saldos. */
+function dlProvTemplate(){
+  if(typeof XLSX==='undefined'){ensureXLSX(dlProvTemplate);return;}
+  try{
+    const wb=XLSX.utils.book_new();
+    const sup=[
+      ['Proveedor','Teléfono','Notas','Órdenes','Total comprado','Pagado','Pendiente'],
+      ['Distribuidora Sur','2664-000000','Entrega los martes',1,25000,25000,0],
+      ['Tambo San Juan','','Leche fresca',1,20000,8000,12000]
+    ];
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sup),'Proveedores');
+    const d=new Date(),p=n=>String(n).padStart(2,'0');
+    const hoy=d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+    const ors=[
+      ['ID','Fecha','Proveedor','Estado','Ítems','Total','Pagado','Pendiente','IVA','Notas'],
+      ['order_ejemplo1',hoy,'Distribuidora Sur','Pagado',3,25000,25000,0,'Si','Compra de ejemplo (borrar)'],
+      ['order_ejemplo2',hoy,'Tambo San Juan','Parcial',1,20000,8000,12000,'No','Pago parcial de ejemplo (borrar)']
+    ];
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(ors),'Ordenes');
+    XLSX.writeFile(wb,'plantilla_proveedores_stockpro.xlsx');
+    toast('Modelo de proveedores descargado ✓');
+  }catch(err){toast('Error al generar el modelo: '+err.message,'err');}
+}
 function triggerProvImport(){const f=$i('prov-imp-file');if(f){f.value='';f.click();}}
 function importProvExcel(input){
   const file=input.files&&input.files[0];if(!file)return;
@@ -2329,6 +2485,9 @@ function startApp(){
   $i('view-pos').classList.add('active');
   document.querySelectorAll('.ni').forEach(b=>b.classList.remove('active'));
   const posBtn=document.querySelector('.ni');if(posBtn)posBtn.classList.add('active');
+  /* Ejecuta una vez el pase de los egresos viejos de Proveedores al módulo
+     de Egresos (no hace nada si no hay nada que mover). */
+  try{provEgMigrate();}catch(e){console.warn('provEgMigrate:',e);}
   refreshAll();
   if(cloudMode)setInterval(async()=>{if(cloudMode&&sb&&currentUser){await loadFromCloud();refreshAll();}},30000);
 }
@@ -2351,6 +2510,63 @@ function closeSb(){$i('sidebar').classList.remove('open');$i('sbo').classList.re
 function toggleSbCollapse(){const l=document.querySelector('.layout');l.classList.toggle('sb-hidden');localStorage.setItem('sp5-sb-hidden',l.classList.contains('sb-hidden')?'1':'0');}
 function openO(id){$i(id).classList.add('open');}
 function closeO(id){$i(id).classList.remove('open');}
+
+/* ══ MANUAL DE USO — imprimir / guardar como PDF ══
+   El manual vive en #manual-cuerpo (sección ❓ Ayuda) y es la única fuente:
+   lo que se lee en pantalla es exactamente lo que se imprime.
+   Se imprime desde un IFRAME con hoja de estilos propia porque el @media print
+   de esta página está reservado al ticket térmico: oculta todo lo que no sea
+   #ticket-print y usa @page{margin:0} (si se imprimiera desde la página
+   principal no saldría nada y además se perderían los márgenes del manual).
+   En el diálogo del navegador el usuario elige "Guardar como PDF". */
+const MNL_CSS=`.mnl-sheet{font-family:Arial,Helvetica,sans-serif;line-height:1.55}
+.mnl-t{font-family:Arial,Helvetica,sans-serif;font-size:17pt;font-weight:700;text-align:center;letter-spacing:.02em;margin:0 0 1mm;color:var(--mnl-h,#2c3e50)}
+.mnl-sub{text-align:center;color:var(--mnl-mut,#666);font-size:9.5pt;margin:0 0 4mm}
+.mnl-h{font-size:12pt;font-weight:700;color:var(--mnl-h,#2c3e50);margin:5mm 0 1.5mm;padding-bottom:1mm;border-bottom:1.5px solid var(--mnl-line,#7b8ce0);page-break-after:avoid;break-after:avoid}
+.mnl-p{margin:0 0 2mm}
+.mnl-ul,.mnl-ol{margin:0 0 3mm 6mm;padding:0}
+.mnl-ul{list-style:disc outside}
+.mnl-ol{list-style:decimal outside}
+.mnl-li{margin:0 0 1.4mm;page-break-inside:avoid;break-inside:avoid}
+.mnl-tip{background:var(--mnl-tip,#eef3ff);border-left:3px solid var(--mnl-line,#667eea);padding:2.2mm 3mm;margin:0 0 3mm;font-size:10.5pt;page-break-inside:avoid;break-inside:avoid}
+.mnl-warn{background:var(--mnl-warn,#fff2f2);border-left:3px solid var(--mnl-err,#e5484d);padding:2.2mm 3mm;margin:0 0 3mm;font-size:10.5pt;page-break-inside:avoid;break-inside:avoid}
+.mnl-foot{margin-top:5mm;padding-top:2mm;border-top:1px solid var(--mnl-line,#ccc);color:var(--mnl-mut,#777);font-size:9pt;text-align:center}`;
+/* Colores del tema (pantalla oscura). El iframe NO contiene #manual-cuerpo,
+   así que allí mandan los valores por defecto: texto oscuro sobre blanco. */
+const MNL_APP_CSS=`#manual-cuerpo{--mnl-h:var(--tx);--mnl-line:var(--ac2);--mnl-err:var(--err);--mnl-tip:rgba(110,168,250,.14);--mnl-warn:rgba(240,114,114,.14);--mnl-mut:var(--mu)}
+#manual-cuerpo .mnl-foot{border-top-color:var(--bd)}`;
+try{(function(){const s=document.createElement('style');s.id='mnl-css';s.textContent=MNL_CSS+'\n'+MNL_APP_CSS;document.head.appendChild(s);})()}catch(e){}
+
+function imprimirManual(){
+  const src=$i('manual-cuerpo');
+  if(!src||!src.innerHTML.trim()){toast('No se encontró el manual','err');return;}
+  try{
+    let fr=$i('manual-frame');
+    if(!fr){
+      fr=document.createElement('iframe');
+      fr.id='manual-frame';
+      fr.title='Manual de uso';
+      fr.setAttribute('aria-hidden','true');
+      /* Fuera de pantalla pero VISIBLE para el navegador: si el iframe fuera
+         display:none Chrome imprime una hoja en blanco. */
+      fr.style.cssText='position:fixed;left:-12000px;top:0;width:900px;height:1200px;border:0;';
+      document.body.appendChild(fr);
+    }
+    const css='@page{margin:14mm}html,body{margin:0;padding:0}'+
+      'body{font-family:Arial,Helvetica,sans-serif;font-size:11.5pt;line-height:1.55;color:#16181d;background:#fff}'+
+      'b,strong{font-weight:700;color:#0d0f13}'+MNL_CSS;
+    const html='<!doctype html><html lang="es"><head><meta charset="utf-8">'+
+      '<title>Manual de uso - StockPro</title><style>'+css+'</style></head><body>'+
+      src.innerHTML+'</body></html>';
+    const d=fr.contentDocument||fr.contentWindow.document;
+    d.open();d.write(html);d.close();
+    setTimeout(function(){
+      try{fr.contentWindow.focus();fr.contentWindow.print();}
+      catch(err){toast('No se pudo abrir la impresión: usá Ctrl+P','err');}
+    },350);
+    toast('Elegí «Guardar como PDF» 👉','ok');
+  }catch(err){toast('No se pudo preparar la impresión: '+err.message,'err');}
+}
 
 // ══ CFG ══
 const DEFAULT_PAY_METHODS=[
@@ -5003,13 +5219,15 @@ function saveProvData(){
 function showProvTab(tabName){
   document.querySelectorAll('[id^="prov-tab-"]').forEach(t => t.style.display = 'none');
   document.querySelectorAll('[id^="tab-prov-"]').forEach(b => b.classList.remove('bg'));
-  document.getElementById('prov-tab-' + tabName).style.display = 'block';
-  document.getElementById('tab-prov-' + tabName).classList.add('bg');
-  
+  /* Sin guards daría error si alguien llama a una pestaña que ya no existe
+     (antes había una de Egresos en Proveedores y se quitó). */
+  const tab=document.getElementById('prov-tab-' + tabName),btn=document.getElementById('tab-prov-' + tabName);
+  if(tab)tab.style.display = 'block';
+  if(btn)btn.classList.add('bg');
+
   if(tabName === 'compras') { renderProductsSelectInProv(); provRecalcAll(); renderProvPurchases(); }
   if(tabName === 'pagos') populatePagoOrdenes();
   if(tabName === 'historial') renderHistorial();
-  if(tabName === 'egresos') renderEgresos();
   if(tabName === 'ficha') renderProvFicha();
 }
 function provFichaCrear(){openContactM(null,'proveedor');const s=$i('prov-ficha-sel');if(s&&s.value)$i('cm-name').value=s.value;}
@@ -5057,6 +5275,31 @@ function renderProvFicha(forceName){
   h+=card('⏳ Pendiente','$'+fn(deuda),deuda>0.005?'var(--err)':'var(--ok)');
   h+=card('📅 Última compra',orders[0]&&orders[0].date?fd(orders[0].date):'—');
   h+='</div>';
+  /* ══ PAGOS (parcial o total) ══
+     Mismo camino que el pago que se hace al crear la compra y desde el tab
+     "💳 Pagos": al registrarlo se actualiza la orden y provPayments, así que
+     lo toman Historial, el listado de compras y cualquier otra vista. */
+  const pendientes=orders.filter(o=>(spNum(o.totalCost)-spNum(o.paid))>0.005);
+  const deudaProv=pendientes.reduce((s,o)=>s+(spNum(o.totalCost)-spNum(o.paid)),0);
+  const pays=provPayments.filter(p=>p&&p.deleted!==true&&(p.supplier===name||orders.some(o=>o.id===p.orderId))).sort((a,b)=>(b.date||0)-(a.date||0));
+  h+='<div style="background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:12px;margin-bottom:16px">';
+  h+='<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><div style="font-size:.72rem;color:var(--ac);text-transform:uppercase;letter-spacing:.05em">💳 Registrar pago</div><div style="font-size:.8rem;color:'+(deudaProv>0.005?'var(--err)':'var(--ok)')+'">Saldo total: <b>$'+fn(deudaProv)+'</b></div></div>';
+  if(!pendientes.length){
+    h+='<div style="font-size:.82rem;color:'+(orders.length?'var(--ok)':'var(--mu)')+'">'+(orders.length?'✅ Este proveedor no tiene saldo pendiente.':'Todavía no hay órdenes: cargá una compra para poder pagarle.')+'</div>';
+  }else{
+    h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;align-items:end">';
+    h+='<div><div style="font-size:.72rem;color:var(--mu);margin-bottom:4px">Orden a pagar</div><select id="fp-orden" onchange="provFichaPayUpd()" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s2)">'+pendientes.map(o=>'<option value="'+esc(o.id)+'">'+fd(o.date)+' · saldo $'+fn(spNum(o.totalCost)-spNum(o.paid))+'</option>').join('')+'</select></div>';
+    h+='<div><div style="font-size:.72rem;color:var(--mu);margin-bottom:4px">Monto</div><input type="text" inputmode="decimal" id="fp-monto" value="" oninput="provFichaPayUpd()" placeholder="0" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s2)"></div>';
+    h+='<div><div style="font-size:.72rem;color:var(--mu);margin-bottom:4px">Forma</div><select id="fp-tipo" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s2)"><option value="transfer">Transferencia</option><option value="efectivo">Efectivo</option><option value="cheque">Cheque</option><option value="otro">Otro</option></select></div>';
+    h+='<div><button class="btn bg" type="button" onclick="provFichaPay()" style="width:100%;padding:9px;font-weight:700">💾 Registrar pago</button></div>';
+    h+='</div>';
+    h+='<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:8px;font-size:.78rem"><span id="fp-saldo" style="color:var(--mu)"></span><button class="btn bp bs" type="button" onclick="provFichaPayFull()" style="padding:5px 10px">💵 Pagar toda la orden</button></div>';
+  }
+  if(pays.length){
+    h+='<div style="margin-top:10px;border-top:1px solid var(--bd);padding-top:8px"><div style="font-size:.7rem;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Últimos pagos</div>'+
+      pays.slice(0,8).map(p=>'<div style="display:flex;justify-content:space-between;gap:8px;font-size:.78rem;padding:2px 0"><span style="color:var(--mu)">'+(p.date?fd(p.date):'—')+' · '+esc(p.type||'otro')+'</span><span style="font-weight:700;color:var(--ok)">$'+fn(spNum(p.amount))+'</span></div>').join('')+'</div>';
+  }
+  h+='</div>';
   if(c&&c.notes)h+='<div style="background:var(--s1);border:1px solid var(--bd);border-radius:6px;padding:10px 12px;margin-bottom:16px;font-size:.82rem"><span style="color:var(--mu)">📝 Notas:</span> '+esc(c.notes)+'</div>';
   h+='<h4 style="margin:0 0 8px">🧾 Órdenes de compra</h4>';
   if(!orders.length){h+='<div style="color:var(--mu);font-size:.85rem">Sin órdenes registradas todavía.</div>';}
@@ -5066,6 +5309,33 @@ function renderProvFicha(forceName){
     h+='</tbody></table></div>';
   }
   box.innerHTML=h;
+  provFichaPayUpd();
+}
+/* Avisos del bloque de pago de la ficha: saldo de la orden elegida y qué pasa
+   si registran ese monto (pago total o parcial). */
+function provFichaPayUpd(){
+  const sel=$i('fp-orden'),out=$i('fp-saldo');if(!sel||!out)return;
+  const o=provOrders.find(x=>x&&x.id===sel.value);if(!o)return;
+  const pend=Math.max(0,spNum(o.totalCost)-spNum(o.paid));
+  const monto=spNum($i('fp-monto')?$i('fp-monto').value:0);
+  out.innerHTML='Saldo de la orden: <b>$'+fn(pend)+'</b>'+
+    (monto>0?(monto>=pend-0.005?' · <b style="color:var(--ok)">Pago total</b>':' · Pagás $'+fn(Math.min(monto,pend))+' · queda $'+fn(Math.max(0,pend-monto))):'');
+}
+function provFichaPay(){
+  const sel=$i('fp-orden');if(!sel||!sel.value){toast('Elegí una orden para pagar','err');return;}
+  const monto=spNum($i('fp-monto')?$i('fp-monto').value:0);
+  if(!(monto>0)){toast('Ingresá el monto a pagar','err');return;}
+  const tipo=($i('fp-tipo')&&$i('fp-tipo').value)||'efectivo';
+  const pay=provRegisterPayment(sel.value,monto,tipo);
+  if(!pay){toast('No se registró: revisá el monto o el saldo','err');return;}
+  toast('✅ Pago de $'+fn(pay.amount)+' registrado');
+}
+function provFichaPayFull(){
+  const sel=$i('fp-orden');if(!sel||!sel.value)return;
+  const o=provOrders.find(x=>x&&x.id===sel.value);if(!o)return;
+  const pend=Math.max(0,spNum(o.totalCost)-spNum(o.paid));
+  const am=$i('fp-monto');if(am)am.value=String(pend);
+  provFichaPay();
 }
 
 // ────── COMPRAS (Carrito) ──────
@@ -5199,6 +5469,8 @@ function renderProvCarrito(){
   const f=v=>'$'+Number(v||0).toFixed(2).replace('.',',');
   const se=document.getElementById('prov-subtotal'),ie=document.getElementById('prov-iva-total'),te=document.getElementById('prov-total'),de=document.getElementById('prov-discount-view');
   if(se)se.textContent=f(ts);if(ie)ie.textContent=f(tax);if(te)te.textContent=f(total);if(de)de.textContent=disc>0?'−'+f(disc):f(0);
+  /* Refresca el aviso del bloque de pago para que siga al total real. */
+  if(typeof provPayForm==='function')provPayForm();
 }
 
 function filterProducts(){
@@ -5265,6 +5537,57 @@ function openProductModal(){
   saveProductsData();toast('✅ Producto creado: '+name);renderProvCarrito();
 }
 
+/* ══ PAGOS DE LAS ÓRDENES ══
+   Un solo camino para todos los pagos: alta desde la compra (bloque "Pago de
+   esta compra"), tab "💳 Pagos" y ficha del proveedor. Deja el movimiento en
+   provPayments, actualiza paid/status de la orden, guarda y refresca
+   historial, compras y ficha. Devuelve el pago registrado o null. */
+function provRegisterPayment(orderId,amount,type,dateTs){
+  const o=provOrders.find(x=>x&&x.id===orderId);
+  if(!o)return null;
+  const total=spNum(o.totalCost);
+  const pend=Math.max(0,Math.round((total-spNum(o.paid))*100)/100);
+  let monto=Math.round(spNum(amount)*100)/100;
+  if(!(monto>0)||!(pend>0))return null;
+  if(monto>pend)monto=pend;            /* nunca se paga de más */
+  o.paid=Math.round((spNum(o.paid)+monto)*100)/100;
+  o.status=(o.paid>=total-0.005)?'pagado':'parcial';
+  const pay={id:uid(),orderId:o.id,supplier:o.supplier,amount:monto,date:dateTs||Date.now(),type:type||'efectivo'};
+  provPayments.push(pay);
+  saveProvData();
+  provRefreshOrders();
+  return pay;
+}
+/* Total que se le paga al proveedor con el carrito actual: mismo cálculo que
+   renderProvCarrito() y savePurchaseOrder(), para mostrarlo y precargarlo en
+   el bloque de pago. */
+function provDraftTotal(){
+  const on=provIvaOn();
+  let base=0;
+  provCarrito.forEach(i=>{const b=spNum(i.cost)*(spNum(i.qty)||1)-spNum(i.discount);base+=b;if(on)base+=b*((i.taxPct==null?21:spNum(i.taxPct))/100);});
+  const elD=$i('prov-discount'),elT=$i('prov-discount-type'),elF=$i('prov-final-price');
+  const disc=spOrderDiscount(base,elD?elD.value:0,(elT&&elT.value==='%')?'%':'$');
+  return spOrderTotal(base,disc,elF?elF.value:0);
+}
+/* Muestra/oculta el monto según "No pagado / Parcial / Total". El monto sólo
+   se (re)escribe cuando cambió la selección: mientras el usuario tipea no se
+   pisa lo que va escribiendo. */
+function provPayForm(fromSelect){
+  const st=$i('prov-pay-status')?$i('prov-pay-status').value:'none';
+  const wa=$i('prov-pay-amount-wrap'),wt=$i('prov-pay-type-wrap'),am=$i('prov-pay-amount'),hint=$i('prov-pay-hint');
+  const total=provDraftTotal();
+  if(wa)wa.style.display=(st==='none')?'none':'block';
+  if(wt)wt.style.display=(st==='none')?'none':'block';
+  if(fromSelect&&am){
+    if(st==='total')am.value=total>0?String(total):'';
+    else am.value='';
+  }
+  if(hint){
+    if(st==='total')hint.textContent='Se guarda como PAGADA · $'+fn(total);
+    else if(st==='parcial'){const m=spNum(am?am.value:0);hint.textContent=(m>0?'Pagás $'+fn(m)+' · ':'')+'Saldo $'+fn(Math.max(0,total-m));}
+    else hint.textContent='Queda PENDIENTE de pago · $'+fn(total);
+  }
+}
 function savePurchaseOrder(){
   const supplier=document.getElementById('prov-supplier').value;
   const date=document.getElementById('prov-date').value;
@@ -5290,7 +5613,17 @@ function savePurchaseOrder(){
   const gross=subTot+taxTot;
   const discountTotal=spOrderDiscount(gross,discountValue,discountType);
   const totalCost=spOrderTotal(gross,discountTotal,finalPrice);
-  provOrders.push({id:'order_'+uid(),supplier,date:new Date(date).getTime(),items:provCarrito.map(i=>({...i})),totalCost,subTotal:subTot,taxTotal:taxTot,gross,discountValue,discountType,discountNote,discountTotal,finalPrice,paid:0,status,notes:'',affectPrice,includeIva});
+  /* Pago de ESTA compra (bloque que queda arriba del botón Guardar):
+     "No pagado" deja la orden en $0, "Pago parcial" exige monto y "Pago
+     realizado" se guarda con el total (o con lo cargado a mano, sin pasarse). */
+  const payEl=$i('prov-pay-status'),payAmtEl=$i('prov-pay-amount'),payTypeEl=$i('prov-pay-type');
+  const paySt=payEl&&payEl.value?payEl.value:'none';
+  let payAmt=0;
+  if(paySt==='total')payAmt=Math.min(spNum(payAmtEl?payAmtEl.value:0)||totalCost,totalCost);
+  else if(paySt==='parcial')payAmt=Math.min(Math.max(0,spNum(payAmtEl?payAmtEl.value:0)),totalCost);
+  if(paySt!=='none'&&totalCost>0&&!(payAmt>0)){alert('Ingresá el monto pagado (o elegí "No pagado")');return;}
+  const oid='order_'+uid();
+  provOrders.push({id:oid,supplier,date:new Date(date).getTime(),items:provCarrito.map(i=>({...i})),totalCost,subTotal:subTot,taxTotal:taxTot,gross,discountValue,discountType,discountNote,discountTotal,finalPrice,paid:0,status,notes:'',affectPrice,includeIva});
   provCarrito.forEach(item=>{const product=products.find(p=>p.id===item.productId);if(product&&item.productId)product.stock=(product.stock||0)+(item.qty||0);});
   /* Costo del producto = lo que se paga por unidad (con el impuesto si está
      activado) y precio de venta solo si está marcada "Afectar precio de venta".
@@ -5304,11 +5637,15 @@ function savePurchaseOrder(){
   saveProductsData();persist();
   if(!provSuppliers.includes(supplier))provSuppliers.push(supplier);
   saveProvData();
+  /* El pago queda en la orden (paid/status) y en provPayments: así lo toman
+     Historial, la ficha del proveedor, el listado de compras y las exportaciones. */
+  if(paySt!=='none'&&payAmt>0)provRegisterPayment(oid,payAmt,payTypeEl?payTypeEl.value:'efectivo');
   /* Descuento/nota/precio final son de ESTA compra: el formulario queda limpio
      para la siguiente (se limpia ANTES de redibujar los totales). */
   if(dEl)dEl.value='0';if(tEl)tEl.value='$';if(nEl)nEl.value='';if(fEl)fEl.value='';
+  if(payEl)payEl.value='none';if(payAmtEl)payAmtEl.value='';
   alert('✅ Orden creada. Stock actualizado.');
-  provCarrito=[];renderProvCarrito();renderProductsSelectInProv();renderProvPurchases();refreshAll();
+  provCarrito=[];renderProvCarrito();renderProductsSelectInProv();renderProvPurchases();provRefreshOrders();provPayForm();refreshAll();
 }
 
 // ────── PAGOS ──────
@@ -5347,24 +5684,13 @@ function registrarPago(){
     alert('Completa: Orden, Monto y Fecha');
     return;
   }
-  
-  const order = provOrders.find(o => o.id === orderId);
-  if(!order) return;
-  
-  order.paid = (order.paid || 0) + monto;
-  order.status = order.paid >= order.totalCost ? 'pagado' : 'parcial';
-  
-  provPayments.push({
-    orderId,
-    supplier: order.supplier,
-    amount: monto,
-    date: new Date(fecha).getTime(),
-    type: tipo
-  });
-  
-  saveProvData();
+  /* Mismo camino que el pago de la compra y el de la ficha: actualiza la
+     orden, deja el movimiento en provPayments y refresca todas las vistas. */
+  const pay = provRegisterPayment(orderId, monto, tipo, new Date(fecha).getTime());
+  if(!pay){ alert('No se registró el pago: revisá el monto (no puede superar el saldo pendiente)'); return; }
+
   alert('Pago registrado');
-  
+
   document.getElementById('pago-monto').value = '';
   document.getElementById('pago-fecha').value = '';
   populatePagoOrdenes();
@@ -5407,6 +5733,26 @@ function renderHistorial(){
 }
 
 // ────── EGRESOS ──────
+
+/* ══ EGRESOS YA NO VIVEN EN PROVEEDORES ══
+   Los gastos los administra el módulo "📤 Egresos". La pestaña que había acá
+   se quitó; lo que se haya cargado en ella se mueve ahí una sola vez
+   (comparando por id, así nunca se duplica) para que no quede escondido. */
+function provEgMigrate(){
+  if(!Array.isArray(provEgresos)||!provEgresos.length)return 0;
+  if(!Array.isArray(egresos))egresos=[];
+  let n=0;
+  provEgresos.forEach(e=>{
+    if(!e||!e.id||egresos.some(x=>x&&x.id===e.id))return;
+    egresos.unshift({id:e.id,ts:e.fecha||Date.now(),type:'gasto',
+      category:e.categoria||e.tipoGasto||'Otro',providerName:e.categoria||e.tipoGasto||'Otro',
+      items:[],total:spNum(e.monto),note:e.desc?String(e.desc)+(e.notas?' — '+e.notas:''):'',
+      tipoPago:e.tipoPago||'efectivo',pays:[],paid:true});
+    n++;
+  });
+  if(n){persist();toast('Se movieron '+n+' egreso(s) al módulo Egresos');}
+  return n;
+}
 
 function registrarEgreso(){
   const desc = document.getElementById('egr-desc').value;
