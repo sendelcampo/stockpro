@@ -649,7 +649,7 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
       <div class="sec-hdr"><div class="sec-t">💾 Copias de seguridad</div></div>
       <div class="bk-grid">
         <div class="bk-card"><div class="bk-icon">💾</div><div class="bk-title">Guardar copia</div>
-          <div class="bk-desc">Descargá un .json con todos los datos: productos, ventas, movimientos y usuarios.</div>
+          <div class="bk-desc">Descargá un .json con todo: productos, ventas, movimientos, usuarios, <strong>compras a proveedores, egresos y configuración</strong>.</div>
           <button class="btn bp" onclick="backupNow()">⬇️ Descargar backup</button></div>
         <div class="bk-card"><div class="bk-icon">📂</div><div class="bk-title">Restaurar backup</div>
           <div class="bk-desc">Cargá un backup anterior. <strong>Reemplaza los datos actuales.</strong></div>
@@ -820,7 +820,7 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
             </div>
 
             <!-- RESUMEN -->
-            <div style="background:var(--s2);padding:16px;border-radius:8px;margin-top:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+            <div style="background:var(--s2);padding:16px;border-radius:8px;margin-top:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
               <div>
                 <div style="font-size:.8rem;color:var(--mu)">Subtotal</div>
                 <div style="font-weight:700;font-size:1.1rem" id="prov-subtotal">$0</div>
@@ -833,8 +833,34 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
                 <div style="font-size:.8rem;color:var(--mu)">TOTAL DE LA COMPRA</div>
                 <div style="font-weight:700;font-size:1.1rem;color:var(--ac2)" id="prov-total">$0</div>
               </div>
+              <div>
+                <div style="font-size:.8rem;color:var(--mu)">Descuento</div>
+                <div style="font-weight:700;font-size:1.1rem;color:var(--warn)" id="prov-discount-view">$0</div>
+              </div>
             </div>
-            
+
+            <!-- DESCUENTO GENERAL + NOTA + PRECIO FINAL -->
+            <div style="background:var(--s2);padding:12px;border-radius:8px;margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;align-items:end">
+              <div>
+                <div style="font-size:.78rem;color:var(--mu);margin-bottom:4px">Descuento general</div>
+                <div style="display:flex;gap:6px">
+                  <input type="text" inputmode="decimal" id="prov-discount" value="0" oninput="renderProvCarrito()" placeholder="0" style="flex:1;min-width:60px;padding:8px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s1)">
+                  <select id="prov-discount-type" onchange="renderProvCarrito()" style="padding:8px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s1)">
+                    <option value="$">$ Monto</option>
+                    <option value="%">% Porcentaje</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <div style="font-size:.78rem;color:var(--mu);margin-bottom:4px">Precio final (opcional)</div>
+                <input type="text" inputmode="decimal" id="prov-final-price" oninput="renderProvCarrito()" placeholder="Se usa si es mayor a $0" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s1)">
+              </div>
+              <div>
+                <div style="font-size:.78rem;color:var(--mu);margin-bottom:4px">Nota de aclaración</div>
+                <input type="text" id="prov-discount-note" placeholder="Ej: 10% por pago anticipado" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s1)">
+              </div>
+            </div>
+
             <button class="btn bg" onclick="savePurchaseOrder()" style="width:100%;padding:12px;font-weight:700;margin-top:12px;font-size:1rem">✅ Guardar compra</button>
 
             <!-- COMPRAS A PROVEEDORES REALIZADAS -->
@@ -1110,9 +1136,11 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
 
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
       <strong style="font-size:.85rem">🛒 Productos de la compra</strong>
+      <input type="text" id="ord-search" placeholder="🔍 Nombre / SKU / Código de barras (apuntá el escáner acá)" oninput="ordFilterProducts()" onkeydown="if(event.key==='Enter'){event.preventDefault();ordEnterSearch();}" autocomplete="off" style="flex:1;min-width:230px;padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s1)">
       <select id="ord-add-prod" style="flex:1;min-width:180px;padding:6px"></select>
       <button class="btn bp bs" type="button" onclick="ordAddItem()">➕ Agregar</button>
     </div>
+    <div id="ord-search-results" style="display:none;max-height:200px;overflow-y:auto;border:1px solid var(--bd);border-radius:4px;background:var(--s2);margin-bottom:6px;padding:4px"></div>
     <div class="tblw" style="max-height:250px;overflow-y:auto">
       <table><thead><tr><th>Producto</th><th>Cant.</th><th>Costo unit.</th><th>Dto.</th><th>% Imp.</th><th>% Gan.</th><th>Redond.</th><th>Precio venta</th><th>Subtotal</th><th></th></tr></thead><tbody id="ord-items"></tbody></table>
     </div>
@@ -1126,17 +1154,37 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
     </div>
     <div id="ord-pays" style="display:grid;gap:6px"></div>
 
-    <div style="background:var(--s2);padding:12px;border-radius:8px;margin-top:12px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+    <div style="background:var(--s2);padding:12px;border-radius:8px;margin-top:12px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
         <input type="checkbox" id="ord-include-iva" onchange="ordToggleIva()" style="width:18px;height:18px;cursor:pointer">
         <span style="font-weight:600;font-size:.85rem">% Impuesto (IVA) incluido en el total</span>
       </label>
-      <div style="font-size:.74rem;color:var(--mu)">Subtotal + Impuesto = Total de la compra</div>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" id="ord-affect-price" onchange="ordToggleAffect()" style="width:18px;height:18px;cursor:pointer">
+        <span style="font-weight:600;font-size:.85rem">↻ Actualiza el precio de venta de los productos</span>
+      </label>
+      <div style="font-size:.74rem;color:var(--mu)">Subtotal + Impuesto − Descuento = Total de la compra</div>
+    </div>
+
+    <!-- DESCUENTO GENERAL + NOTA + PRECIO FINAL (se guardan con la orden) -->
+    <div style="background:var(--s2);padding:12px;border-radius:8px;margin-top:8px;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;align-items:end">
+      <div class="fg"><label class="fl">Descuento general</label>
+        <div style="display:flex;gap:6px">
+          <input type="text" inputmode="decimal" id="ord-discount" value="0" oninput="ordTotals()" placeholder="0" style="flex:1;min-width:60px;padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s1)">
+          <select id="ord-discount-type" onchange="ordTotals()" style="padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s1)">
+            <option value="$">$ Monto</option>
+            <option value="%">% Porcentaje</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg"><label class="fl">Precio final (opcional)</label><input type="text" inputmode="decimal" id="ord-final-price" oninput="ordTotals()" placeholder="Se usa si es mayor a $0" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s1)"></div>
+      <div class="fg"><label class="fl">Nota de aclaración</label><input type="text" id="ord-discount-note" placeholder="Ej: 10% por pago anticipado" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s1)"></div>
     </div>
 
     <div style="display:flex;gap:18px;flex-wrap:wrap;background:var(--s2);padding:12px;border-radius:8px;margin-top:8px;font-size:.9rem">
       <div>Subtotal: <strong id="ord-subtotal">$0</strong></div>
       <div>Impuesto: <strong id="ord-tax" style="color:var(--mu)">$0</strong></div>
+      <div>Descuento: <strong id="ord-discount-view" style="color:var(--warn)">$0</strong></div>
       <div>Total: <strong id="ord-total">$0</strong></div>
       <div>Pagado: <strong id="ord-paid" style="color:var(--ok)">$0</strong></div>
       <div>Pendiente: <strong id="ord-pending" style="color:var(--err)">$0</strong></div>
@@ -1328,14 +1376,14 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
             <select id="sd-disc-type" onchange="sdRecalc()" style="flex:1"><option value="pct">% Descuento</option><option value="fixed">$ Fijo</option></select>
           </div>
           <div style="margin-bottom:8px">
-            <select id="sd-pay" onchange="sdRecalc()" style="width:100%"></select>
+            <select id="sd-pay" style="width:100%"></select>
           </div>
           <label style="display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--mu);margin-bottom:8px;cursor:pointer">
             <input type="checkbox" id="sd-split-toggle" onchange="sdTogglePay2()" style="width:15px;height:15px;cursor:pointer"> Dividir en dos medios de pago
           </label>
           <div id="sd-pay2-section" style="display:none;margin-bottom:8px">
-            <select id="sd-pay2" onchange="sdRecalc()" style="width:100%;margin-bottom:6px"></select>
-            <input type="number" id="sd-pay2-amount" data-noscan="1" placeholder="Monto 2do pago" min="0" oninput="sdRecalc()" style="width:100%">
+            <select id="sd-pay2" style="width:100%;margin-bottom:6px"></select>
+            <input type="number" id="sd-pay2-amount" data-noscan="1" placeholder="Monto 2do pago" min="0" style="width:100%">
           </div>
           <div style="display:flex;justify-content:space-between;font-size:.82rem;color:var(--mu);margin-bottom:3px"><span>Subtotal</span><span id="sd-sub">$0</span></div>
           <div style="display:flex;justify-content:space-between;font-size:.82rem;color:var(--ok);margin-bottom:3px"><span>Descuento</span><span id="sd-disc-amt">-$0</span></div>
@@ -1480,8 +1528,19 @@ let egresoCats=LS.get('egcats')||null; // Categorías de gasto guardadas por el 
 let fichaTab='cliente';
 let selectedFichaId=null;
 let localBackups=LS.get('bk')||[];
+/* Estado de la sincronización de configuración (bloque completo junto a saveCfg()).
+   Se declara acá —y no más abajo— para que saveCfg() pueda usarlo aunque lo
+   llamen antes de que se evalúe el resto del script. */
+var _cfgDirty={},_cfgTimer=null,_blobTs=LS.get('blobts')||{};
+if(!_blobTs||typeof _blobTs!=='object')_blobTs={};
 let currentUser=null,cart=[],editProdId=null,editUserId=null,scanTarget=null,codeReader=null;
 let impRows=[],selCat=null,lastSale=null,editingSaleId=null;
+/* Edición de ventas: `saleOpening` bloquea los recálculos mientras se arma la
+   pantalla (abrir el detalle nunca debe reescribir lo que se vendió),
+   `saleEditDirty` avisa si el usuario cambió algo de verdad y
+   `saleEditDisc2` guarda el 2° descuento (pago dividido) que esta pantalla
+   no tiene campo propio, para que un recálculo no lo borre. */
+let saleOpening=false,saleEditDirty=false,saleEditDisc2=0;
 let selectedIds=new Set(),selectedPay1=null,selectedPay2=null,pendingRestoreFile=null;
 
 // ══ SUPABASE ══
@@ -1534,11 +1593,27 @@ async function fetchAllRows(table,orderCol){
    IDs borrados, se filtran al sincronizar y se borran definitivamente de la nube. */
 let provDeleted=JSON.parse(localStorage.getItem('prov_deleted')||'{"orders":[],"payments":[]}');
 if(!provDeleted||!Array.isArray(provDeleted.orders)||!Array.isArray(provDeleted.payments))provDeleted={orders:[],payments:[]};
+/* ══ Marcador PERMANENTE (nunca se libera, sólo se recorta a 500) ══
+   Antes se liberaba apenas la fila desaparecía de Supabase. Con eso bastaba
+   para que "volvieran a aparecer": otra PC u otra pestaña que todavía tenía la
+   compra en memoria la volvía a subir 30s después y ya no había nadie que la
+   ocultara ni que la volviera a borrar. El ID queda registrado para siempre. */
+const PROV_DEL_MAX=500;
+/* ══ Pendientes de borrar ══
+   Sólo los IDs cuya fila EXISTE en la nube. ProvFlushDeleted() usa esta lista
+   (y no la completa) para no disparar un DELETE por cada compra borrada en
+   cada guardado, y al mismo tiempo reintenta si la fila reaparece. */
+let provPending={orders:[],payments:[]};
 function provSaveDeleted(){localStorage.setItem('prov_deleted',JSON.stringify(provDeleted));}
 function provMarkDeleted(table,id){
   const key=table==='prov_payments'?'payments':'orders';
-  if(!id||provDeleted[key].indexOf(id)>=0)return;
-  provDeleted[key].push(id);provSaveDeleted();
+  if(!id)return;
+  if(provDeleted[key].indexOf(id)<0){
+    provDeleted[key].push(id);
+    if(provDeleted[key].length>PROV_DEL_MAX)provDeleted[key]=provDeleted[key].slice(-PROV_DEL_MAX);
+    provSaveDeleted();
+  }
+  if(provPending[key].indexOf(id)<0)provPending[key].push(id);
 }
 function provIsDeleted(table,id){
   const key=table==='prov_payments'?'payments':'orders';
@@ -1564,65 +1639,79 @@ function provFlushDeleted(){
   let chain=Promise.resolve();
   pairs.forEach(function(pair){
     const table=pair[0],key=pair[1];
-    provDeleted[key].forEach(function(id){
+    /* Sólo los pendientes (filas que todavía existen): así un borrado se
+       reintenta si la fila vuelve, sin martillear la nube en cada guardado.
+       El ID se saca de la lista apenas el DELETE sale bien; si la fila vuelve
+       a aparecer, loadFromCloud() lo vuelve a poner en pendientes. */
+    const pend=(provPending[key]||[]).slice();
+    pend.forEach(function(id){
       if(!id)return;
       chain=chain.then(function(){
         return Promise.resolve(sb.from(table).delete().eq('id',id)).then(function(r){
           if(r&&r.error)console.error('provFlushDeleted:',r.error);
+          else{const p=provPending[key];const i=p.indexOf(id);if(i>=0)p.splice(i,1);}
         },function(e){console.error('provFlushDeleted:',e);});
       });
     });
   });
-  /* El marcador NO se libera acá: eso permitía que una lectura de loadFromCloud()
-     ya en curso (con la lista vieja) restaurara la compra y persist() volviera a
-     subirla a Supabase. Se libera recién en loadFromCloud(), cuando una lectura
-     fresca confirma que la fila ya no existe. */
+  /* El marcador NUNCA se libera: se recalcula en loadFromCloud() contra la
+     lectura fresca (marcador ∩ filas que existen) y ahí se arma provPending. */
   return chain;
 }
 async function loadFromCloud(){
   if(!sb)return;
   try{
-    const[rp,rc,ru,rct,rm,rs,rcm,reg,rpo,rpy,rps]=await Promise.all([
+    const[rp,rc,ru,rct,rm,rs,rcm,reg,rpo,rpy,rps,rcfg]=await Promise.all([
       fetchAllRows('products','id'),fetchAllRows('categories','id'),fetchAllRows('users','id'),fetchAllRows('contacts','id'),
       sb.from('movements').select('*').order('data->ts',{ascending:false}).limit(500),
       sb.from('sales').select('*').order('data->ts',{ascending:false}).limit(200),
       sb.from('cta_movs').select('*').order('data->ts',{ascending:false}).limit(500),
       sb.from('egresos').select('*').order('data->ts',{ascending:false}).limit(300),
-      fetchAllRows('prov_orders','id'),fetchAllRows('prov_payments','id'),fetchAllRows('prov_suppliers','id')
+      fetchAllRows('prov_orders','id'),fetchAllRows('prov_payments','id'),fetchAllRows('prov_suppliers','id'),
+      cfgFetch()
     ]);
     /* Si la nube viene vacia o con error, NO se pisa lo local: persist() sube lo local y lo repone. */
     if(rp&&rp.length)products=rp.map(r=>r.data);if(rc&&rc.length)categories=rc.map(r=>r.data);if(ru&&ru.length)users=ru.map(r=>r.data);if(rct&&rct.length)contacts=rct.map(r=>r.data);
     if(rm.data&&rm.data.length)movements=rm.data.map(r=>r.data);if(rs.data&&rs.data.length)sales=rs.data.map(r=>r.data);if(rcm.data&&rcm.data.length)ctaMovs=rcm.data.map(r=>r.data);if(reg.data&&reg.data.length){const allEg=reg.data.map(r=>r.data);egresos=allEg.filter(e=>e.mod!=='dc');egresosDC=allEg.filter(e=>e.mod==='dc');}
     if(Array.isArray(rpo)){
+      const ids=new Set(rpo.map(r=>r&&r.id));
       if(rpo.length){
-        const ids=new Set(rpo.map(r=>r.id));
         const dOrd=provDeleted.orders;
         provOrders=rpo.map(r=>r.data).filter(o=>o&&o.deleted!==true&&dOrd.indexOf(o.id)<0)
           .concat(provOrders.filter(o=>o&&o.deleted!==true&&!ids.has(o.id)&&dOrd.indexOf(o.id)<0));
       }
-      /* Liberar el marcador SOLO acá: una lectura fresca y completa ya no trae
-         la fila. Si se liberaba apenas se confirmaba el DELETE, una lectura
-         anterior (en curso) con la lista vieja restauraba la compra y persist()
-         la volvía a subir a Supabase: era el motivo de que "volvieran a
-         aparecer". Mientras la fila exista (aunque sea como tumba) se conserva. */
-      const still=new Set(rpo.map(r=>r&&r.id));
-      const n0=provDeleted.orders.length;
-      provDeleted.orders=provDeleted.orders.filter(x=>still.has(x));
-      if(provDeleted.orders.length!==n0)provSaveDeleted();
+      /* Marcador permanente + RE-TUMBA: si otra PC subió de vuelta una compra
+         que este equipo borró, se vuelve a marcar deleted:true (así esa otra PC
+         también la oculta) y queda como pendiente para borrarla de nuevo. */
+      provPending.orders=provDeleted.orders.filter(id=>ids.has(id));
+      rpo.forEach(function(r){
+        if(!r||!r.id||provDeleted.orders.indexOf(r.id)<0)return;
+        const d=r.data;
+        if(d&&d.deleted!==true)provTombPush('prov_orders',Object.assign({},d,{deleted:true}));
+      });
     }
     if(Array.isArray(rpy)){
+      const idsP=new Set(rpy.map(r=>r&&r.id));
       if(rpy.length){
-        const ids=new Set(rpy.map(r=>r.id));
         const dPay=provDeleted.payments;
         provPayments=rpy.map(r=>r.data).filter(p=>p&&p.deleted!==true&&dPay.indexOf(p.id)<0)
-          .concat(provPayments.filter(p=>p&&p.deleted!==true&&(!p.id||!ids.has(p.id))&&dPay.indexOf(p.id)<0));
+          .concat(provPayments.filter(p=>p&&p.deleted!==true&&(!p.id||!idsP.has(p.id))&&dPay.indexOf(p.id)<0));
       }
-      const stillP=new Set(rpy.map(r=>r&&r.id));
-      const n1=provDeleted.payments.length;
-      provDeleted.payments=provDeleted.payments.filter(x=>stillP.has(x));
-      if(provDeleted.payments.length!==n1)provSaveDeleted();
+      provPending.payments=provDeleted.payments.filter(id=>idsP.has(id));
+      rpy.forEach(function(r){
+        if(!r||!r.id||provDeleted.payments.indexOf(r.id)<0)return;
+        const p=r.data;
+        if(p&&p.deleted!==true)provTombPush('prov_payments',Object.assign({},p,{deleted:true}));
+      });
     }
     if(rps&&rps.length){const ids=new Set(rps.map(r=>r.id));provSuppliers=rps.map(r=>r.data).concat(provSuppliers.filter(s=>!ids.has(s)));}
+    /* Configuración de la nube: sólo lo más nuevo pisa lo local (ver cfgApplyRemote). */
+    if(Array.isArray(rcfg)){
+      const by={};rcfg.forEach(function(r){if(r&&r.id)by[r.id]=r;});
+      cfgApplyRemote(by.settings);
+      cfgApplyBlob('egreso_cats',by.egreso_cats);
+      cfgApplyBlob('prov_egresos',by.prov_egresos);
+    }
     persist();
   }catch(e){console.error('loadFromCloud:',e);}
 }
@@ -1865,12 +1954,107 @@ function importProvExcel(input){
 }
 // ══ ÓRDENES: EDITAR / PAGOS / ELIMINAR ══
 let ordDraft=null,ordPays=[],ordLegacy=0,ordItemsSnap='';
+/* ── Descuento general de una compra ────────────────────────────────────────
+   Dos formas de cargarlo: un MONTO fijo ($) o un PORCENTAJE (%) sobre el
+   total bruto (Subtotal + Impuesto). Se aplica SÓLO al total de la orden,
+   que es lo que se le paga al proveedor: las líneas mantienen su costo
+   unitario y los productos no reciben un costo "repartido". Si hay un
+   PRECIO FINAL cargado a mano (mayor a $0), ese pisa todo lo anterior. */
+function spOrderDiscount(base,val,type){
+  const v=spNum(val);
+  if(v<=0)return 0;
+  const d=(type==='%')?base*v/100:v;
+  return Math.min(Math.round(d*100)/100,Math.max(0,spNum(base)));
+}
+function spOrderTotal(base,disc,finalPrice){
+  const fin=spNum(finalPrice);
+  if(fin>0)return Math.round(fin*100)/100;
+  return Math.max(0,Math.round((spNum(base)-spNum(disc))*100)/100);
+}
+function spOrderDiscInfo(base,o){
+  const d=spOrderDiscount(base,o?o.discountValue:0,o?o.discountType:'$');
+  const t=spOrderTotal(base,d,o?o.finalPrice:0);
+  const note=(o&&o.discountNote)?String(o.discountNote):'';
+  return{disc:d,total:t,note,hasDiscount:d>0,hasFinal:spNum(o?o.finalPrice:0)>0};
+}
 function escH(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function provRefreshOrders(){[renderHistorial,renderProvPurchases,renderProvFicha,populatePagoOrdenes,renderProductsSelectInProv].forEach(function(f){try{f();}catch(e){}});}
 function ordDateInput(ts){const d=new Date(ts||Date.now()),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes());}
 function ordCalc(it,incl){const cost=spNum(it.cost),qty=spNum(it.qty)||1,discount=spNum(it.discount);const taxPct=incl?spNum(it.taxPct):0;const profitPct=spNum(it.profitPct);const rounding=spNum(it.rounding);it.subtotal=cost*qty-discount;const manual=spNum(it.priceManual);let price;if(manual>0){price=manual;it.priceWithoutIva=taxPct>0?manual/(1+taxPct/100):manual;}else{it.priceWithoutIva=cost+cost*(profitPct/100);const base=it.priceWithoutIva*(1+taxPct/100);price=rounding>0?Math.ceil(base/rounding)*rounding:Math.round(base*100)/100;}it.priceWithIva=Math.round(price*100)/100;const cu=cost*(1+taxPct/100);it.marginPct=cu>0?Math.round((it.priceWithIva/cu-1)*10000)/100:0;}
-function ordTotals(){const incl=!!ordDraft.includeIva;let sub=0,tax=0;ordDraft.items.forEach(it=>{const base=spNum(it.cost)*(spNum(it.qty)||1)-spNum(it.discount);sub+=base;if(incl)tax+=base*(spNum(it.taxPct)/100);});const total=sub+tax;const paid=ordLegacy+ordPays.reduce((s,p)=>s+spNum(p.amount),0);ordDraft.totalCost=total;ordDraft.subTotal=sub;ordDraft.taxTotal=tax;const t=$i('ord-total'),pd=$i('ord-paid'),pe=$i('ord-pending'),sb=$i('ord-subtotal'),tx=$i('ord-tax');if(sb)sb.textContent='$'+fn(sub);if(tx)tx.textContent='$'+fn(tax);if(t)t.textContent='$'+fn(total);if(pd)pd.textContent='$'+fn(paid);if(pe)pe.textContent='$'+fn(total-paid);return total;}
+function ordTotals(){
+  if(!ordDraft)return 0;
+  const incl=!!ordDraft.includeIva;let sub=0,tax=0;
+  ordDraft.items.forEach(it=>{const base=spNum(it.cost)*(spNum(it.qty)||1)-spNum(it.discount);sub+=base;if(incl)tax+=base*(spNum(it.taxPct)/100);});
+  /* Descuento general (monto $ o %) y precio final: se leen de los campos del
+     modal y mandan sobre el TOTAL. Sólo cambian lo que se le paga al
+     proveedor: sub ni tax de las líneas quedan intactos. */
+  const od=$i('ord-discount'),odt=$i('ord-discount-type'),ofp=$i('ord-final-price');
+  const gross=sub+tax;
+  const disc=spOrderDiscount(gross,od?od.value:0,odt?odt.value:'$');
+  const total=spOrderTotal(gross,disc,ofp?ofp.value:0);
+  const paid=ordLegacy+ordPays.reduce((s,p)=>s+spNum(p.amount),0);
+  ordDraft.totalCost=total;ordDraft.subTotal=sub;ordDraft.taxTotal=tax;ordDraft.gross=gross;ordDraft.discountTotal=disc;
+  const t=$i('ord-total'),pd=$i('ord-paid'),pe=$i('ord-pending'),sb=$i('ord-subtotal'),tx=$i('ord-tax'),dv=$i('ord-discount-view');
+  if(sb)sb.textContent='$'+fn(sub);if(tx)tx.textContent='$'+fn(tax);if(t)t.textContent='$'+fn(total);
+  if(pd)pd.textContent='$'+fn(paid);if(pe)pe.textContent='$'+fn(total-paid);
+  if(dv)dv.textContent=disc>0?'−$'+fn(disc):'$'+fn(0);
+  return total;
+}
 function ordToggleIva(){if(!ordDraft)return;const cb=$i('ord-include-iva');ordDraft.includeIva=!!(cb&&cb.checked);ordRender();}
+function ordToggleAffect(){if(!ordDraft)return;const cb=$i('ord-affect-price');ordDraft.affectPrice=!!(cb&&cb.checked);}
+/* ── Búsqueda / escaneo de productos dentro de la EDICIÓN de la compra ─────
+   Mismo criterio que el buscador del carrito de creación (prov-search):
+   filtra por nombre, SKU o código de barras. Los escáneres de barras (pistola
+   o USB) funcionan como un teclado: escriben el código y mandan Enter — por
+   eso Enter agrega el producto si coincide exacto con un código, o si es el
+   único resultado de la búsqueda. */
+function ordSearchNormalize(s){return String(s==null?'':s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');}
+function ordSearchList(q){
+  const nz=ordSearchNormalize,qy=nz(String(q||'').trim());
+  if(!qy)return[];
+  const raw=String(q||'').trim();
+  return products.filter(p=>nz(p.name).includes(qy)||nz(p.sku).includes(qy)||nz(p.barcode).includes(qy)||String(p.barcode||'').trim()===raw||String(p.sku||'').trim()===raw);
+}
+function ordFilterProducts(){
+  const inp=$i('ord-search'),box=$i('ord-search-results');
+  if(!inp||!box)return;
+  const q=inp.value.trim();
+  if(q.length<2){box.style.display='none';box.innerHTML='';return;}
+  const list=ordSearchList(q);
+  if(!list.length){box.innerHTML='<div style="padding:10px;text-align:center;color:var(--mu)">Sin productos encontrados</div>';box.style.display='block';return;}
+  const fmt=v=>'$'+Number(v||0).toFixed(2).replace('.',',');
+  box.innerHTML=list.slice(0,50).map(p=>{
+    const stock=p.stock>0?'<span style="color:var(--ok)">Stock: '+fqty(p.stock)+'</span>':'<span style="color:var(--err)">Sin stock</span>';
+    return '<div style="display:grid;grid-template-columns:3fr 1fr 1fr;gap:8px;padding:7px;border-bottom:1px solid var(--bd);cursor:pointer" onclick="ordPickProduct(\''+p.id+'\')">'+
+      '<div><div style="font-weight:600;font-size:.8rem">'+escH(p.name||'Sin nombre')+'</div><div style="font-size:.7rem;color:var(--mu)">SKU: '+escH(p.sku||'—')+' · Código: '+escH(p.barcode||'—')+'</div></div>'+
+      '<div style="text-align:center;font-size:.78rem">'+fmt(p.cost||0)+'</div>'+
+      '<div style="text-align:center;font-size:.78rem">'+stock+'</div>'+
+    '</div>';
+  }).join('');
+  box.style.display='block';
+}
+function ordEnterSearch(){
+  const inp=$i('ord-search');if(!inp)return;
+  const q=inp.value.trim();if(!q)return;
+  const exact=products.find(p=>String(p.barcode||'').trim()===q)||products.find(p=>String(p.sku||'').trim()===q);
+  if(exact){ordPickProduct(exact.id);toast('✅ '+exact.name+' agregado');return;}
+  const list=ordSearchList(q);
+  if(list.length===1){ordPickProduct(list[0].id);toast('✅ '+list[0].name+' agregado');return;}
+  if(list.length>1)toast('Elegí un producto de la lista ('+list.length+')','err');
+  else toast('Producto no encontrado','err');
+}
+function ordPickProduct(pid){
+  if(!ordDraft)return;
+  const p=products.find(x=>x.id===pid);
+  if(!p){toast('Producto no encontrado','err');return;}
+  /* Mismos valores que la ficha: costo SIN iva (costNeto), % de impuesto,
+     % de ganancia y precio de venta vigente. */
+  const s=provSeedFromProduct(p,0);
+  ordDraft.items.push(Object.assign({id:'oi_'+Date.now(),productId:p.id,name:p.name,qty:1,discount:0,priceWithIva:0,priceWithoutIva:0},s));
+  const inp=$i('ord-search');if(inp)inp.value='';
+  const box=$i('ord-search-results');if(box){box.style.display='none';box.innerHTML='';}
+  ordRender();
+}
 function ordOpen(id){
   const o=provOrders.find(x=>x.id===id);
   if(!o){toast('Orden no encontrada','err');return;}
@@ -1885,6 +2069,15 @@ function ordOpen(id){
   const st=$i('ord-status');st.value=ordDraft.status||'pendiente';if(!st.value)st.value='pendiente';
   $i('ord-notes').value=ordDraft.notes||'';
   const oi=$i('ord-include-iva');if(oi)oi.checked=!!ordDraft.includeIva;
+  /* Campos nuevos de la orden: descuento general, tipo, nota, precio final y
+     si esta compra actualiza el precio de venta de los productos. */
+  const oa=$i('ord-affect-price');if(oa)oa.checked=!!ordDraft.affectPrice;
+  const od=$i('ord-discount');if(od)od.value=spNum(ordDraft.discountValue)||0;
+  const odt=$i('ord-discount-type');if(odt)odt.value=ordDraft.discountType==='%'?'%':'$';
+  const ont=$i('ord-discount-note');if(ont)ont.value=ordDraft.discountNote||'';
+  const ofp=$i('ord-final-price');if(ofp)ofp.value=spNum(ordDraft.finalPrice)>0?spNum(ordDraft.finalPrice):'';
+  const ose=$i('ord-search');if(ose)ose.value='';
+  const ores=$i('ord-search-results');if(ores){ores.style.display='none';ores.innerHTML='';}
   $i('ord-pay-amt').value='';$i('ord-pay-type').value='efectivo';
   const dd=new Date(),pp=n=>String(n).padStart(2,'0');$i('ord-pay-date').value=dd.getFullYear()+'-'+pp(dd.getMonth()+1)+'-'+pp(dd.getDate());
   const sel=$i('ord-add-prod');
@@ -1910,7 +2103,7 @@ function ordRender(){
       '<td style="padding:4px"><input type="text" inputmode="decimal" value="'+spDec(it.taxPct)+'" onchange="ordItem('+i+',\'taxPct\',this.value)" style="width:50px;'+inp+'"></td>'+
       '<td style="padding:4px"><input type="text" inputmode="decimal" value="'+spDec(it.marginPct!=null?it.marginPct:it.profitPct)+'" onchange="ordItem('+i+',\'profitPct\',this.value)" title="% de ganancia REAL (sale del precio final)" style="width:52px;'+inp+'"></td>'+
       '<td style="padding:4px"><input type="text" inputmode="decimal" value="'+spDec(it.rounding)+'" onchange="ordItem('+i+',\'rounding\',this.value)" style="width:54px;'+inp+'"></td>'+
-      '<td id="ord-p'+i+'" style="padding:4px;text-align:right;white-space:nowrap">$'+fn(it.priceWithIva)+'</td>'+
+      '<td style="padding:4px"><input type="text" inputmode="decimal" id="ord-p'+i+'" value="'+spDec(it.priceWithIva)+'" onchange="ordItem('+i+',\'priceManual\',this.value)" title="Precio de venta (se puede cargar a mano; vacío = vuelve al % de ganancia)" style="width:76px;padding:4px;border:1px solid var(--bd);border-radius:3px;text-align:right;font-weight:700;font-size:.75rem;color:var(--ac2);background:var(--s1)"></td>'+
       '<td id="ord-s'+i+'" style="padding:4px;text-align:right;white-space:nowrap">$'+fn(sub)+'</td>'+
       '<td style="padding:4px;text-align:center"><button class="btn bs" type="button" onclick="ordDelItem('+i+')" title="Quitar producto" style="width:26px;height:24px;padding:0">🗑</button></td>'+
     '</tr>';
@@ -1925,13 +2118,14 @@ function ordRender(){
 }
 function ordItem(i,f,v){
   const it=ordDraft&&ordDraft.items[i];if(!it)return;
-  if(['qty','cost','discount','taxPct','profitPct','rounding'].indexOf(f)>-1)it[f]=spNum(v);else it[f]=v;
+  if(['qty','cost','discount','taxPct','profitPct','rounding','priceManual'].indexOf(f)>-1)it[f]=spNum(v);else it[f]=v;
   /* Igual que en el carrito: al tocar costo, % de ganancia o redondeo se
      descarta un precio de venta cargado a mano para que vuelva a salir del %. */
   if(f==='cost'||f==='profitPct'||f==='rounding')it.priceManual=0;
   ordCalc(it,!!ordDraft.includeIva);
   const p=$i('ord-p'+i),s=$i('ord-s'+i);
-  if(p)p.textContent='$'+fn(it.priceWithIva);
+  /* La celda de precio es un input editable: se actualiza su valor, no su texto */
+  if(p){if(p.tagName==='INPUT')p.value=spDec(it.priceWithIva);else p.textContent='$'+fn(it.priceWithIva);}
   if(s)s.textContent='$'+fn(spNum(it.subtotal));
   ordTotals();
 }
@@ -1971,23 +2165,50 @@ function ordSave(){
   if(idx<0){toast('Orden no encontrada','err');return;}
   ordDraft.supplier=sup;ordDraft.date=new Date(fecha).getTime();ordDraft.notes=$i('ord-notes').value.trim();
   ordDraft.includeIva=!!($i('ord-include-iva')&&$i('ord-include-iva').checked);
+  const apc=$i('ord-affect-price');if(apc)ordDraft.affectPrice=!!apc.checked;
+  /* Descuento general ($ o %), precio final y nota de aclaración: se cargan
+     en el modal y se guardan JUNTO con la orden. */
+  const dEl=$i('ord-discount'),tEl=$i('ord-discount-type'),nEl=$i('ord-discount-note'),fEl=$i('ord-final-price');
+  ordDraft.discountValue=spNum(dEl?dEl.value:0);
+  ordDraft.discountType=(tEl&&tEl.value==='%')?'%':'$';
+  ordDraft.discountNote=(nEl?nEl.value:'').trim();
+  ordDraft.finalPrice=spNum(fEl?fEl.value:0);
   ordDraft.items.forEach(it=>ordCalc(it,!!ordDraft.includeIva));
   /* Si cambiaron los ítems, reflejarlos en Productos: el costo pasa a ser lo
      que se paga por unidad (con el impuesto si la orden lo incluye) y el
-     precio de venta solo se toca si la orden está marcada "Actualizó precios".
-     Si solo se tocaron pagos o el estado, no se toca nada, para no pisar
-     precios que se hayan corregido a mano en Productos. */
+     precio de venta solo se toca si la orden está marcada "Actualiza precio
+     de venta". Si solo se tocaron pagos, descuentos o el estado, no se toca
+     nada: así no se pisan precios corregidos a mano en Productos. */
+  let stockTxt=[];
   if(JSON.stringify(ordDraft.items)!==ordItemsSnap){
     provApplyItemsToProducts(ordDraft.items,!!ordDraft.includeIva,!!ordDraft.affectPrice);
+    /* STOCK por DIFERENCIA de cantidades. Al crear la compra se suma la
+       cantidad entera; al editar sólo se aplica lo que cambió (4,5 → 6 =
+       +1,5; quitar la línea = −4,5). Así, guardar dos veces la misma orden
+       NO duplica el stock y una corrección de cantidad sí se refleja. */
+    const aggQty=list=>{const m={};(Array.isArray(list)?list:[]).forEach(it=>{if(!it||!it.productId)return;m[it.productId]=(m[it.productId]||0)+spNum(it.qty);});return m;};
+    const oldQ=aggQty(provOrders[idx].items),newQ=aggQty(ordDraft.items);
+    const pids={};Object.keys(oldQ).forEach(k=>pids[k]=1);Object.keys(newQ).forEach(k=>pids[k]=1);
+    Object.keys(pids).forEach(pid=>{
+      const d=Math.round(((newQ[pid]||0)-(oldQ[pid]||0))*1000)/1000;
+      if(!d)return;
+      const prod=products.find(p=>p.id===pid);
+      if(!prod)return;
+      prod.stock=Math.max(0,Math.round((spNum(prod.stock)+d)*1000)/1000);
+      stockTxt.push(prod.name+' '+(d>0?'+':'')+fqty(d));
+    });
     /* Igual que en savePurchaseOrder(): persist() guarda en sp5-p y sube a Supabase.
-       Sin esto el cambio de precio/costo se perdía en el próximo loadFromCloud(). */
+       Sin esto el cambio de precio/costo/stock se perdía en el próximo loadFromCloud(). */
     saveProductsData();persist();
   }
-  /* Total = Subtotal (costo) + Impuesto (solo si está activado) */
+  /* Total = (Subtotal + Impuesto) − Descuento. Si hay PRECIO FINAL cargado a
+     mano (mayor a $0), ese es el total sin importar el descuento. */
   let subTot=0,taxTot=0;
   ordDraft.items.forEach(it=>{const base=spNum(it.cost)*(spNum(it.qty)||1)-spNum(it.discount);subTot+=base;if(ordDraft.includeIva)taxTot+=base*(spNum(it.taxPct)/100);});
-  const total=subTot+taxTot;
-  ordDraft.subTotal=subTot;ordDraft.taxTotal=taxTot;
+  const gross=subTot+taxTot;
+  const disc=spOrderDiscount(gross,ordDraft.discountValue,ordDraft.discountType);
+  const total=spOrderTotal(gross,disc,ordDraft.finalPrice);
+  ordDraft.subTotal=subTot;ordDraft.taxTotal=taxTot;ordDraft.gross=gross;ordDraft.discountTotal=disc;
   const paid=ordLegacy+ordPays.reduce((s,p)=>s+spNum(p.amount),0);
   ordDraft.totalCost=total;ordDraft.paid=paid;
   let st=$i('ord-status').value||ordDraft.status||'pendiente';
@@ -2003,7 +2224,7 @@ function ordSave(){
   ordDraft=null;ordPays=[];ordLegacy=0;
   closeO('m-ord');
   provRefreshOrders();
-  toast('✅ Orden actualizada');
+  toast('✅ Orden actualizada'+(stockTxt.length?' · Stock: '+stockTxt.join(', '):''));
 }
 function ordDel(id){
   const o=provOrders.find(x=>x.id===id);if(!o)return;
@@ -2039,7 +2260,7 @@ function renderProvPurchases(){
     return '<div style="border:1px solid var(--bd);border-radius:8px;padding:12px;background:var(--s1)">'+
       '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">'+
         '<div><div style="font-weight:700">'+esc2(o.supplier||'Sin proveedor')+'</div>'+
-        '<div style="font-size:.75rem;color:var(--mu)">'+(o.date?fd(o.date):'—')+' · '+(o.items?o.items.length:0)+' productos'+(o.taxTotal>0?' · Impuesto $'+fn(o.taxTotal):'')+(o.includeIva?' · IVA incluido':' · sin IVA')+'</div></div>'+
+        '<div style="font-size:.75rem;color:var(--mu)">'+(o.date?fd(o.date):'—')+' · '+(o.items?o.items.length:0)+' productos'+(o.taxTotal>0?' · Impuesto $'+fn(o.taxTotal):'')+(o.includeIva?' · IVA incluido':' · sin IVA')+((spNum(o.discountTotal)>0||spNum(o.finalPrice)>0)?' · <span style="color:var(--warn);font-weight:600">'+(spNum(o.finalPrice)>0?'Precio final $'+fn(o.finalPrice):'Descuento −$'+fn(o.discountTotal))+(o.discountNote?' — '+esc2(o.discountNote):'')+'</span>':'')+'</div></div>'+
         '<div style="text-align:right"><div style="font-weight:700">$'+fn(o.totalCost||0)+'</div>'+
         '<div style="font-size:.78rem;font-weight:600;color:'+(stCol[st]||'var(--mu)')+'">'+(stLbl[st]||st)+'</div></div>'+
       '</div>'+
@@ -2139,7 +2360,81 @@ const DEFAULT_PAY_METHODS=[
 ];
 const DEFAULT_DISC_PRESETS=[{label:'Efectivo',value:10,type:'pct'}];
 function cfg(){const c=LS.get('cfg')||{shop:'Mi Dietética',addr:'',tel:'',foot:'¡Gracias por su compra!',cuit:'',logo:'🌿',paperW:80,fontSize:8,lineH:1.35,pad:4,showId:true,showUser:false,autoprint:true,sound:true,sellNoStock:true,splitPay:true,currency:'$',plu:true,pluFmt:'2x5p5v',pluDecimals:2,salesRankMode:'all',salesRankSince:0,combineCartItems:true,payMethods:DEFAULT_PAY_METHODS};if(!c.discPresets)c.discPresets=DEFAULT_DISC_PRESETS;if(c.pluDecimals==null)c.pluDecimals=2;if(!c.salesRankMode)c.salesRankMode='all';if(c.combineCartItems==null)c.combineCartItems=true;if(c.roundPesos==null)c.roundPesos=true;c.sellNoStock=true;return c;}
-function saveCfg(c){_roundCache=c&&c.roundPesos!==false;LS.set('cfg',c);}
+function saveCfg(c){_roundCache=c&&c.roundPesos!==false;c.ts=Date.now();LS.set('cfg',c);cfgDirty('settings');}
+/* ═══════════════ SINCRONIZACIÓN DE CONFIGURACIÓN ═══════════════
+   Todo lo de Configuración vivía SOLO en el localStorage de cada equipo: el
+   nombre de la dietética, el ticket, los medios de pago, etc. coincidían sólo
+   en la PC donde se habían cargado (en una decía "Mi Dietética" y en la otra
+   "Sen"). Ahora cada ajuste se sube a la tabla `config` (id text, data jsonb)
+   y además queda guardado dentro del archivo de copia de seguridad.
+   Si la tabla todavía no existe, falla en silencio: la config local sigue
+   andando igual, sólo no se sincroniza hasta crearla.
+   Cada blob lleva `ts` (último cambio local) y sólo se aplica lo remoto si es
+   más nuevo: una PC que nunca tocó la configuración no pisa en cada sync los
+   cambios hechos en la otra. */
+function cfgDirty(id){
+  try{
+    if(!_cfgDirty)_cfgDirty={};if(!_blobTs)_blobTs={};
+    _cfgDirty[id]=true;_blobTs[id]=Date.now();LS.set('blobts',_blobTs);
+    if(_cfgTimer)return;
+    _cfgTimer=setTimeout(function(){_cfgTimer=null;cfgPush();},800);
+  }catch(e){}
+}
+function cfgPayload(id){
+  if(id==='settings')return cfg();
+  if(id==='egreso_cats')return {ts:_blobTs[id]||0,items:egresoCats||[]};
+  if(id==='prov_egresos')return {ts:_blobTs[id]||0,items:provEgresos||[]};
+  return null;
+}
+async function cfgPush(){
+  const ids=Object.keys(_cfgDirty||{});if(_cfgDirty)_cfgDirty={};
+  if(!ids.length||!cloudMode||!sb)return;
+  const rows=[];
+  ids.forEach(function(id){const d=cfgPayload(id);if(d)rows.push({id:id,data:d});});
+  if(!rows.length)return;
+  try{
+    const r=await sb.from('config').upsert(rows,{onConflict:'id'});
+    if(r&&r.error&&!window._cfgWarned){
+      window._cfgWarned=true;
+      console.warn('config: no se pudo subir. Crear la tabla `config` en Supabase para sincronizar la configuración entre equipos.',r.error.message||r.error);
+    }
+  }catch(e){console.warn('config push:',e);}
+}
+/* Lectura silenciosa a propósito: si la tabla no existe no debe llenar la
+   consola de errores cada 30s ni tocar lo que está guardado en este equipo. */
+function cfgFetch(){
+  if(!cloudMode||!sb)return Promise.resolve(null);
+  return Promise.resolve(sb.from('config').select('*').limit(50)).then(function(r){
+    return (r&&!r.error&&Array.isArray(r.data))?r.data:null;
+  },function(){return null;});
+}
+function cfgApplyRemote(row){
+  if(!row||!row.data)return false;
+  const local=LS.get('cfg')||null;
+  const rt=row.data.ts||0,lt=(local&&local.ts)||0;
+  if(!rt||(lt&&rt<=lt))return false;
+  LS.set('cfg',row.data);
+  _roundCache=row.data.roundPesos!==false;
+  try{if(typeof updateTicketPreview==='function')updateTicketPreview();}catch(e){}
+  try{
+    const shop=$i('cfg-shop');
+    if(shop&&shop.offsetParent&&typeof loadConfig==='function')loadConfig();
+  }catch(e){}
+  return true;
+}
+function cfgApplyBlob(id,row){
+  if(!row||!row.data||!Array.isArray(row.data.items))return false;
+  const rt=row.data.ts||0,lt=(_blobTs&&_blobTs[id])||0;
+  if(!rt||(lt&&rt<=lt))return false;
+  if(id==='egreso_cats'){egresoCats=row.data.items;LS.set('egcats',egresoCats);}
+  else if(id==='prov_egresos'){
+    provEgresos=row.data.items;
+    try{localStorage.setItem('prov_egresos',JSON.stringify(provEgresos));}catch(e){}
+    try{if(typeof renderProvEgresosList==='function')renderProvEgresosList();}catch(e){}
+  }else return false;
+  if(!_blobTs)_blobTs={};_blobTs[id]=rt;LS.set('blobts',_blobTs);
+  return true;
+}
 function loadConfig(){
   const c=cfg();
   $i('cfg-shop').value=c.shop||'';$i('cfg-addr').value=c.addr||'';$i('cfg-tel').value=c.tel||'';$i('cfg-foot').value=c.foot||'';$i('cfg-cuit').value=c.cuit||'';
@@ -2940,6 +3235,7 @@ function renderSales(){
 
 function showSaleDetail(id){
   const s=sales.find(x=>x.id===id);if(!s)return;editingSaleId=id;lastSale=s;
+  saleOpening=true;saleEditDirty=false;
   const PL={efectivo:'💵 Efectivo',qr:'📱 QR',transferencia:'📲 Transf.',debito:'💳 Débito',credito:'💳 Crédito',cuenta:'📋 Cuenta cte.',otro:'Otro'};
   const chg=Math.max(0,(s.recv||0)-s.total);
   $i('sd-header').textContent='🧾 Venta #'+s.id.slice(-6).toUpperCase()+' — '+fd(s.ts);
@@ -2953,13 +3249,22 @@ function showSaleDetail(id){
   $i('sd-pay2').value=s.pay2||(methods[0]?methods[0].id:'');
   $i('sd-pay2-amount').value=s.pay2amount||'';
   sdTogglePay2();
-  $i('sd-disc-val').value=s.discVal||'';$i('sd-disc-type').value=s.discType||'pct';
-  renderSaleEditItems();recalcSale(s);renderSdTotals(s);renderSdGrid();openO('m-sale-detail');
+  /* Descuento guardado sólo como importe (ventas viejas sin `discVal`): se muestra
+     como importe fijo, así el próximo recálculo lo devuelve igual. */
+  if((s.discVal==null||s.discVal==='')&&Number(s.disc||0)>0){$i('sd-disc-val').value=String(s.disc);$i('sd-disc-type').value='fixed';}
+  else{$i('sd-disc-val').value=s.discVal||'';$i('sd-disc-type').value=s.discType||'pct';}
+  /* Lo que el 1er campo no explica = 2° descuento (pago dividido). Se reserva
+     aparte: antes un simple recálculo lo borraba y el total subía hasta $1.452. */
+  saleEditDisc2=Math.max(0,Math.round(((Number(s.disc)||0)-sdDisc1(s.items.reduce((a,it)=>a+itTot(it),0)))*100)/100);
+  /* Ojo: acá NO se recalcula. Se muestran sub/descuento/total tal cual se
+     guardaron; sólo se recalcula si el usuario toca algo (saleEditDirty). */
+  renderSaleEditItems();renderSdTotals(s);saleOpening=false;renderSdGrid();openO('m-sale-detail');
 }
 function sdTogglePay2(){
   const on=$i('sd-split-toggle').checked;
   $i('sd-pay2-section').style.display=on?'':'none';
-  sdRecalc();
+  /* Sólo muestra/oculta la sección: el pago no cambia sub, descuento ni total,
+     así que acá NO se recalcula (recalcular reescribía la venta sin motivo). */
 }
 function sdFillCats(){const sel=$i('sd-cat');if(!sel)return;const cv=sel.value;sel.innerHTML='<option value="">Todas las categorías</option>';categories.forEach(c=>{const o=document.createElement('option');o.value=c.name;o.textContent=c.emoji+' '+c.name;sel.appendChild(o);});sel.value=cv;}
 function renderSdGrid(){
@@ -2988,6 +3293,7 @@ function sdAddProduct(pid,overridePrice,overrideQty){
   } else {
     s.items.push({pid,name:p.name,price,qty:1});
   }
+  saleEditDirty=true;
   recalcSale(s);renderSaleEditItems();renderSdTotals(s);beep();
 }
 function renderSdTotals(s){const c=cfg();$i('sd-sub').textContent=(c.currency||'$')+fn(s.sub);$i('sd-disc-amt').textContent='-'+(c.currency||'$')+fn(s.disc||0);$i('sd-total').textContent=(c.currency||'$')+fn(s.total);}
@@ -3028,19 +3334,28 @@ function sdChangeQty(idx,delta){
   it.qty=Math.round(((Number(it.qty)||0)+delta)*1000)/1000;
   if(it.qty<=0)s.items.splice(idx,1);
   else if(it.tipo==='kg')it.price=amt((Number(it.pricePerKg)||0)*it.qty);
+  saleEditDirty=true;
   recalcSale(s);renderSaleEditItems();renderSdTotals(s);
 }
-function saleRemoveItem(idx){const s=sales.find(x=>x.id===editingSaleId);if(!s)return;s.items.splice(idx,1);recalcSale(s);renderSaleEditItems();renderSdTotals(s);}
+function saleRemoveItem(idx){const s=sales.find(x=>x.id===editingSaleId);if(!s)return;s.items.splice(idx,1);saleEditDirty=true;recalcSale(s);renderSaleEditItems();renderSdTotals(s);}
+/* 1er descuento (el campo que se ve en la pantalla) sobre un subtotal dado. */
+function sdDisc1(sub){const dv=parseFloat(($i('sd-disc-val')||{}).value)||0,dt=($i('sd-disc-type')||{}).value||'pct';return dt==='pct'?sub*dv/100:Math.min(dv,sub);}
 function recalcSale(s){
+  /* Mientras se abre el detalle no se toca nada: la venta se muestra tal cual
+     se vendió. */
+  if(saleOpening)return;
   s.sub=s.items.reduce((a,it)=>a+itTot(it),0);
-  const dv=parseFloat(($i('sd-disc-val')||{}).value)||0,dt=($i('sd-disc-type')||{}).value||'pct';
-  s.disc=amt(dt==='pct'?s.sub*dv/100:Math.min(dv,s.sub));
+  /* `saleEditDisc2` suma el 2° descuento (pago dividido) y el resto del
+     descuento original: antes sólo se computaba el 1er campo y se perdía. */
+  s.disc=amt(sdDisc1(s.sub)+(saleEditDisc2||0));
   s.total=Math.max(0,amt(s.sub-s.disc));
 }
-function sdRecalc(){const s=sales.find(x=>x.id===editingSaleId);if(!s)return;recalcSale(s);renderSdTotals(s);}
+function sdRecalc(){const s=sales.find(x=>x.id===editingSaleId);if(!s)return;if(saleOpening)return;saleEditDirty=true;recalcSale(s);renderSdTotals(s);}
 function saveEditedSale(){
   const s=sales.find(x=>x.id===editingSaleId);if(!s)return;
-  recalcSale(s);
+  /* Sólo se recalcula si hubo cambios reales: guardar sin tocar nada debe
+     dejar sub/descuento/total exactamente como se vendieron. */
+  if(saleEditDirty)recalcSale(s);
   s.discVal=parseFloat($i('sd-disc-val').value)||0;s.discType=$i('sd-disc-type').value;
   s.pay=$i('sd-pay').value;
   if($i('sd-split-toggle').checked){s.pay2=$i('sd-pay2').value;s.pay2amount=parseFloat($i('sd-pay2-amount').value)||0;}
@@ -3353,10 +3668,74 @@ function exportPluCsv(){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='plu_balanza_'+new Date().toLocaleDateString('es-AR').replace(/\//g,'-')+'.csv';a.click();
   toast('✅ CSV exportado — importalo en Qendra con el asistente de columnas');
 }
-function backupNow(){const bk={ts:Date.now(),products,movements,categories,users,sales,label:'Manual'};localBackups.unshift(bk);if(localBackups.length>10)localBackups=localBackups.slice(0,10);LS.set('bk',localBackups);const blob=new Blob([JSON.stringify(bk,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='stockpro_backup_'+new Date().toLocaleDateString('es-AR').replace(/\//g,'-')+'.json';a.click();renderBackup();toast('✅ Backup descargado');}
-function restoreBackup(input){const f=input.files[0];if(!f)return;pendingRestoreFile=f;input.value='';$i('confirm-msg').textContent='¿Restaurar desde este backup? Se reemplazarán TODOS los datos actuales.';$i('confirm-ok').onclick=function(){const r=new FileReader();r.onload=e=>{try{const bk=JSON.parse(e.target.result);products=bk.products||[];movements=bk.movements||[];categories=bk.categories||[];users=bk.users||[];sales=bk.sales||[];persist();refreshAll();renderBackup();closeO('m-confirm');toast('✅ Backup restaurado');}catch(err){toast('Error: '+err.message,'err');}};r.readAsText(pendingRestoreFile);};openO('m-confirm');}
-function restoreLocal(idx){$i('confirm-msg').textContent='¿Restaurar esta copia? Se reemplazarán los datos actuales.';$i('confirm-ok').onclick=function(){const bk=localBackups[idx];products=bk.products||[];movements=bk.movements||[];categories=bk.categories||[];users=bk.users||[];sales=bk.sales||[];persist();refreshAll();renderBackup();closeO('m-confirm');toast('✅ Restaurado');};openO('m-confirm');}
-function renderBackup(){const desc=$i('cloud-status-desc');if(desc){if(cloudMode&&sb)desc.innerHTML='<span style="color:var(--ok)">☁️ Conectado — sync automático cada 30 seg</span>';else desc.innerHTML='<span style="color:var(--warn)">⚠️ Modo local — datos solo en este dispositivo</span>';}const el=$i('bk-list');if(!localBackups.length){el.innerHTML='<div style="font-size:.78rem;color:var(--mu)">Sin copias guardadas.</div>';return;}el.innerHTML=localBackups.map((b,i)=>'<div class="bk-item"><div><div class="bk-name">'+(b.label||'Backup')+' · '+(b.products?.length||0)+' productos</div><div class="bk-date">'+fd(b.ts)+'</div></div><button class="btn bg bs" onclick="restoreLocal('+i+')">↩ Restaurar</button></div>').join('');}
+/* ═══ COPIA DE SEGURIDAD COMPLETA ═══
+   Antes sólo guardaba productos, movimientos, categorías, usuarios y ventas:
+   las compras a proveedores, los egresos y toda la configuración quedaban
+   FUERA de la copia. Ahora entra todo (y restoreLocal() lo restaura).
+   Los archivos viejos siguen sirviendo: lo que no traigan se conserva como
+   estaba, campo por campo. */
+function backupNow(){
+  const bk={ts:Date.now(),products,movements,categories,users,sales,label:'Manual',
+    provOrders:provOrders,provPayments:provPayments,provSuppliers:provSuppliers,provEgresos:provEgresos,
+    egresos:egresos,egresosDC:egresosDC,egresoCats:egresoCats,
+    contacts:contacts,ctaMovs:ctaMovs,cfg:cfg()};
+  localBackups.unshift(bk);
+  if(localBackups.length>10)localBackups=localBackups.slice(0,10);
+  LS.set('bk',localBackups);
+  const blob=new Blob([JSON.stringify(bk,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='stockpro_backup_'+new Date().toLocaleDateString('es-AR').replace(/\//g,'-')+'.json';
+  a.click();renderBackup();toast('✅ Backup descargado (productos, compras, egresos y configuración)');
+}
+function restoreBackup(input){const f=input.files[0];if(!f)return;pendingRestoreFile=f;input.value='';$i('confirm-msg').textContent='¿Restaurar desde este backup? Se reemplazarán TODOS los datos actuales.';$i('confirm-ok').onclick=function(){const r=new FileReader();r.onload=e=>{try{applyBackup(JSON.parse(e.target.result));closeO('m-confirm');toast('✅ Backup restaurado: productos, compras, egresos y configuración');}catch(err){toast('Error: '+err.message,'err');}};r.readAsText(pendingRestoreFile);};openO('m-confirm');}
+/* Restaura una copia —la que esté en el dispositivo o la de un archivo .json—.
+   Es el único camino de restauración: antes había dos y sólo una traía los
+   campos nuevos. Copias anteriores a esta versión no traen compras/egresos/
+   configuración: en ese caso se conserva lo que hay ahora, campo por campo. */
+function applyBackup(bk){
+  if(!bk||typeof bk!=='object')throw new Error('copia inválida');
+  products=bk.products||[];movements=bk.movements||[];categories=bk.categories||[];users=bk.users||[];sales=bk.sales||[];
+  const has=o=>Array.isArray(o);
+  if(has(bk.provOrders)){
+    provOrders=bk.provOrders;
+    /* Si la copia trae una compra que este equipo había borrado, hay que
+       sacarle el marcador: si no, loadFromCloud() la volvería a ocultar. */
+    const live={};provOrders.forEach(o=>{if(o&&o.id)live[o.id]=1;});
+    provDeleted.orders=provDeleted.orders.filter(id=>!live[id]);
+    provPending.orders=provPending.orders.filter(id=>!live[id]);
+    provSaveDeleted();
+  }
+  if(has(bk.provPayments)){
+    provPayments=bk.provPayments;
+    const liveP={};provPayments.forEach(p=>{if(p&&p.id)liveP[p.id]=1;});
+    provDeleted.payments=provDeleted.payments.filter(id=>!liveP[id]);
+    provPending.payments=provPending.payments.filter(id=>!liveP[id]);
+    provSaveDeleted();
+  }
+  if(has(bk.provSuppliers))provSuppliers=bk.provSuppliers;
+  if(has(bk.provEgresos)){provEgresos=bk.provEgresos;cfgDirty('prov_egresos');}
+  if(has(bk.egresos))egresos=bk.egresos;
+  if(has(bk.egresosDC))egresosDC=bk.egresosDC;
+  if(has(bk.egresoCats)&&bk.egresoCats.length){egresoCats=bk.egresoCats;LS.set('egcats',egresoCats);cfgDirty('egreso_cats');}
+  if(has(bk.contacts))contacts=bk.contacts;
+  if(has(bk.ctaMovs))ctaMovs=bk.ctaMovs;
+  if(bk.cfg&&typeof bk.cfg==='object'){
+    /* Se marca con la hora actual para que esta copia "gane" sobre lo que haya
+       en la nube: si no, el próximo sync pisaría lo recién restaurado. */
+    const rc=Object.assign({},bk.cfg);rc.ts=Date.now();
+    LS.set('cfg',rc);_roundCache=rc.roundPesos!==false;cfgDirty('settings');
+    try{if(typeof updateTicketPreview==='function')updateTicketPreview();}catch(e){}
+  }
+  persist();refreshAll();renderBackup();
+  return true;
+}
+function restoreLocal(idx){$i('confirm-msg').textContent='¿Restaurar esta copia? Se reemplazarán los datos actuales.';$i('confirm-ok').onclick=function(){
+  try{
+    applyBackup(localBackups[idx]);
+    closeO('m-confirm');toast('✅ Restaurado: productos, compras, egresos y configuración');
+  }catch(err){toast('Error: '+err.message,'err');}
+};openO('m-confirm');}
+function renderBackup(){const desc=$i('cloud-status-desc');if(desc){if(cloudMode&&sb)desc.innerHTML='<span style="color:var(--ok)">☁️ Conectado — sync automático cada 30 seg</span>';else desc.innerHTML='<span style="color:var(--warn)">⚠️ Modo local — datos solo en este dispositivo</span>';}const el=$i('bk-list');if(!localBackups.length){el.innerHTML='<div style="font-size:.78rem;color:var(--mu)">Sin copias guardadas.</div>';return;}el.innerHTML=localBackups.map((b,i)=>'<div class="bk-item"><div><div class="bk-name">'+(b.label||'Backup')+' · '+(b.products?.length||0)+' productos'+(b.provOrders&&b.provOrders.length?' · '+b.provOrders.length+' compras':'')+(b.egresos&&b.egresos.length?' · '+b.egresos.length+' egresos':'')+(b.cfg?' · ⚙️ config':'')+'</div><div class="bk-date">'+fd(b.ts)+'</div></div><button class="btn bg bs" onclick="restoreLocal('+i+')">↩ Restaurar</button></div>').join('');}
 
 // ══ REPORTES ══
 function getFilteredSales(){
@@ -3932,7 +4311,7 @@ function fillGastoCats(sel){
   const selEl=$i('gasto-cat');if(!selEl)return;
   const list=egCats();
   const want=(sel==null)?(selEl.value||''):(sel||'');
-  if(want&&want!=='__new__'&&list.indexOf(want)<0){list.push(want);egresoCats=list;LS.set('egcats',list);}
+  if(want&&want!=='__new__'&&list.indexOf(want)<0){list.push(want);egresoCats=list;LS.set('egcats',list);cfgDirty('egreso_cats');}
   const cur=(want&&want!=='__new__'&&list.indexOf(want)>=0)?want:'';
   selEl.innerHTML='<option value="">-- Seleccionar tipo --</option>'+list.map(c=>'<option value="'+gEsc(c)+'">'+gEsc(c)+'</option>').join('')+'<option value="__new__">➕ Nueva categoría…</option>';
   selEl.value=cur;
@@ -3949,7 +4328,7 @@ function saveGastoCatNew(){
   const list=egCats();
   const found=list.find(c=>c.toLowerCase()===name.toLowerCase());
   if(found)return found;
-  list.push(name);egresoCats=list;LS.set('egcats',list);
+  list.push(name);egresoCats=list;LS.set('egcats',list);cfgDirty('egreso_cats');
   return name;
 }
 function addGastoCatQuick(){
@@ -3964,7 +4343,7 @@ function addGastoCatQuick(){
   }
   const found=list.find(c=>c.toLowerCase()===name.toLowerCase());
   const final=found||name;
-  if(!found){list.push(name);egresoCats=list;LS.set('egcats',list);}
+  if(!found){list.push(name);egresoCats=list;LS.set('egcats',list);cfgDirty('egreso_cats');}
   if(inp)inp.value='';
   fillGastoCats(final);onGastoCatChg();renderGastoCats();
   const l=$i('gasto-cats-list');if(l)l.style.display='block';
@@ -3987,7 +4366,7 @@ function renderGastoCats(){
 function delGastoCat(i){
   const list=egCats();const name=list[i];
   if(name&&EG_CATS_DEF.indexOf(name)>=0){toast('No se puede eliminar una categoría base','err');return;}
-  egresoCats=list.filter((_,k)=>k!==i);LS.set('egcats',egresoCats);
+  egresoCats=list.filter((_,k)=>k!==i);LS.set('egcats',egresoCats);cfgDirty('egreso_cats');
   fillGastoCats('');onGastoCatChg();renderGastoCats();
   toast('Categoría eliminada');
 }
@@ -4811,10 +5190,15 @@ function renderProvCarrito(){
   const on=provIvaOn();
   let ts=0,tax=0;
   provCarrito.forEach(i=>{const base=(spNum(i.cost))*(spNum(i.qty)||1)-spNum(i.discount);ts+=base;if(on)tax+=base*((i.taxPct==null?21:spNum(i.taxPct))/100);});
-  const total=ts+tax;
+  const base=ts+tax;
+  /* Descuento general: sólo baja lo que se le paga al proveedor. No toca el
+     costo de las líneas ni el precio de venta de los productos. */
+  const elD=document.getElementById('prov-discount'),elT=document.getElementById('prov-discount-type'),elF=document.getElementById('prov-final-price');
+  const disc=spOrderDiscount(base,elD?elD.value:0,elT?elT.value:'$');
+  const total=spOrderTotal(base,disc,elF?elF.value:0);
   const f=v=>'$'+Number(v||0).toFixed(2).replace('.',',');
-  const se=document.getElementById('prov-subtotal'),ie=document.getElementById('prov-iva-total'),te=document.getElementById('prov-total');
-  if(se)se.textContent=f(ts);if(ie)ie.textContent=f(tax);if(te)te.textContent=f(total);
+  const se=document.getElementById('prov-subtotal'),ie=document.getElementById('prov-iva-total'),te=document.getElementById('prov-total'),de=document.getElementById('prov-discount-view');
+  if(se)se.textContent=f(ts);if(ie)ie.textContent=f(tax);if(te)te.textContent=f(total);if(de)de.textContent=disc>0?'−'+f(disc):f(0);
 }
 
 function filterProducts(){
@@ -4898,8 +5282,15 @@ function savePurchaseOrder(){
      coincidía con Subtotal + Impuesto. */
   let subTot=0,taxTot=0;
   provCarrito.forEach(i=>{const base=spNum(i.cost)*(spNum(i.qty)||1)-spNum(i.discount);subTot+=base;if(includeIva)taxTot+=base*((i.taxPct==null?21:spNum(i.taxPct))/100);});
-  const totalCost=subTot+taxTot;
-  provOrders.push({id:'order_'+uid(),supplier,date:new Date(date).getTime(),items:provCarrito.map(i=>({...i})),totalCost,subTotal:subTot,taxTotal:taxTot,paid:0,status,notes:'',affectPrice,includeIva});
+  /* Descuento general (monto $ o %) + precio final: bajan SÓLO el total de la
+     orden, que es lo que se le paga al proveedor. El costo unitario de cada
+     línea —y por lo tanto lo que queda en Productos— no se toca. */
+  const dEl=document.getElementById('prov-discount'),tEl=document.getElementById('prov-discount-type'),nEl=document.getElementById('prov-discount-note'),fEl=document.getElementById('prov-final-price');
+  const discountValue=spNum(dEl?dEl.value:0),discountType=(tEl&&tEl.value==='%')?'%':'$',discountNote=(nEl?nEl.value:'').trim(),finalPrice=spNum(fEl?fEl.value:0);
+  const gross=subTot+taxTot;
+  const discountTotal=spOrderDiscount(gross,discountValue,discountType);
+  const totalCost=spOrderTotal(gross,discountTotal,finalPrice);
+  provOrders.push({id:'order_'+uid(),supplier,date:new Date(date).getTime(),items:provCarrito.map(i=>({...i})),totalCost,subTotal:subTot,taxTotal:taxTot,gross,discountValue,discountType,discountNote,discountTotal,finalPrice,paid:0,status,notes:'',affectPrice,includeIva});
   provCarrito.forEach(item=>{const product=products.find(p=>p.id===item.productId);if(product&&item.productId)product.stock=(product.stock||0)+(item.qty||0);});
   /* Costo del producto = lo que se paga por unidad (con el impuesto si está
      activado) y precio de venta solo si está marcada "Afectar precio de venta".
@@ -4912,7 +5303,11 @@ function savePurchaseOrder(){
      y loadFromCloud() (cada 30s) lo pisaba con lo que hay en la nube. */
   saveProductsData();persist();
   if(!provSuppliers.includes(supplier))provSuppliers.push(supplier);
-  saveProvData();alert('✅ Orden creada. Stock actualizado.');
+  saveProvData();
+  /* Descuento/nota/precio final son de ESTA compra: el formulario queda limpio
+     para la siguiente (se limpia ANTES de redibujar los totales). */
+  if(dEl)dEl.value='0';if(tEl)tEl.value='$';if(nEl)nEl.value='';if(fEl)fEl.value='';
+  alert('✅ Orden creada. Stock actualizado.');
   provCarrito=[];renderProvCarrito();renderProductsSelectInProv();renderProvPurchases();refreshAll();
 }
 
@@ -5036,6 +5431,7 @@ function registrarEgreso(){
     notas,
     tipoPago
   });
+  cfgDirty('prov_egresos');
   
   saveProvData();
   alert('Egreso registrado');
