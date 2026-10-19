@@ -332,6 +332,9 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
 " onfocus="scanTarget='pos';renderPosSearch()" onchange="renderPosSearch()" onblur="setTimeout(()=>hidePosSearch(),200)" style="width:100%;font-size:1.1rem;padding:14px 16px;box-sizing:border-box" autofocus="">
               <div id="pos-search-results" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.35);max-height:280px;overflow-y:auto;z-index:5;max-width:100%"></div>
               <datalist id="pos-q-nolist"></datalist>
+              <!-- Datalist vacío compartido: al apuntarle el navegador NO ofrece
+                   búsquedas anteriores (globo blanco) en ningún campo de search. -->
+              <datalist id="sug-nolist"></datalist>
             </div>
             <button class="btn bg" onclick="openScan(&#39;pos&#39;)" title="Cámara" style="font-size:1.2rem;padding:0 18px">📷</button>
             <button class="btn bg" onclick="clearCart()" title="Limpiar carrito" style="font-size:1.2rem;padding:0 18px">🗑</button>
@@ -378,6 +381,15 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
     <!-- DASHBOARD -->
     <div class="view" id="view-dashboard">
       <div class="sec-hdr"><div class="sec-t">Resumen</div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn bg bs" onclick="exportSalesReportPDF()">📥 Descargar PDF hoy</button><button class="btn bg bs" onclick="exportSalesReportPDF(prompt('Fecha (YYYY-MM-DD):', new Date().toISOString().split(\"T\")[0]))">📅 PDF fecha</button><button class="btn bp bs" onclick="openProd(null)">+ Nuevo producto</button></div></div>
+      <!-- FILTRO POR RANGO DE FECHAS: alimenta las tarjetas "del período" y la tabla de compras -->
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:9px 11px;margin-bottom:12px">
+        <span style="font-size:.8rem;font-weight:600">🗓️ Rango de fechas</span>
+        <input type="date" id="d-desde" onchange="renderDash()" title="Desde" style="padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s2);font-size:.83rem">
+        <span style="color:var(--mu);font-size:.8rem">hasta</span>
+        <input type="date" id="d-hasta" onchange="renderDash()" title="Hasta" style="padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s2);font-size:.83rem">
+        <button class="btn bg bs" onclick="dashClearDates()">✖ Sin filtro</button>
+        <span id="dash-range-lbl" style="font-size:.75rem;color:var(--mu);margin-left:auto"></span>
+      </div>
       <div class="stats-grid">
         <div class="stat" data-i="📦"><div class="sl">Productos</div><div class="sv cy" id="s-tot">0</div></div>
         <div class="stat" data-i="✅"><div class="sl">En stock</div><div class="sv cg" id="s-ok">0</div></div>
@@ -387,7 +399,13 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
         <div class="stat" data-i="📈"><div class="sl">Margen promedio</div><div class="sv cg" id="s-mg">0%</div></div>
         <div class="stat" data-i="🧾"><div class="sl">Ventas hoy</div><div class="sv cy" id="s-vhoy">$0</div></div>
         <div class="stat" data-i="📅"><div class="sl">Ventas del mes</div><div class="sv cg" id="s-vmes">$0</div></div>
+        <div class="stat" data-i="🗓️"><div class="sl">Ventas del período</div><div class="sv cy" id="s-vper" style="font-size:1rem">$0</div></div>
+        <div class="stat" data-i="🛒"><div class="sl">Compras del período</div><div class="sv cb" id="s-cper" style="font-size:1rem">$0</div></div>
+        <div class="stat" data-i="💳"><div class="sl">Compras pagadas</div><div class="sv cg" id="s-cpag" style="font-size:1rem">$0</div></div>
+        <div class="stat" data-i="⏳"><div class="sl">Compras a pagar</div><div class="sv cr" id="s-cpen" style="font-size:1rem">$0</div></div>
       </div>
+      <div class="sec-hdr"><div class="sec-t">🛒 Compras a proveedores</div><button class="btn bg bs" onclick="nav(&#39;proveedores&#39;,null)">Ver Proveedores →</button></div>
+      <div class="tblw"><table><thead><tr><th>PROVEEDOR</th><th>ÓRDENES</th><th style="text-align:right">COMPRAS</th><th style="text-align:right">PAGADO</th><th style="text-align:right">SALDO</th><th style="text-align:right">ÚLTIMA</th></tr></thead><tbody id="dash-prov-tb"></tbody></table></div>
       <div class="sec-hdr"><div class="sec-t">Últimos movimientos</div><button class="btn bg bs" onclick="nav(&#39;movimientos&#39;,null)">Ver todos →</button></div>
       <div class="mvl" id="dash-mv"></div>
     </div>
@@ -406,8 +424,9 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-        <input type="text" id="pq" placeholder="🔍 Nombre, SKU o código..." oninput="renderTbl()" style="flex:1;min-width:160px">
+        <input type="text" id="pq" placeholder="🔍 Nombre, marca, SKU, código o proveedor..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" list="sug-nolist" oninput="renderTbl()" style="flex:1;min-width:160px">
         <select id="pcat" onchange="renderTbl()"><option value="">Todas las categorías</option></select>
+        <select id="pprov" onchange="renderTbl()" title="Filtrar por proveedor"><option value="">Todos los proveedores</option></select>
         <select id="pst" onchange="renderTbl()"><option value="">Todo</option><option value="ok">En stock</option><option value="low">Stock bajo</option><option value="out">Sin stock</option></select>
       </div>
       <div id="bulk-bar">
@@ -430,7 +449,13 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
     <div class="view" id="view-ventas">
       <div class="sec-hdr">
         <div class="sec-t">Historial de ventas</div>
-        <select id="vfilt" onchange="renderSales()"><option value="all">Todo</option><option value="today">Hoy</option><option value="week">Esta semana</option><option value="month">Este mes</option></select>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <input type="date" id="vf-desde" onchange="renderSales()" title="Desde" style="padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s2);font-size:.83rem">
+          <span style="color:var(--mu);font-size:.78rem">hasta</span>
+          <input type="date" id="vf-hasta" onchange="renderSales()" title="Hasta" style="padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s2);font-size:.83rem">
+          <button class="btn bg bs" onclick="salesClearDates()" title="Quitar el rango de fechas">✖</button>
+          <select id="vfilt" onchange="renderSales()"><option value="all">Todo</option><option value="today">Hoy</option><option value="week">Esta semana</option><option value="month">Este mes</option></select>
+        </div>
       </div>
       <div class="stats-grid" style="margin-bottom:16px">
         <div class="stat" data-i="🧾"><div class="sl">Total ventas</div><div class="sv cy" id="vs-count">0</div></div>
@@ -500,7 +525,7 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-        <input type="text" id="mq" placeholder="🔍 Buscar..." oninput="renderMov()" style="flex:1;min-width:150px">
+        <input type="text" id="mq" placeholder="🔍 Buscar..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" list="sug-nolist" oninput="renderMov()" style="flex:1;min-width:150px">
         <select id="mtype" onchange="renderMov()"><option value="">Todos</option><option value="entrada">Entradas</option><option value="salida">Salidas</option><option value="ajuste">Ajustes</option><option value="venta">Ventas</option></select>
       </div>
       <div class="mvl" id="all-mv"></div>
@@ -831,7 +856,7 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
           El escáner simula el teclado pero escribe muy rápido, y StockPro lo detecta como código.<br><br>
           <strong style="color:var(--ac)">Probá tu escáner acá:</strong>
         </div>
-        <input type="text" id="scan-test-input" placeholder="Escaneá un código de barras aquí..." style="width:100%;font-size:.95rem;padding:10px 14px" oninput="testScanInput(this)">
+        <input type="text" id="scan-test-input" placeholder="Escaneá un código de barras aquí..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" list="sug-nolist" style="width:100%;font-size:.95rem;padding:10px 14px" oninput="testScanInput(this)">
         <div id="scan-test-result" style="margin-top:8px;font-size:.82rem;min-height:20px"></div>
       </div>
       <div class="cfg-section">
@@ -908,7 +933,7 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
 
             <!-- BUSCADOR DE PRODUCTOS -->
             <div style="background:var(--s2);padding:12px;border-radius:8px;margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-              <input type="text" id="prov-search" placeholder="🔍 Nombre / SKU / Código de barras..." oninput="filterProducts()" style="flex:1;min-width:250px;padding:10px;border:1px solid var(--bd);border-radius:4px;font-size:.95rem">
+              <input type="text" id="prov-search" placeholder="🔍 Nombre / marca / SKU / Código / proveedor..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" list="sug-nolist" oninput="filterProducts()" style="flex:1;min-width:250px;padding:10px;border:1px solid var(--bd);border-radius:4px;font-size:.95rem">
               <button class="btn bg" onclick="goNuevoProducto()" style="padding:10px 16px">➕ Nuevo Producto</button>
               <span id="prov-iva-toggle" style="font-size:.8rem;color:var(--mu);padding:8px">IMPUESTO: <span id="prov-iva-rate">21</span>%</span>
             </div>
@@ -1079,7 +1104,16 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
         
         <!-- TAB: HISTORIAL -->
         <div id="prov-tab-historial" style="display:none">
-          <h3>Órdenes de Compra</h3>
+          <h3>Órdenes de compra</h3>
+          <!-- FILTRO POR RANGO DE FECHAS del historial de proveedores -->
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;background:var(--s2);padding:10px 12px;border-radius:8px">
+            <span style="font-size:.8rem;font-weight:600">🗓️ Rango de fechas</span>
+            <input type="date" id="h-desde" onchange="renderHistorial()" title="Desde" style="padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s1);font-size:.83rem">
+            <span style="color:var(--mu);font-size:.78rem">hasta</span>
+            <input type="date" id="h-hasta" onchange="renderHistorial()" title="Hasta" style="padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s1);font-size:.83rem">
+            <button class="btn bg bs" onclick="histClearDates()">✖ Sin filtro</button>
+            <span id="h-range-lbl" style="font-size:.75rem;color:var(--mu);margin-left:auto"></span>
+          </div>
           <div id="prov-historial" style="display:grid;gap:12px"></div>
         </div>
         
@@ -1111,7 +1145,7 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
     <div class="mt">📋 Actualización rápida de stock</div>
     <div style="font-size:.78rem;color:var(--mu);margin-bottom:12px">Para productos que ya tenés en el local — no genera ninguna compra ni afecta cuentas con proveedores, solo ajusta el stock.</div>
     <div style="position:relative;margin-bottom:10px">
-      <input type="text" id="qs-search" placeholder="🔍 Buscar o escanear producto..." oninput="renderQsSearch()" onfocus="renderQsSearch()" onblur="setTimeout(hideQsSearch,180)" style="width:100%;box-sizing:border-box">
+      <input type="text" id="qs-search" placeholder="🔍 Buscar o escanear producto..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" list="sug-nolist" oninput="renderQsSearch()" onfocus="renderQsSearch()" onblur="setTimeout(hideQsSearch,180)" style="width:100%;box-sizing:border-box">
       <div id="qs-search-results" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.35);max-height:280px;overflow-y:auto;z-index:50"></div>
       <button class="btn bg bs" onclick="openScan(&#39;quickstock&#39;)" style="position:absolute;right:6px;top:6px" title="Escanear">📷</button>
     </div>
@@ -1222,7 +1256,7 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
       <div class="fg"><label class="fl">Redondeo precio venta</label><select id="eg-round"><option value="1">Sin redondeo</option><option value="10">Al $10</option><option value="50">Al $50</option><option value="100">Al $100</option></select></div>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
-      <input type="text" id="eg-search" placeholder="🔍 Buscar producto por nombre, SKU o código..." style="flex:1;min-width:200px" oninput="renderEgSearch()">
+      <input type="text" id="eg-search" placeholder="🔍 Buscar producto por nombre, marca, SKU o código..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" list="sug-nolist" style="flex:1;min-width:200px" oninput="renderEgSearch()">
       <button class="btn bp bs" onclick="toggleEgNewProdForm()">+ Crear producto nuevo</button>
     </div>
     <div id="eg-search-results" style="max-height:170px;overflow-y:auto;border:1px solid var(--bd);border-radius:8px;margin-bottom:10px;display:none"></div>
@@ -1486,7 +1520,7 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
       <div style="display:flex;flex-direction:column;padding:12px;gap:8px;overflow:hidden;border-right:1px solid var(--bd)">
         <div style="font-size:.72rem;color:var(--ac);text-transform:uppercase;letter-spacing:.06em;font-weight:600">Agregá productos a esta venta</div>
         <div style="display:flex;gap:7px;flex-shrink:0;flex-wrap:wrap">
-          <input type="text" id="sd-search" placeholder="🔍 Escribí o escaneá para buscar..." oninput="renderSdGrid()" style="flex:1;min-width:130px;padding:9px 12px;font-size:.9rem">
+          <input type="text" id="sd-search" placeholder="🔍 Escribí o escaneá para buscar..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" list="sug-nolist" oninput="renderSdGrid()" style="flex:1;min-width:130px;padding:9px 12px;font-size:.9rem">
           <select id="sd-cat" onchange="renderSdGrid()" style="min-width:110px"><option value="">Todas las categorías</option></select>
           <button class="btn bg bs" onclick="openScan(&#39;sd&#39;)">📷</button>
         </div>
@@ -1806,7 +1840,12 @@ async function loadFromCloud(){
       const ids=new Set(rpo.map(r=>r&&r.id));
       if(rpo.length){
         const dOrd=provDeleted.orders;
-        provOrders=rpo.map(r=>r.data).filter(o=>o&&o.deleted!==true&&dOrd.indexOf(o.id)<0)
+        /* Gana la copia MÁS NUEVA (campo `upd`, que se pone al modificarla):
+           así un equipo con la orden vieja en memoria no sube su versión
+           anterior ni "reedita" los precios recién cambiados en otro equipo. */
+        const locOrd={};provOrders.forEach(o=>{if(o&&o.id)locOrd[o.id]=o;});
+        provOrders=rpo.map(function(r){const c=r&&r.data;if(!c)return null;const l=locOrd[c.id];if(l&&spNum(l.upd)>spNum(c.upd))return l;return c;})
+          .filter(o=>o&&o.deleted!==true&&dOrd.indexOf(o.id)<0)
           .concat(provOrders.filter(o=>o&&o.deleted!==true&&!ids.has(o.id)&&dOrd.indexOf(o.id)<0));
       }
       /* Marcador permanente + RE-TUMBA: si otra PC subió de vuelta una compra
@@ -1823,7 +1862,9 @@ async function loadFromCloud(){
       const idsP=new Set(rpy.map(r=>r&&r.id));
       if(rpy.length){
         const dPay=provDeleted.payments;
-        provPayments=rpy.map(r=>r.data).filter(p=>p&&p.deleted!==true&&dPay.indexOf(p.id)<0)
+        const locPay={};provPayments.forEach(p=>{if(p&&p.id)locPay[p.id]=p;});
+        provPayments=rpy.map(function(r){const c=r&&r.data;if(!c)return null;const l=locPay[c.id];if(l&&spNum(l.upd)>spNum(c.upd))return l;return c;})
+          .filter(p=>p&&p.deleted!==true&&dPay.indexOf(p.id)<0)
           .concat(provPayments.filter(p=>p&&p.deleted!==true&&(!p.id||!idsP.has(p.id))&&dPay.indexOf(p.id)<0));
       }
       provPending.payments=provDeleted.payments.filter(id=>idsP.has(id));
@@ -2110,6 +2151,11 @@ function importProvExcel(input){
 }
 // ══ ÓRDENES: EDITAR / PAGOS / ELIMINAR ══
 let ordDraft=null,ordPays=[],ordLegacy=0,ordItemsSnap='';
+/* Fotografías de la orden al abrirla el modal: sirven para distinguir
+   "vengo a registrar un PAGO" de "vengo a editar la compra". Si no cambió
+   nada más que los pagos, ordSave() no recalcula totales ni toca costos y
+   precios de Productos (así un pago nunca reedita los precios de la compra). */
+let ordOrigSnap='',ordHdrSnap='',ordPaysSnap='',ordItemsDirty=false;
 /* ── Descuento general de una compra ────────────────────────────────────────
    Dos formas de cargarlo: un MONTO fijo ($) o un PORCENTAJE (%) sobre el
    total bruto (Subtotal + Impuesto). Se aplica SÓLO al total de la orden,
@@ -2156,7 +2202,7 @@ function ordTotals(){
   if(dv)dv.textContent=disc>0?'−$'+fn(disc):'$'+fn(0);
   return total;
 }
-function ordToggleIva(){if(!ordDraft)return;const cb=$i('ord-include-iva');ordDraft.includeIva=!!(cb&&cb.checked);ordRender();}
+function ordToggleIva(){if(!ordDraft)return;const cb=$i('ord-include-iva');ordDraft.includeIva=!!(cb&&cb.checked);ordItemsDirty=true;ordRender();}
 function ordToggleAffect(){if(!ordDraft)return;const cb=$i('ord-affect-price');ordDraft.affectPrice=!!(cb&&cb.checked);}
 /* ── Búsqueda / escaneo de productos dentro de la EDICIÓN de la compra ─────
    Mismo criterio que el buscador del carrito de creación (prov-search):
@@ -2169,7 +2215,7 @@ function ordSearchList(q){
   const nz=ordSearchNormalize,qy=nz(String(q||'').trim());
   if(!qy)return[];
   const raw=String(q||'').trim();
-  return products.filter(p=>nz(p.name).includes(qy)||nz(p.sku).includes(qy)||nz(p.barcode).includes(qy)||String(p.barcode||'').trim()===raw||String(p.sku||'').trim()===raw);
+  return products.filter(p=>nz(p.name).includes(qy)||nz(p.sku).includes(qy)||nz(p.barcode).includes(qy)||nz(p.marca).includes(qy)||nz(p.proveedor).includes(qy)||String(p.barcode||'').trim()===raw||String(p.sku||'').trim()===raw);
 }
 function ordFilterProducts(){
   const inp=$i('ord-search'),box=$i('ord-search-results');
@@ -2214,11 +2260,16 @@ function ordPickProduct(pid){
 function ordOpen(id){
   const o=provOrders.find(x=>x.id===id);
   if(!o){toast('Orden no encontrada','err');return;}
+  /* Fotografías del estado ORIGINAL de la orden (la de la lista, sin tocar):
+     son las que permiten guardar sólo el pago sin recalcular nada. */
+  ordOrigSnap=JSON.stringify(o);
+  ordItemsDirty=false;
   ordDraft=JSON.parse(JSON.stringify(o));
   if(!Array.isArray(ordDraft.items))ordDraft.items=[];
   ordDraft.items.forEach(it=>{if(it.qty==null||it.qty==='')it.qty=1;if(it.cost==null)it.cost=0;if(it.discount==null)it.discount=0;if(it.taxPct==null)it.taxPct=0;if(it.profitPct==null)it.profitPct=0;if(it.rounding==null)it.rounding=0;});
   ordPays=provPayments.filter(p=>p.orderId===id).map(p=>Object.assign({},p));
   ordLegacy=Math.max(0,spNum(ordDraft.paid)-ordPays.reduce((s,p)=>s+spNum(p.amount),0));
+  ordPaysSnap=JSON.stringify(ordPays)+'|'+ordLegacy;
   $i('ord-t').textContent='✏️ Orden de compra · '+(ordDraft.supplier||'');
   $i('ord-supplier').value=ordDraft.supplier||'';
   $i('ord-date').value=ordDateInput(ordDraft.date);
@@ -2243,7 +2294,25 @@ function ordOpen(id){
      cambios en la compra. Así, agregar un PAGO no vuelve a pisar los precios
      de Productos con valores viejos de la orden. */
   ordItemsSnap=JSON.stringify(ordDraft.items);
+  ordHdrSnap=ordHdrVals();
   openO('m-ord');
+}
+/* Valores del formulario de la compra (todo lo que NO son pagos): si al
+   guardar siguen iguales y no se tocaron los ítems, la orden se guarda
+   TAL CUAL estaba y sólo se le suman los pagos. */
+function ordHdrVals(){
+  const el=id=>{const e=$i(id);return e?String(e.value==null?'':e.value):'';};
+  return JSON.stringify({
+    sup:el('ord-supplier').trim(),
+    fecha:el('ord-date'),
+    notes:el('ord-notes'),
+    iva:!!($i('ord-include-iva')&&$i('ord-include-iva').checked),
+    apc:!!($i('ord-affect-price')&&$i('ord-affect-price').checked),
+    dv:el('ord-discount'),
+    dt:el('ord-discount-type'),
+    dn:el('ord-discount-note'),
+    fp:el('ord-final-price')
+  });
 }
 function ordRender(){
   const incl=!!ordDraft.includeIva;
@@ -2274,6 +2343,7 @@ function ordRender(){
 }
 function ordItem(i,f,v){
   const it=ordDraft&&ordDraft.items[i];if(!it)return;
+  ordItemsDirty=true;
   if(['qty','cost','discount','taxPct','profitPct','rounding','priceManual'].indexOf(f)>-1)it[f]=spNum(v);else it[f]=v;
   /* Igual que en el carrito: al tocar costo, % de ganancia o redondeo se
      descarta un precio de venta cargado a mano para que vuelva a salir del %. */
@@ -2299,9 +2369,10 @@ function ordAddItem(){
     ordDraft.items.push(Object.assign({id:'oi_'+Date.now(),productId:p.id,name:p.name,qty:1,discount:0,priceWithIva:0,priceWithoutIva:0},s));
   }
   sel.value='';
+  ordItemsDirty=true;
   ordRender();
 }
-function ordDelItem(i){if(!ordDraft)return;ordDraft.items.splice(i,1);ordRender();}
+function ordDelItem(i){if(!ordDraft)return;ordItemsDirty=true;ordDraft.items.splice(i,1);ordRender();}
 function ordAddPay(){
   const amt=spNum($i('ord-pay-amt').value);
   if(amt<=0){toast('Ingresá un monto','err');return;}
@@ -2319,6 +2390,36 @@ function ordSave(){
   if(!fecha){toast('Fecha obligatoria','err');return;}
   const idx=provOrders.findIndex(o=>o.id===ordDraft.id);
   if(idx<0){toast('Orden no encontrada','err');return;}
+  /* ═══ SOLO PAGO / ESTADO ═══
+     Si no se tocaron los ítems ni ningún dato de la compra (proveedor, fecha,
+     notas, IVA, descuento, precio final), "Guardar cambios" NO recalcula el
+     total de la orden ni escribe nada en Productos: sólo se registran los
+     pagos y el estado. Registrar un pago nunca reedita precios. */
+  const itemsChanged=(ordItemsDirty===true)||(JSON.stringify(ordDraft.items)!==ordItemsSnap);
+  const hdrChanged=ordHdrVals()!==ordHdrSnap;
+  const paysChanged=(JSON.stringify(ordPays)+'|'+ordLegacy)!==ordPaysSnap;
+  let origOnly=null;
+  if(!itemsChanged&&!hdrChanged&&ordOrigSnap){try{origOnly=JSON.parse(ordOrigSnap);}catch(e){origOnly=null;}}
+  if(origOnly&&origOnly.id===ordDraft.id){
+    const stt0=$i('ord-status').value||origOnly.status||'pendiente';
+    const paidO=ordLegacy+ordPays.reduce((s,p)=>s+spNum(p.amount),0);
+    const totO=spNum(origOnly.totalCost);
+    let stt=stt0;
+    if(totO>0&&paidO>=totO-0.005)stt='pagado';
+    else if(paidO<0.005&&(stt==='pagado'||stt==='parcial'))stt='pendiente';
+    else if(paidO>0.005&&stt==='pagado')stt='parcial';
+    else if(paidO>0.005&&paidO<totO-0.005&&stt==='pendiente')stt='parcial';
+    origOnly.paid=paidO;origOnly.status=stt;origOnly.upd=Date.now();
+    provOrders[idx]=origOnly;
+    provPayments=provPayments.filter(p=>p.orderId!==origOnly.id).concat(ordPays.map(p=>{if(!p.id)p.id=uid();return p;}));
+    if(provSuppliers.indexOf(sup)<0)provSuppliers.push(sup);
+    saveProvData();
+    ordDraft=null;ordPays=[];ordLegacy=0;
+    closeO('m-ord');
+    provRefreshOrders();
+    toast(paysChanged?'✅ Pago registrado':'✅ Orden actualizada');
+    return;
+  }
   ordDraft.supplier=sup;ordDraft.date=new Date(fecha).getTime();ordDraft.notes=$i('ord-notes').value.trim();
   ordDraft.includeIva=!!($i('ord-include-iva')&&$i('ord-include-iva').checked);
   const apc=$i('ord-affect-price');if(apc)ordDraft.affectPrice=!!apc.checked;
@@ -2336,8 +2437,8 @@ function ordSave(){
      de venta". Si solo se tocaron pagos, descuentos o el estado, no se toca
      nada: así no se pisan precios corregidos a mano en Productos. */
   let stockTxt=[];
-  if(JSON.stringify(ordDraft.items)!==ordItemsSnap){
-    provApplyItemsToProducts(ordDraft.items,!!ordDraft.includeIva,!!ordDraft.affectPrice);
+  if(itemsChanged){
+    provApplyItemsToProducts(ordDraft.items,!!ordDraft.includeIva,!!ordDraft.affectPrice,ordDraft.supplier);
     /* STOCK por DIFERENCIA de cantidades. Al crear la compra se suma la
        cantidad entera; al editar sólo se aplica lo que cambió (4,5 → 6 =
        +1,5; quitar la línea = −4,5). Así, guardar dos veces la misma orden
@@ -2373,6 +2474,9 @@ function ordSave(){
   else if(paid>0.005&&st==='pagado')st='parcial';
   else if(paid>0.005&&paid<total-0.005&&st==='pendiente')st='parcial';
   ordDraft.status=st;
+  /* Marca de última modificación: loadFromCloud() respeta la copia más nueva
+     de cada equipo, así otra PC con una orden vieja no pisa este guardado. */
+  ordDraft.upd=Date.now();
   provOrders[idx]=ordDraft;
   provPayments=provPayments.filter(p=>p.orderId!==ordDraft.id).concat(ordPays.map(p=>{if(!p.id)p.id=uid();return p;}));
   if(provSuppliers.indexOf(sup)<0)provSuppliers.push(sup);
@@ -2628,7 +2732,11 @@ function cfgApplyRemote(row){
   if(!row||!row.data)return false;
   const local=LS.get('cfg')||null;
   const rt=row.data.ts||0,lt=(local&&local.ts)||0;
-  if(!rt||(lt&&rt<=lt))return false;
+  /* lt = 0 ⇒ este equipo no tocó la configuración (o se borró la caché del
+     navegador): se aplica lo remoto AUNQUE no traiga fecha. Antes un `ts`
+     faltante en la nube dejaba la pantalla de Configuración en cero
+     (nombre, ticket y formas de pago). Con fecha local, gana lo más nuevo. */
+  if(lt&&rt<=lt)return false;
   LS.set('cfg',row.data);
   _roundCache=row.data.roundPesos!==false;
   try{if(typeof updateTicketPreview==='function')updateTicketPreview();}catch(e){}
@@ -2641,16 +2749,59 @@ function cfgApplyRemote(row){
 function cfgApplyBlob(id,row){
   if(!row||!row.data||!Array.isArray(row.data.items))return false;
   const rt=row.data.ts||0,lt=(_blobTs&&_blobTs[id])||0;
-  if(!rt||(lt&&rt<=lt))return false;
+  /* Mismo criterio: blobts=0 (cache borrada o nunca modificado) ⇒ aplicar
+     lo que venga de la nube. Así vuelven los motivos de gasto guardados y las
+     compras de Doña Cocina en los dos módulos de Egresos. */
+  if(lt&&rt<=lt)return false;
   if(id==='egreso_cats'){egresoCats=row.data.items;LS.set('egcats',egresoCats);}
   else if(id==='prov_egresos'){
     provEgresos=row.data.items;
     try{localStorage.setItem('prov_egresos',JSON.stringify(provEgresos));}catch(e){}
     try{if(typeof renderProvEgresosList==='function')renderProvEgresosList();}catch(e){}
   }else return false;
-  if(!_blobTs)_blobTs={};_blobTs[id]=rt;LS.set('blobts',_blobTs);
+  if(!_blobTs)_blobTs={};_blobTs[id]=rt||lt||Date.now();LS.set('blobts',_blobTs);
   return true;
 }
+/* Sincronía de configuración AL ARRANCAR, hecha aparte del Promise.all
+   grande de loadFromCloud(): si otra tabla fallaba, la configuración nunca
+   llegaba a aplicarse. Lee sólo la tabla `config` y además SUBE lo local
+   cuando la nube está vacía (o cuando lo local es más nuevo), así la próxima
+   vez que se borre la caché hay algo que restaurar. */
+async function cfgRestoreFromCloud(){
+  try{
+    const rows=await cfgFetch();
+    if(!Array.isArray(rows)||!rows.length)return false;
+    const by={};rows.forEach(function(r){if(r&&r.id)by[r.id]=r;});
+    let ok=false;
+    ok=cfgApplyRemote(by.settings)||ok;
+    ok=cfgApplyBlob('egreso_cats',by.egreso_cats)||ok;
+    ok=cfgApplyBlob('prov_egresos',by.prov_egresos)||ok;
+    /* Subida de lo que tiene este equipo y la nube no (o lo local más nuevo). */
+    const up=[];
+    const rtOf=r=>(r&&r.data&&r.data.ts)||0;
+    const local=LS.get('cfg')||null,lt=(local&&local.ts)||0,rt0=rtOf(by.settings);
+    if(lt&&lt>rt0)up.push({id:'settings',data:local});
+    if(_blobTs&&_blobTs['egreso_cats']&&_blobTs['egreso_cats']>rtOf(by.egreso_cats)&&Array.isArray(egresoCats)&&egresoCats.length)
+      up.push({id:'egreso_cats',data:{ts:_blobTs['egreso_cats'],items:egresoCats}});
+    if(_blobTs&&_blobTs['prov_egresos']&&_blobTs['prov_egresos']>rtOf(by.prov_egresos)&&Array.isArray(provEgresos))
+      up.push({id:'prov_egresos',data:{ts:_blobTs['prov_egresos'],items:provEgresos}});
+    if(up.length&&cloudMode&&sb){
+      const r=await sb.from('config').upsert(up,{onConflict:'id'});
+      if(r&&r.error)console.warn('config push:',r.error);else ok=true;
+    }
+    return ok;
+  }catch(e){console.warn('cfgRestoreFromCloud:',e);return false;}
+}
+/* Si el usuario cierra la pestaña o cambia de app con un cambio de
+   configuración a medio empujar (timer de 800 ms), se manda YA. */
+function cfgFlushPending(){
+  try{
+    if(_cfgTimer){clearTimeout(_cfgTimer);_cfgTimer=null;cfgPush();}
+    else if(_cfgDirty&&Object.keys(_cfgDirty).length)cfgPush();
+  }catch(e){}
+}
+window.addEventListener('pagehide',cfgFlushPending);
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')cfgFlushPending();});
 function loadConfig(){
   const c=cfg();
   $i('cfg-shop').value=c.shop||'';$i('cfg-addr').value=c.addr||'';$i('cfg-tel').value=c.tel||'';$i('cfg-foot').value=c.foot||'';$i('cfg-cuit').value=c.cuit||'';
@@ -3365,7 +3516,7 @@ function renderPosSearch(){
   const list=products.filter(p=>{
     const nameNorm=normalizeStr(p.name);
     const skuNorm=normalizeStr(p.sku||'');
-    return nameNorm.includes(qNorm) || normalizeStr(p.barcode).includes(qNorm) || skuNorm.includes(qNorm) || normalizeStr(p.pluCode).includes(qNorm);
+    return nameNorm.includes(qNorm) || normalizeStr(p.barcode).includes(qNorm) || skuNorm.includes(qNorm) || normalizeStr(p.pluCode).includes(qNorm) || normalizeStr(p.marca).includes(qNorm) || normalizeStr(p.proveedor).includes(qNorm);
   }).slice(0,30);
   if(!list.length){box.innerHTML='<div style="padding:14px;text-align:center;color:var(--mu);font-size:.85rem">Sin resultados</div>';box.style.display='block';return;}
   box.innerHTML=list.map(p=>{const out=p.stock<=0&&!c.sellNoStock;return '<button type="button" class="psr-row'+(out?' is-out':'')+'" onmousedown="event.preventDefault()" onclick="addToCart(\''+p.id+'\');clearPosSearch()"><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left">'+p.name+'</div><div style="font-size:.72rem;color:var(--mu);text-align:left">'+(p.tipo=='kg'?'⚖️ ':'📦 ')+fn(p.stock)+(p.tipo=='kg'?' kg':' uds')+(out?' · Sin stock':'')+'</div></div><div style="font-family:var(--fh);font-weight:700;color:var(--ac);white-space:nowrap">'+(c.currency||'$')+fn(p.price)+(p.tipo=='kg'?'/kg':'')+'</div></button>';}).join('');
@@ -3383,13 +3534,46 @@ function renderDash(){
   $i('s-vhoy').textContent='$'+fn(sales.filter(s=>s.ts>=tod.getTime()).reduce((a,s)=>a+s.total,0));
   $i('s-vmes').textContent='$'+fn(sales.filter(s=>s.ts>=mo.getTime()).reduce((a,s)=>a+s.total,0));
   const last=movements.slice(0,5);$i('dash-mv').innerHTML=last.length?last.map(mvH).join(''):'<div class="empty"><div class="eic">📋</div>Sin movimientos</div>';
+  /* ══ PERÍODO (filtro de fechas) + COMPRAS DE PROVEEDORES TOTALIZADAS ══ */
+  const r=rangeFromInputs('d-desde','d-hasta');
+  const enR=ts=>(!r.from||ts>=r.from)&&(!r.to||ts<=r.to);
+  const lbl=$i('dash-range-lbl');
+  if(lbl)lbl.textContent=r.has?('Período: '+fd(r.from||0)+(r.to?' → '+fd(r.to):' → hoy')):'Sin filtro: todas las fechas';
+  const vPer=sales.filter(s=>enR(s.ts));
+  $i('s-vper').textContent='$'+fn(vPer.reduce((a,s)=>a+(s.total||0),0));
+  const compras=provOrders.filter(o=>o&&o.deleted!==true&&o.status!=='anulado'&&enR(spNum(o.date)));
+  const cTot=compras.reduce((a,o)=>a+spNum(o.totalCost),0);
+  const cPag=compras.reduce((a,o)=>a+spNum(o.paid),0);
+  $i('s-cper').textContent='$'+fn(cTot);
+  $i('s-cpag').textContent='$'+fn(cPag);
+  $i('s-cpen').textContent='$'+fn(Math.max(0,cTot-cPag));
+  const bySup={};
+  compras.forEach(o=>{const k=o.supplier||'Sin proveedor';if(!bySup[k])bySup[k]={tot:0,pag:0,n:0,last:0};bySup[k].tot+=spNum(o.totalCost);bySup[k].pag+=spNum(o.paid);bySup[k].n++;bySup[k].last=Math.max(bySup[k].last,spNum(o.date)||0);});
+  const rows=Object.keys(bySup).map(k=>({k:k,v:bySup[k]})).sort((a,b)=>b.v.tot-a.v.tot);
+  const tb=$i('dash-prov-tb');
+  if(tb){
+    tb.innerHTML=rows.length?rows.map(x=>{const saldo=Math.max(0,x.v.tot-x.v.pag);return '<tr><td>'+escH(x.k)+'</td><td>'+x.v.n+'</td><td style="text-align:right">$'+fn(x.v.tot)+'</td><td style="text-align:right;color:var(--ok)">$'+fn(x.v.pag)+'</td><td style="text-align:right;color:'+(saldo>0.005?'var(--err)':'var(--ok)')+'">$'+fn(saldo)+'</td><td style="text-align:right">'+fd(x.v.last)+'</td></tr>';}).join('')
+      +'<tr style="background:var(--s3);font-weight:700"><td>TOTAL</td><td>'+compras.length+'</td><td style="text-align:right">$'+fn(cTot)+'</td><td style="text-align:right;color:var(--ok)">$'+fn(cPag)+'</td><td style="text-align:right;color:'+(cTot-cPag>0.005?'var(--err)':'var(--ok)')+'">$'+fn(Math.max(0,cTot-cPag))+'</td><td></td></tr>'
+      :'<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:14px">Sin compras en el período seleccionado</td></tr>';
+  }
 }
+/* Rango desde/hasta (type=date). `from`=inicio del día, `to`=final del día;
+   sin fecha = sin límite. Vale para Dashboard, Proveedores e Historial. */
+function rangeFromInputs(did,hid){
+  const g=id=>{const e=$i(id);return e?String(e.value||'').trim():'';};
+  const day0=s=>{const m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?new Date(Number(m[1]),Number(m[2])-1,Number(m[3])).getTime():0;};
+  const day1=s=>{const m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?new Date(Number(m[1]),Number(m[2])-1,Number(m[3])).getTime()+86399999:0;};
+  const rd=g(did),rh=g(hid);
+  return {from:rd?day0(rd):0,to:rh?day1(rh):0,has:!!(rd||rh)};
+}
+function dashClearDates(){const a=$i('d-desde'),b=$i('d-hasta');if(a)a.value='';if(b)b.value='';renderDash();}
 function mvH(m){const ic={entrada:'📥',salida:'📤',ajuste:'⚙️',venta:'🛒'},mc={entrada:'iin',salida:'iout',ajuste:'iadj',venta:'iout'},qc={entrada:'qin',salida:'qout',ajuste:'qadj',venta:'qout'},sg={entrada:'+',salida:'−',ajuste:'=',venta:'−'};return '<div class="mvi"><div class="mvic '+(mc[m.type]||'iadj')+'">'+(ic[m.type]||'📦')+'</div><div class="mvb"><div class="mvn">'+m.pname+'</div><div class="mvm">'+(m.note||m.type)+(m.user?' · '+m.user:'')+' · '+fd(m.ts)+'</div></div><div class="mvq '+(qc[m.type]||'qadj')+'">'+(sg[m.type]||'')+fqty(m.qty)+'</div></div>';}
 
 // ══ PRODUCTOS ══
 function renderTbl(){
   const q=normalizeStr(($i('pq').value||'').trim()),cat=$i('pcat').value,st=$i('pst').value;
-  let list=products.filter(p=>{const mq=!q||normalizeStr(p.name).includes(q)||normalizeStr(p.sku).includes(q)||normalizeStr(p.barcode).includes(q);return mq&&(!cat||p.cat===cat)&&(!st||sst(p)===st);});
+  const prov=$i('pprov')?$i('pprov').value:'';
+  let list=products.filter(p=>{const mq=!q||normalizeStr(p.name).includes(q)||normalizeStr(p.sku).includes(q)||normalizeStr(p.barcode).includes(q)||normalizeStr(p.marca).includes(q)||normalizeStr(p.proveedor).includes(q);return mq&&(!cat||p.cat===cat)&&(!st||sst(p)===st)&&(!prov||p.proveedor===prov);});
   list=list.slice().sort((a,b)=>a.name.localeCompare(b.name,'es'));
   const tb=$i('prod-tb');
   const badge=$i('prod-count-badge');if(badge)badge.textContent='('+products.length+' producto'+(products.length!==1?'s':'')+(list.length!==products.length?' · '+list.length+' filtrados':'')+')';
@@ -3434,9 +3618,17 @@ function bulkEditSave(){
 }
 
 // ══ VENTAS ══
+function salesClearDates(){const a=$i('vf-desde'),b=$i('vf-hasta');if(a)a.value='';if(b)b.value='';renderSales();}
 function renderSales(){
   const filt=$i('vfilt').value;const now=new Date();now.setHours(23,59,59,999);const tod=new Date();tod.setHours(0,0,0,0);const wk=new Date(tod);wk.setDate(tod.getDate()-tod.getDay());const mo=new Date(tod.getFullYear(),tod.getMonth(),1);
-  let list=sales.filter(s=>{if(filt==='today')return s.ts>=tod.getTime();if(filt==='week')return s.ts>=wk.getTime();if(filt==='month')return s.ts>=mo.getTime();return true;});
+  /* Rango de fechas elegido a mano (desde/hasta): se aplica ANTES de los
+     atajos "Hoy / Semana / Mes" y funciona igual en Dashboard y Proveedores. */
+  const rg=rangeFromInputs('vf-desde','vf-hasta');
+  let list=sales.filter(s=>{
+    if(rg.from&&s.ts<rg.from)return false;
+    if(rg.to&&s.ts>rg.to)return false;
+    if(filt==='today')return s.ts>=tod.getTime();if(filt==='week')return s.ts>=wk.getTime();if(filt==='month')return s.ts>=mo.getTime();return true;
+  });
   $i('vs-count').textContent=list.length;$i('vs-total').textContent='$'+fn(list.reduce((a,s)=>a+s.total,0));$i('vs-units').textContent=fqty(list.reduce((a,s)=>a+s.items.reduce((b,i)=>b+i.qty,0),0));const avg=list.length?list.reduce((a,s)=>a+s.total,0)/list.length:0;$i('vs-avg').textContent='$'+fn(avg);
   const el=$i('sales-list');if(!list.length){el.innerHTML='<div class="empty"><div class="eic">🧾</div>Sin ventas</div>';return;}
   const PLSHORT={efectivo:'Efvo',qr:'QR',transferencia:'Transf.',debito:'Deb.',credito:'Cred.',cuenta:'Cta.',otro:'Otro'};
@@ -3488,7 +3680,7 @@ function renderSdGrid(){
   if(!q&&!cat){grid.innerHTML='';grid.style.display='none';if(hint)hint.style.display='';return;}
   if(hint)hint.style.display='none';grid.style.display='grid';
   const rank=getSalesRank();const c=cfg();const allowNoStock=c.sellNoStock;
-  let list=products.filter(p=>{const mq=!q||normalizeStr(p.name).includes(q)||normalizeStr(p.barcode).includes(q)||normalizeStr(p.sku).includes(q);return mq&&(!cat||p.cat===cat);});
+  let list=products.filter(p=>{const mq=!q||normalizeStr(p.name).includes(q)||normalizeStr(p.barcode).includes(q)||normalizeStr(p.sku).includes(q)||normalizeStr(p.marca).includes(q)||normalizeStr(p.proveedor).includes(q);return mq&&(!cat||p.cat===cat);});
   list.sort((a,b)=>(rank[b.id]||0)-(rank[a.id]||0));
   grid.innerHTML=list.map(p=>{const out=p.stock<=0&&!allowNoStock;return '<div class="prod-card'+(out?' out-of-stock':'')+'" onclick="'+(out?'':'sdAddProduct(\''+p.id+'\')')+'" style="font-size:.78rem'+(out?';opacity:.4':'')+'">'+( out?'<span class="pc-out">SIN STOCK</span>':'')+'<div style="font-size:1.3rem;margin-bottom:4px">'+(catEm(p.cat)||'📦')+'</div><div class="pc-name" style="font-size:.75rem">'+p.name+'</div><div class="pc-price" style="font-size:.85rem">'+(c.currency||'$')+fn(p.price)+'</div><div class="pc-stock" style="font-size:.65rem">Stock: '+fqty(p.stock)+'</div></div>';}).join('')||'<div class="empty" style="font-size:.8rem;grid-column:1/-1"><div class="eic">🔍</div>Sin resultados</div>';
 }
@@ -3598,7 +3790,7 @@ function renderQsSearch(){
   const q=normalizeStr(($i('qs-search').value||'').trim());
   const box=$i('qs-search-results');
   if(!q){box.style.display='none';box.innerHTML='';return;}
-  const list=products.filter(p=>normalizeStr(p.name).includes(q)||normalizeStr(p.barcode).includes(q)||normalizeStr(p.sku).includes(q)||normalizeStr(p.pluCode).includes(q)).slice(0,30);
+  const list=products.filter(p=>normalizeStr(p.name).includes(q)||normalizeStr(p.barcode).includes(q)||normalizeStr(p.sku).includes(q)||normalizeStr(p.pluCode).includes(q)||normalizeStr(p.marca).includes(q)||normalizeStr(p.proveedor).includes(q)).slice(0,30);
   if(!list.length){box.innerHTML='<div style="padding:14px;text-align:center;color:var(--mu);font-size:.85rem">Sin resultados</div>';box.style.display='block';return;}
   box.innerHTML=list.map(p=>'<div onmousedown="selectQsProduct(\''+p.id+'\')" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--bd);cursor:pointer" onmouseover="this.style.background=\'var(--s3)\'" onmouseout="this.style.background=\'\'">'+'<span style="font-size:1.2rem">'+(catEm(p.cat)||'📦')+'</span>'+'<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.name+'</div><div style="font-size:.72rem;color:var(--mu)">Stock actual: '+fn(p.stock)+(p.tipo=='kg'?' kg':' uds')+'</div></div></div>').join('');
   box.style.display='block';
@@ -3759,9 +3951,10 @@ function setProdCost(p,final){
    El precio de VENTA solo se toca si está marcada "Afectar precio de venta".
    Lo usan savePurchaseOrder() y ordSave(); Egresos/Doña Cocina ya hacía
    esto con setProdCost y a Proveedores le faltaba. */
-function provApplyItemsToProducts(items,includeIva,affectPrice){
+function provApplyItemsToProducts(items,includeIva,affectPrice,supplier){
   if(!Array.isArray(items))return false;
   let touched=false;
+  const sup=String(supplier==null?'':supplier).trim();
   items.forEach(item=>{
     if(!item||!item.productId)return;
     const product=products.find(p=>p.id===item.productId);
@@ -3773,6 +3966,11 @@ function provApplyItemsToProducts(items,includeIva,affectPrice){
     product.iva=includeIva?(item.taxPct==null?21:spNum(item.taxPct)):0;
     setProdCostBase(product,net);
     if(affectPrice&&spNum(item.priceWithIva)>0)product.price=Math.round(spNum(item.priceWithIva)*100)/100;
+    /* Vínculo con el proveedor de la compra: queda en el campo "Proveedor" del
+       producto y alimenta el filtro por proveedor de Inventario. Si el producto
+       ya tiene OTRO proveedor cargado no se pisa (un producto puede comprarse
+       a más de uno): sólo se completa vacío o si coincide. */
+    if(sup&&(!product.proveedor||String(product.proveedor).trim()===sup))product.proveedor=sup;
     touched=true;
   });
   return touched;
@@ -4070,7 +4268,20 @@ function exportReporte(){
 }
 
 // ══ FILTER HELPERS ══
-function updFilters(){const s=$i('pcat');const cv=s.value;s.innerHTML='<option value="">Todas las categorías</option>';categories.forEach(c=>{const o=document.createElement('option');o.value=c.name;o.textContent=c.emoji+' '+c.name;s.appendChild(o);});const ac=[...new Set(products.map(p=>p.cat).filter(Boolean))];ac.forEach(c=>{if(!categories.find(x=>x.name===c)){const o=document.createElement('option');o.value=c;o.textContent=c;s.appendChild(o);}});s.value=cv;}
+function updFilters(){const s=$i('pcat');const cv=s.value;s.innerHTML='<option value="">Todas las categorías</option>';categories.forEach(c=>{const o=document.createElement('option');o.value=c.name;o.textContent=c.emoji+' '+c.name;s.appendChild(o);});const ac=[...new Set(products.map(p=>p.cat).filter(Boolean))];ac.forEach(c=>{if(!categories.find(x=>x.name===c)){const o=document.createElement('option');o.value=c;o.textContent=c;s.appendChild(o);}});s.value=cv;updProvFilter();}
+/* Combo "Todos los proveedores" de Inventario: lista los proveedores que hay
+   en el campo `proveedor` de los productos (se carga al guardar una compra)
+   más los contactos/proveedores conocidos, así se puede listar por proveedor. */
+function updProvFilter(){
+  const s=$i('pprov');if(!s)return;const cv=s.value;
+  const set=[];const add=n=>{n=String(n==null?'':n).trim();if(n&&set.indexOf(n)<0)set.push(n);};
+  products.forEach(p=>add(p.proveedor));
+  try{(contacts||[]).forEach(c=>{if(c&&c.type==='proveedor')add(c.name);});}catch(e){}
+  try{(provSuppliers||[]).forEach(add);}catch(e){}
+  set.sort((a,b)=>String(a).localeCompare(String(b),'es'));
+  s.innerHTML='<option value="">Todos los proveedores</option>'+set.map(n=>'<option value="'+escH(n)+'">'+escH(n)+'</option>').join('');
+  if(cv&&set.indexOf(cv)>=0)s.value=cv;else s.value='';
+}
 
 // ══ DEMO DATA ══
 function loadDemo(){
@@ -4242,7 +4453,7 @@ function openEgresoM(modo){
 function renderEgSearch(){
   const q=normalizeStr($i('eg-search').value.trim());const res=$i('eg-search-results');
   if(!q){res.style.display='none';res.innerHTML='';return;}
-  const list=products.filter(p=>normalizeStr(p.name).includes(q)||normalizeStr(p.sku).includes(q)||normalizeStr(p.barcode).includes(q)).slice(0,20);
+  const list=products.filter(p=>normalizeStr(p.name).includes(q)||normalizeStr(p.sku).includes(q)||normalizeStr(p.barcode).includes(q)||normalizeStr(p.marca).includes(q)||normalizeStr(p.proveedor).includes(q)).slice(0,20);
   res.style.display=list.length?'':'none';
   res.innerHTML=list.map(p=>'<div onclick="addEgCartItem(\''+p.id+'\')" style="padding:8px 12px;border-bottom:1px solid var(--bd);cursor:pointer;display:flex;justify-content:space-between;font-size:.85rem" onmouseover="this.style.background=\'var(--s3)\'" onmouseout="this.style.background=\'\'"><span>'+p.name+'</span><span style="color:var(--mu)">Stock: '+fqty(p.stock)+' · Costo actual: $'+fn(p.cost||0)+'</span></div>').join('');
 }
@@ -4610,6 +4821,9 @@ function refreshAll(){
     $i('login-screen').style.display='flex';$i('setup-banner').style.display='none';
     if(localStorage.getItem('sp5-sb-hidden')==='1')document.querySelector('.layout').classList.add('sb-hidden');
     const hasCloud=await tryAutoConnect();
+    /* Configuración y catálogos (motivos de gasto, etc.) desde la nube aunque
+       loadFromCloud() no llegara a aplicarlos dentro de su Promise.all. */
+    if(hasCloud){try{await cfgRestoreFromCloud();}catch(e){}}
     if(!hasCloud){const savedUrl=LS.get('sb-url');cloudMode=false;if(savedUrl&&savedUrl!=='null')toast('Sin conexion a la nube — datos locales','err');}
     if(!users.length)initUsers();if(!products.length)loadDemo();renderLoginUsers();
     /* Mientras se conectaba a la nube el usuario pudo haber hecho login.
@@ -4667,24 +4881,47 @@ function saveEgProvEditForm(){
 // ════════════════════════════════════════════════════════════════
 
 // ══ 1. EXPORTAR PDF VENTAS DIARIAS ══
+/* Impresión por iframe (fuera de pantalla) de un HTML armado a mano.
+   El CSS de la página `@media print` deja SÓLO visible #ticket-print con
+   @page{margin:0}: imprimir el documento principal daría una hoja en blanco
+   y además rompería los márgenes del ticket. Por eso se imprime en un iframe
+   aparte, igual que el manual. Comparte el iframe #manual-frame (uno solo). */
+function spPrintFrame(html,titulo){
+  try{
+    let fr=$i('manual-frame');
+    if(!fr){
+      fr=document.createElement('iframe');
+      fr.id='manual-frame';
+      fr.setAttribute('aria-hidden','true');
+      fr.style.cssText='position:fixed;left:-12000px;top:0;width:794px;height:1123px;border:0;background:#fff;visibility:visible';
+      document.body.appendChild(fr);
+    }
+    const doc=fr.contentDocument||fr.contentWindow.document;
+    const tit=String(titulo||'Documento').replace(/[<>&"]/g,'');
+    doc.open();
+    doc.write('<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>'+tit+'</title><style>@page{margin:14mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;font-size:11.5pt;line-height:1.45;color:#111;background:#fff;margin:0;padding:0}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 8px;font-size:10pt}h1{font-size:17pt;color:#2c3e50}h3{font-size:12.5pt;color:#2c3e50;margin:18px 0 8px}</style></head><body>'+html+'</body></html>');
+    doc.close();
+    setTimeout(function(){try{fr.contentWindow.focus();fr.contentWindow.print();}catch(e){console.warn('spPrintFrame:',e);}},350);
+    return true;
+  }catch(e){console.warn('spPrintFrame:',e);return false;}
+}
 async function exportSalesReportPDF(dateStr) {
-  if(!window.html2pdf){
-    const script=document.createElement('script');
-    script.src='https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-    script.onload=()=>exportSalesReportPDF(dateStr);
-    document.head.appendChild(script);
-    return;
-  }
-  
-  const date=dateStr||new Date().toISOString().split('T')[0];
-  const dayVentas=ventas.filter(v=>v.fecha&&v.fecha.startsWith(date));
-  
-  if(!dayVentas.length){toast('Sin ventas para este día','err');return;}
-  
+  const date=String(dateStr||'').trim()||new Date().toISOString().slice(0,10);
+  /* Rango del día pedido en horario LOCAL. `sales[].ts` es un timestamp: con
+     new Date('YYYY-MM-DD') el navegador lo interpretaba en UTC y podía caer
+     en el día anterior o siguiente. Antes se usaba un objeto `ventas` que no
+     existía (ReferenceError) y por eso el botón no bajaba ningún PDF. */
+  const dm=date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  let from,to;
+  if(dm){const d0=new Date(Number(dm[1]),Number(dm[2])-1,Number(dm[3]));from=d0.getTime();to=from+86400000-1;}
+  else{from=0;to=Date.now()+86400000;}
+  const dayVentas=(typeof sales!=='undefined'?sales:[]).filter(s=>s&&s.ts>=from&&s.ts<=to&&s.deleted!==true);
+  if(!dayVentas.length){toast('Sin ventas para el '+date,'err');return;}
+
   const total=dayVentas.reduce((sum,v)=>sum+(v.total||0),0);
-  const descuentos=dayVentas.reduce((sum,v)=>sum+(v.descuento||0),0);
+  const descuentos=dayVentas.reduce((sum,v)=>sum+(v.disc||0),0);
+  const unidades=dayVentas.reduce((a,v)=>a+(v.items||[]).reduce((b,i)=>b+(i.qty||0),0),0);
   const porProducto={};
-  
   dayVentas.forEach(v=>{
     if(v.items)v.items.forEach(item=>{
       if(!porProducto[item.name]){porProducto[item.name]={qty:0,total:0};}
@@ -4692,19 +4929,45 @@ async function exportSalesReportPDF(dateStr) {
       porProducto[item.name].total+=(item.price||0)*(item.qty||1);
     });
   });
-  
   const topProductos=Object.entries(porProducto)
     .sort((a,b)=>b[1].total-a[1].total)
     .slice(0,10)
-    .map(([name,data])=>'<tr><td style="padding:8px">'+name+'</td><td style="padding:8px;text-align:right">'+data.qty+'</td><td style="padding:8px;text-align:right">$'+data.total.toFixed(2)+'</td></tr>')
-    .join('');
-  
-  const html='<div style="font-family:Arial;padding:20px"><h1 style="text-align:center;color:#2c3e50">REPORTE DE VENTAS</h1><p style="text-align:center">Sen del Campo | '+date+'</p><hr style="margin:20px 0"><h3>RESUMEN</h3><table style="width:100%;border-collapse:collapse"><tr style="background:#667eea;color:white"><td style="padding:10px"><b>Transacciones</b></td><td style="text-align:right"><b>'+dayVentas.length+'</b></td></tr><tr><td style="padding:10px">Total ventas</td><td style="text-align:right"><b>$'+total.toFixed(2)+'</b></td></tr><tr><td style="padding:10px">Descuentos</td><td style="text-align:right">-$'+descuentos.toFixed(2)+'</td></tr><tr style="background:#e8f5e9"><td style="padding:10px"><b>Ganancia neta</b></td><td style="text-align:right"><b>$'+(total-descuentos).toFixed(2)+'</b></td></tr></table><h3 style="margin-top:20px">TOP 10 PRODUCTOS</h3><table style="width:100%;border-collapse:collapse"><tr style="background:#667eea;color:white"><td style="padding:8px"><b>Producto</b></td><td style="text-align:right"><b>Cantidad</b></td><td style="text-align:right"><b>Total</b></td></tr>'+topProductos+'</table><hr style="margin:20px 0"><p style="color:#999;text-align:center">Generado: '+new Date().toLocaleString('es-AR')+'</p></div>';
-  
+    .map(([name,data])=>'<tr><td style="padding:8px">'+escH(name)+'</td><td style="padding:8px;text-align:right">'+fqty(data.qty)+'</td><td style="padding:8px;text-align:right">$'+data.total.toFixed(2)+'</td></tr>')
+    .join('')||'<tr><td colspan="3" style="padding:8px;text-align:center;color:#999">Sin datos</td></tr>';
+  const shopName=(function(){try{return (cfg()&&cfg().shop)||'StockPro';}catch(e){return 'StockPro';}})();
+  const html='<div style="font-family:Arial;padding:6px"><h1 style="text-align:center;color:#2c3e50">REPORTE DE VENTAS</h1><p style="text-align:center">'+escH(shopName)+' | '+date+'</p><hr style="margin:20px 0"><h3>RESUMEN</h3><table style="width:100%;border-collapse:collapse"><tr style="background:#667eea;color:white"><td style="padding:10px"><b>Transacciones</b></td><td style="text-align:right"><b>'+dayVentas.length+'</b></td></tr><tr><td style="padding:10px">Unidades vendidas</td><td style="text-align:right"><b>'+fqty(unidades)+'</b></td></tr><tr><td style="padding:10px">Total ventas</td><td style="text-align:right"><b>$'+total.toFixed(2)+'</b></td></tr><tr><td style="padding:10px">Descuentos</td><td style="text-align:right">-$'+descuentos.toFixed(2)+'</td></tr><tr style="background:#e8f5e9"><td style="padding:10px"><b>Total neto</b></td><td style="text-align:right"><b>$'+(total-descuentos).toFixed(2)+'</b></td></tr></table><h3 style="margin-top:20px">TOP 10 PRODUCTOS</h3><table style="width:100%;border-collapse:collapse"><tr style="background:#667eea;color:white"><td style="padding:8px"><b>Producto</b></td><td style="padding:8px;text-align:right"><b>Cantidad</b></td><td style="padding:8px;text-align:right"><b>Total</b></td></tr>'+topProductos+'</table><hr style="margin:20px 0"><p style="color:#999;text-align:center">Generado: '+new Date().toLocaleString('es-AR')+'</p></div>';
+
+  if(!window.html2pdf){
+    /* Primera vez: baja la librería del CDN. Si no hay internet (o la CDN
+       cae) en vez de quedarse mudo se abre la impresión del reporte y ahí
+       se elige "Guardar como PDF". */
+    if(window._h2pBusy)return;
+    window._h2pBusy=true;
+    const script=document.createElement('script');
+    script.src='https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+    script.onload=function(){window._h2pBusy=false;exportSalesReportPDF(date);};
+    script.onerror=function(){
+      window._h2pBusy=false;
+      spPrintFrame(html,'REPORTE DE VENTAS '+date);
+      toast('Sin internet para el PDF automático: se abrió la impresión (elegí "Guardar como PDF")','err');
+    };
+    document.head.appendChild(script);
+    return;
+  }
+  /* El nodo va pegado al body (oculto a la izquierda): con un div suelto en
+     memoria html2canvas podía devolver un PDF en blanco. */
   const element=document.createElement('div');
   element.innerHTML=html;
-  html2pdf().set({margin:10,filename:'ventas-'+date+'.pdf',image:{type:'jpeg',quality:0.98},html2canvas:{scale:2},jsPDF:{orientation:'portrait',unit:'mm',format:'a4'}}).from(element).save();
-  toast('✅ PDF descargado','ok');
+  element.style.cssText='position:fixed;left:-10000px;top:0;width:760px;background:#fff;color:#111;padding:0;z-index:-1';
+  document.body.appendChild(element);
+  try{
+    await html2pdf().set({margin:10,filename:'ventas-'+date+'.pdf',image:{type:'jpeg',quality:0.98},html2canvas:{scale:2,backgroundColor:'#ffffff'},jsPDF:{orientation:'portrait',unit:'mm',format:'a4'}}).from(element).save();
+    toast('✅ PDF descargado','ok');
+  }catch(e){
+    console.error('exportSalesReportPDF:',e);
+    spPrintFrame(html,'REPORTE DE VENTAS '+date);
+    toast('No se pudo armar el PDF: se abrió la impresión (elegí "Guardar como PDF")','err');
+  }finally{try{element.remove();}catch(e){}}
 }
 
 // ══ 2. EXPORTAR EXCEL INVENTARIO ══
@@ -5478,7 +5741,7 @@ function filterProducts(){
   const query=nz(document.getElementById('prov-search').value.trim());
   const resultsDiv=document.getElementById('prov-search-results');
   if(!query||query.length<2){resultsDiv.style.display='none';return;}
-  const filtered=products.filter(p=>nz(p.name).includes(query)||nz(p.sku).includes(query)||nz(p.barcode).includes(query));
+  const filtered=products.filter(p=>nz(p.name).includes(query)||nz(p.sku).includes(query)||nz(p.barcode).includes(query)||nz(p.marca).includes(query)||nz(p.proveedor).includes(query));
   if(!filtered.length){resultsDiv.innerHTML='<div style="padding:12px;text-align:center;color:var(--mu)">Sin productos encontrados</div>';resultsDiv.style.display='block';return;}
   const fmt=v=>'$'+Number(v||0).toFixed(2).replace('.',',');
   resultsDiv.innerHTML=filtered.map(p=>{
@@ -5552,7 +5815,10 @@ function provRegisterPayment(orderId,amount,type,dateTs){
   if(monto>pend)monto=pend;            /* nunca se paga de más */
   o.paid=Math.round((spNum(o.paid)+monto)*100)/100;
   o.status=(o.paid>=total-0.005)?'pagado':'parcial';
-  const pay={id:uid(),orderId:o.id,supplier:o.supplier,amount:monto,date:dateTs||Date.now(),type:type||'efectivo'};
+  /* Marca de última modificación: si otra PC tiene la orden vieja en memoria,
+     loadFromCloud() no vuelve a pisarla (y por lo tanto no "reedita" precios). */
+  o.upd=Date.now();
+  const pay={id:uid(),orderId:o.id,supplier:o.supplier,amount:monto,date:dateTs||Date.now(),type:type||'efectivo',upd:Date.now()};
   provPayments.push(pay);
   saveProvData();
   provRefreshOrders();
@@ -5623,13 +5889,13 @@ function savePurchaseOrder(){
   else if(paySt==='parcial')payAmt=Math.min(Math.max(0,spNum(payAmtEl?payAmtEl.value:0)),totalCost);
   if(paySt!=='none'&&totalCost>0&&!(payAmt>0)){alert('Ingresá el monto pagado (o elegí "No pagado")');return;}
   const oid='order_'+uid();
-  provOrders.push({id:oid,supplier,date:new Date(date).getTime(),items:provCarrito.map(i=>({...i})),totalCost,subTotal:subTot,taxTotal:taxTot,gross,discountValue,discountType,discountNote,discountTotal,finalPrice,paid:0,status,notes:'',affectPrice,includeIva});
+  provOrders.push({id:oid,supplier,date:new Date(date).getTime(),items:provCarrito.map(i=>({...i})),totalCost,subTotal:subTot,taxTotal:taxTot,gross,discountValue,discountType,discountNote,discountTotal,finalPrice,paid:0,status,notes:'',affectPrice,includeIva,upd:Date.now()});
   provCarrito.forEach(item=>{const product=products.find(p=>p.id===item.productId);if(product&&item.productId)product.stock=(product.stock||0)+(item.qty||0);});
   /* Costo del producto = lo que se paga por unidad (con el impuesto si está
      activado) y precio de venta solo si está marcada "Afectar precio de venta".
      Antes solo se actualizaba el precio de venta: en Productos el costo seguía
      sin el IVA y el Margen se calculaba contra un costo viejo. */
-  provApplyItemsToProducts(provCarrito,includeIva,affectPrice);
+  provApplyItemsToProducts(provCarrito,includeIva,affectPrice,supplier);
   /* saveProductsData() escribe en stockpro_products, una clave que la app NO lee
      (lo que se lee es sp5-p, que llena persist(), y persist() es lo que sube a
      Supabase). Sin persist() el nuevo precio/costo/stock quedaba solo en memoria
@@ -5698,8 +5964,25 @@ function registrarPago(){
 
 // ────── HISTORIAL ──────
 
+function histClearDates(){const a=$i('h-desde'),b=$i('h-hasta');if(a)a.value='';if(b)b.value='';renderHistorial();}
 function renderHistorial(){
-  const html = provOrders.sort((a,b) => b.date - a.date).map(o => {
+  /* Rango desde/hasta: se aplica sobre la FECHA de la compra. El listado se
+     arma sobre una copia filtrada (antes ordenaba provOrders in place). */
+  const rg=rangeFromInputs('h-desde','h-hasta');
+  const list=provOrders.filter(function(o){
+    if(!o||o.deleted===true)return false;
+    const t=spNum(o.date);
+    if(rg.from&&t<rg.from)return false;
+    if(rg.to&&t>rg.to)return false;
+    return true;
+  }).sort((a,b)=>(b.date||0)-(a.date||0));
+  const lbl=$i('h-range-lbl');
+  if(lbl){
+    const tTot=list.reduce((s,o)=>s+spNum(o.totalCost),0);
+    const tPag=list.reduce((s,o)=>s+spNum(o.paid||0),0);
+    lbl.textContent=list.length?(list.length+' orden'+(list.length!==1?'es':'')+' · $'+fn(tTot)+' total · saldo $'+fn(Math.max(0,tTot-tPag))):'Sin órdenes en el período';
+  }
+  const html = list.map(o => {
     const pending = o.totalCost - (o.paid || 0);
     const statusColor = o.status === 'pagado' ? 'var(--ok)' : (o.status === 'parcial' ? 'var(--ac)' : 'var(--err)');
     const statusText = o.status === 'pagado' ? '✓ Pagado' : (o.status === 'parcial' ? '⚠ Parcial' : '🔴 Pendiente');
