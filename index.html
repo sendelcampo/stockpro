@@ -450,11 +450,11 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
       <div class="sec-hdr">
         <div class="sec-t">Historial de ventas</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-          <input type="date" id="vf-desde" onchange="renderSales()" title="Desde" style="padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s2);font-size:.83rem">
+          <input type="date" id="vf-desde" onchange="salesFilter()" title="Desde" style="padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s2);font-size:.83rem">
           <span style="color:var(--mu);font-size:.78rem">hasta</span>
-          <input type="date" id="vf-hasta" onchange="renderSales()" title="Hasta" style="padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s2);font-size:.83rem">
+          <input type="date" id="vf-hasta" onchange="salesFilter()" title="Hasta" style="padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s2);font-size:.83rem">
           <button class="btn bg bs" onclick="salesClearDates()" title="Quitar el rango de fechas">✖</button>
-          <select id="vfilt" onchange="renderSales()"><option value="all">Todo</option><option value="today">Hoy</option><option value="week">Esta semana</option><option value="month">Este mes</option></select>
+          <select id="vfilt" onchange="salesFilter()"><option value="all">Todo</option><option value="today">Hoy</option><option value="week">Esta semana</option><option value="month">Este mes</option></select>
         </div>
       </div>
       <div class="stats-grid" style="margin-bottom:16px">
@@ -525,8 +525,8 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-        <input type="text" id="mq" placeholder="🔍 Buscar..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" list="sug-nolist" oninput="renderMov()" style="flex:1;min-width:150px">
-        <select id="mtype" onchange="renderMov()"><option value="">Todos</option><option value="entrada">Entradas</option><option value="salida">Salidas</option><option value="ajuste">Ajustes</option><option value="venta">Ventas</option></select>
+        <input type="text" id="mq" placeholder="🔍 Buscar..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" list="sug-nolist" oninput="movSearchDeb()" style="flex:1;min-width:150px">
+        <select id="mtype" onchange="movFilter()"><option value="">Todos</option><option value="entrada">Entradas</option><option value="salida">Salidas</option><option value="ajuste">Ajustes</option><option value="venta">Ventas</option></select>
       </div>
       <div class="mvl" id="all-mv"></div>
     </div>
@@ -1730,7 +1730,7 @@ async function connectSupabase(){
     }else if(error)throw new Error(error.message);
     LS.set('sb-url',url);LS.set('sb-key',key);cloudMode=true;
     $i('setup-banner').style.display='none';
-    await loadFromCloud();showSync('☁️ Conectado',true);toast('✅ Base de datos conectada');
+    await loadFromCloud(true);showSync('☁️ Conectado',true);toast('✅ Base de datos conectada');
     if(!users.length)initUsers();if(!products.length)loadDemo();renderLoginUsers();
   }catch(e){const el=$i('setup-error');if(!el||!el.querySelector('textarea'))el.textContent='Error: '+e.message;}
 }
@@ -1821,21 +1821,61 @@ function provFlushDeleted(){
      lectura fresca (marcador ∩ filas que existen) y ahí se arma provPending. */
   return chain;
 }
-async function loadFromCloud(){
+/* ══ HISTORIAL COMPLETO (lote 5) ══
+   Antes loadFromCloud() traía sólo las últimas 200 ventas y 500 movimientos
+   (order data->ts desc + limit): con historial real eso era UNA SEMANA, y como
+   la lista se reemplazaba entera cada 30 s, lo viejo desaparecía de la pantalla
+   y hasta del navegador. Ahora hay dos niveles:
+     · `full` (al abrir, al sincronizar a mano y cada 10 min): baja TODO el
+       historial paginado; ahí la nube manda y lo local ausante se descarta.
+     · refresco en vivo (cada 30 s): baja sólo la ventana más reciente y
+       FUSIONA por id con mergeHist(): nunca borra lo que la nube no trajo.
+   Ojo con el costo: ventas y movements NO se suben en bloque desde persist()
+   (van de a una con persistSale/persistMov), así que tener el historial
+   completo en memoria no dispara subidas masivas. */
+const HIST_W={sales:200,mov:500};  /* ventana "en vivo": costo por refresco */
+const HIST_FULL_MS=10*60*1000;     /* cada 10 min baja el historial completo */
+const HIST_GRACE_MS=5*60*1000;     /* margen: lo recién guardado puede no haberse subido */
+let histFullAt=0;
+function histFullDue(){return Date.now()-histFullAt>=HIST_FULL_MS;}
+/* `x` llega como array (fetchAllRows) o como {data} (sb.from). */
+function histRows(x){return Array.isArray(x)?x:(x&&Array.isArray(x.data)?x.data:null);}
+function mergeHist(cur,cloud,full){
+  const rows=histRows(cloud);
+  if(!Array.isArray(rows)||!rows.length)return null;   /* null = sin cambios */
+  const out=[],seen={};
+  rows.forEach(function(r){const d=r&&r.data;if(!d)return;out.push(d);if(d.id)seen[d.id]=1;});
+  const grace=Date.now()-HIST_GRACE_MS;
+  (Array.isArray(cur)?cur:[]).forEach(function(s){
+    if(!s||!s.id||seen[s.id])return;
+    /* Ventana corta: se queda todo lo local. Con historial completo sólo se
+       descarta lo ausante si es viejo: lo muy nuevo puede no haberse subido. */
+    if(!full||(s.ts||0)>=grace)out.push(s);
+  });
+  out.sort(function(a,b){return (b.ts||0)-(a.ts||0);});
+  return out;
+}
+async function loadFromCloud(full){
   if(!sb)return;
   try{
     const[rp,rc,ru,rct,rm,rs,rcm,reg,rpo,rpy,rps,rcfg]=await Promise.all([
       fetchAllRows('products','id'),fetchAllRows('categories','id'),fetchAllRows('users','id'),fetchAllRows('contacts','id'),
-      sb.from('movements').select('*').order('data->ts',{ascending:false}).limit(500),
-      sb.from('sales').select('*').order('data->ts',{ascending:false}).limit(200),
-      sb.from('cta_movs').select('*').order('data->ts',{ascending:false}).limit(500),
-      sb.from('egresos').select('*').order('data->ts',{ascending:false}).limit(300),
+      full?fetchAllRows('movements','data->ts'):sb.from('movements').select('*').order('data->ts',{ascending:false}).limit(HIST_W.mov),
+      full?fetchAllRows('sales','data->ts'):sb.from('sales').select('*').order('data->ts',{ascending:false}).limit(HIST_W.sales),
+      /* Cta. Cte. y Egresos son chicas (6 y 34 filas): siempre completas. */
+      fetchAllRows('cta_movs','data->ts'),fetchAllRows('egresos','data->ts'),
       fetchAllRows('prov_orders','id'),fetchAllRows('prov_payments','id'),fetchAllRows('prov_suppliers','id'),
       cfgFetch()
     ]);
     /* Si la nube viene vacia o con error, NO se pisa lo local: persist() sube lo local y lo repone. */
     if(rp&&rp.length)products=rp.map(r=>r.data);if(rc&&rc.length)categories=rc.map(r=>r.data);if(ru&&ru.length)users=ru.map(r=>r.data);if(rct&&rct.length)contacts=rct.map(r=>r.data);
-    if(rm.data&&rm.data.length)movements=rm.data.map(r=>r.data);if(rs.data&&rs.data.length)sales=rs.data.map(r=>r.data);if(rcm.data&&rcm.data.length)ctaMovs=rcm.data.map(r=>r.data);if(reg.data&&reg.data.length){const allEg=reg.data.map(r=>r.data);egresos=allEg.filter(e=>e.mod!=='dc');egresosDC=allEg.filter(e=>e.mod==='dc');}
+    /* Fusionar (nunca pisar): mergeHist() devuelve null si no vino nada, así
+       que una nube vacía o caída deja lo local intacto. El orden queda
+       descendente por ts, que es lo que esperan renderMov/renderSales. */
+    const mrgMv=mergeHist(movements,rm,full);if(mrgMv)movements=mrgMv;
+    const mrgS=mergeHist(sales,rs,full);if(mrgS)sales=mrgS;
+    const mrgCm=mergeHist(ctaMovs,rcm,true);if(mrgCm)ctaMovs=mrgCm;
+    const rowsEg=histRows(reg);if(rowsEg&&rowsEg.length){const allEg=mergeHist(egresos.concat(egresosDC),rowsEg,true)||[];egresos=allEg.filter(e=>e.mod!=='dc');egresosDC=allEg.filter(e=>e.mod==='dc');}
     if(Array.isArray(rpo)){
       const ids=new Set(rpo.map(r=>r&&r.id));
       if(rpo.length){
@@ -1882,6 +1922,8 @@ async function loadFromCloud(){
       cfgApplyBlob('egreso_cats',by.egreso_cats);
       cfgApplyBlob('prov_egresos',by.prov_egresos);
     }
+    /* Sólo se da por hecho el histórico si la nube respondió con ventas. */
+    if(full&&Array.isArray(histRows(rs)))histFullAt=Date.now();
     persist();
   }catch(e){console.error('loadFromCloud:',e);}
 }
@@ -1933,12 +1975,12 @@ async function tryAutoConnect(){
     try{
       const{createClient}=window.supabase;sb=createClient(cands[i][0],cands[i][1]);
       const{error}=await sb.from('products').select('id').limit(1);
-      if(!error){cloudMode=true;await loadFromCloud();showSync('☁️ Conectado',true);return true;}
+      if(!error){cloudMode=true;await loadFromCloud(true);showSync('☁️ Conectado',true);return true;}
     }catch(e){}
   }
   return false;
 }
-async function syncNow(){if(!cloudMode||!sb){toast('Sin conexión','err');return;}showSync('⏳ Sincronizando...',true);await loadFromCloud();refreshAll();showSync('☁️ Sincronizado',true);toast('✅ Datos actualizados');}
+async function syncNow(){if(!cloudMode||!sb){toast('Sin conexión','err');return;}showSync('⏳ Sincronizando...',true);await loadFromCloud(true);refreshAll();showSync('☁️ Sincronizado',true);toast('✅ Datos actualizados');}
 function changeCloud(){LS.set('sb-url',null);LS.set('sb-key',null);cloudMode=false;sb=null;$i('setup-banner').style.display='flex';$i('login-screen').style.display='none';$i('app').style.display='none';}
 
 // ══ UTILS ══
@@ -2593,7 +2635,8 @@ function startApp(){
      de Egresos (no hace nada si no hay nada que mover). */
   try{provEgMigrate();}catch(e){console.warn('provEgMigrate:',e);}
   refreshAll();
-  if(cloudMode)setInterval(async()=>{if(cloudMode&&sb&&currentUser){await loadFromCloud();refreshAll();}},30000);
+  /* En vivo cada 30 s; el historial COMPLETO se baja cada 10 min (histFullDue). */
+  if(cloudMode)setInterval(async()=>{if(cloudMode&&sb&&currentUser){await loadFromCloud(histFullDue());refreshAll();}},30000);
 }
 function logout(){currentUser=null;$i('login-screen').style.display='flex';$i('app').style.display='none';$i('pin-input').value='';document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));const pv=$i('view-pos');if(pv)pv.classList.add('active');renderLoginUsers();}
 
@@ -3618,7 +3661,23 @@ function bulkEditSave(){
 }
 
 // ══ VENTAS ══
-function salesClearDates(){const a=$i('vf-desde'),b=$i('vf-hasta');if(a)a.value='';if(b)b.value='';renderSales();}
+function salesClearDates(){const a=$i('vf-desde'),b=$i('vf-hasta');if(a)a.value='';if(b)b.value='';histShown.sales=HIST_PAGE.sales;renderSales();}
+/* ══ TOPE EN PANTALLA (lote 5) ══
+   Con el historial completo, renderMov() tardaba 2,5 s y renderSales() 0,7 s
+   (se refrescan cada 30 s, y el buscador de movimientos, en CADA tecla).
+   Los KPIs, totales y reportes siempre usan la lista COMPLETA; en pantalla se
+   muestran HIST_PAGE filas y el resto queda detrás de "Ver los N más".
+   Al cambiar cualquier filtro vuelve el tope liviano. */
+const HIST_PAGE={sales:200,mov:300};
+const HIST_STEP={sales:300,mov:500};
+let histShown={sales:HIST_PAGE.sales,mov:HIST_PAGE.mov};
+function histMore(kind){histShown[kind]+=HIST_STEP[kind];if(kind==='sales')renderSales();else renderMov();}
+function histMoreBtn(kind,rest){return '<div style="text-align:center;padding:10px"><button class="btn bd2 bs" onclick="histMore(\''+kind+'\')">⬇ Ver los '+rest+' más</button></div>';}
+function salesFilter(){histShown.sales=HIST_PAGE.sales;renderSales();}
+function movFilter(){histShown.mov=HIST_PAGE.mov;renderMov();}
+/* El buscador de movimientos repintaba 5.131 filas por cada tecla. */
+let movDebTimer=0;
+function movSearchDeb(){clearTimeout(movDebTimer);movDebTimer=setTimeout(movFilter,200);}
 function renderSales(){
   const filt=$i('vfilt').value;const now=new Date();now.setHours(23,59,59,999);const tod=new Date();tod.setHours(0,0,0,0);const wk=new Date(tod);wk.setDate(tod.getDate()-tod.getDay());const mo=new Date(tod.getFullYear(),tod.getMonth(),1);
   /* Rango de fechas elegido a mano (desde/hasta): se aplica ANTES de los
@@ -3632,13 +3691,14 @@ function renderSales(){
   $i('vs-count').textContent=list.length;$i('vs-total').textContent='$'+fn(list.reduce((a,s)=>a+s.total,0));$i('vs-units').textContent=fqty(list.reduce((a,s)=>a+s.items.reduce((b,i)=>b+i.qty,0),0));const avg=list.length?list.reduce((a,s)=>a+s.total,0)/list.length:0;$i('vs-avg').textContent='$'+fn(avg);
   const el=$i('sales-list');if(!list.length){el.innerHTML='<div class="empty"><div class="eic">🧾</div>Sin ventas</div>';return;}
   const PLSHORT={efectivo:'Efvo',qr:'QR',transferencia:'Transf.',debito:'Deb.',credito:'Cred.',cuenta:'Cta.',otro:'Otro'};
-  el.innerHTML=list.map(function(s){
+  const vis=list.slice(0,histShown.sales);
+  el.innerHTML=vis.map(function(s){
     var payTxt=PLSHORT[s.pay]||s.pay;var pay2Txt=s.pay2?(PLSHORT[s.pay2]||s.pay2):'';
     var prods=s.items.length+' producto'+(s.items.length!==1?'s':'');var names=s.items.map(function(i){return fqty(i.qty)+'x '+i.name;}).join(', ');
     var payStr=payTxt+(pay2Txt?' + '+pay2Txt:'');var detail=prods+': '+names+' - '+payStr;
     var sid=s.id.slice(-6).toUpperCase();var dateStr=fd(s.ts)+(s.user?' - '+s.user:'');
     return '<div class="sale-item" style="cursor:default"><div class="sale-hdr"><span class="sale-id" style="cursor:pointer" onclick="showSaleDetail(\''+s.id+'\')">#'+sid+' - '+dateStr+'</span><div style="display:flex;align-items:center;gap:6px"><span class="sale-total">$'+fn(s.total)+'</span><button class="btn bg bs bic" onclick="showSaleDetail(\''+s.id+'\')" title="Ver/Editar" style="font-size:.85rem">&#9999;&#65039;</button><button class="btn bd2 bs bic" onclick="quickDeleteSale(\''+s.id+'\')" title="Eliminar" style="font-size:.85rem">&#128465;</button></div></div><div class="sale-detail" onclick="showSaleDetail(\''+s.id+'\')">'+detail+'</div></div>';
-  }).join('');
+  }).join('')+(list.length>vis.length?histMoreBtn('sales',list.length-vis.length):'');
 }
 
 function showSaleDetail(id){
@@ -3780,7 +3840,7 @@ function toggleSaleEdit(){}
 
 // ══ MOVIMIENTOS ══
 function addMvt(pid,type,qty,note){const p=products.find(x=>x.id===pid);const m={id:uid(),pid,pname:p?p.name:'?',type,qty:Number(qty),note,user:currentUser?currentUser.name:'',ts:Date.now()};movements.unshift(m);if(movements.length>2000)movements=movements.slice(0,2000);persistMov(m);}
-function renderMov(){const q=normalizeStr(($i('mq').value||'').trim()),t=$i('mtype').value;const list=movements.filter(m=>{const mq=!q||normalizeStr(m.pname).includes(q)||normalizeStr(m.note).includes(q);return mq&&(!t||m.type===t);});$i('all-mv').innerHTML=list.length?list.map(mvH).join(''):'<div class="empty"><div class="eic">📋</div>Sin movimientos</div>';}
+function renderMov(){const q=normalizeStr(($i('mq').value||'').trim()),t=$i('mtype').value;const list=movements.filter(m=>{const mq=!q||normalizeStr(m.pname).includes(q)||normalizeStr(m.note).includes(q);return mq&&(!t||m.type===t);});const vis=list.slice(0,histShown.mov);$i('all-mv').innerHTML=list.length?vis.map(mvH).join('')+(list.length>vis.length?histMoreBtn('mov',list.length-vis.length):''):'<div class="empty"><div class="eic">📋</div>Sin movimientos</div>';}
 function openQuickStock(){
   $i('qs-search').value='';$i('qs-selected').style.display='none';$i('qs-search-results').style.display='none';
   $i('qs-save-btn').disabled=true;$i('qs-save-btn').style.opacity='.5';
