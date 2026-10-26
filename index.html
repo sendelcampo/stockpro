@@ -18,6 +18,8 @@ body{font-family:var(--fb);background:var(--bg);color:var(--tx);min-height:100vh
 .lusers{display:flex;flex-direction:column;gap:8px;margin-bottom:18px;}
 .ubtn{background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:all .2s;width:100%;}
 .ubtn:hover{border-color:var(--ac);}
+.ubtn.sel{border-color:var(--ac);background:var(--s3);box-shadow:0 0 0 2px rgba(255,255,255,.07);}
+#login-target{margin-top:9px;text-align:center;font-size:.78rem;color:var(--ac);font-weight:600;}
 .uav{width:34px;height:34px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .uname{font-weight:500;font-size:.88rem;color:var(--tx);text-align:left;}
 .urole{font-size:.73rem;color:var(--mu);text-align:left;}
@@ -244,15 +246,16 @@ tr:hover td{background:rgba(255,255,255,.012);}
   <div class="lbox">
     <div class="llogo">Stock<span>Pro</span> <span style="font-size:.9rem;color:var(--ac2);font-family:var(--fb)">POS</span></div>
     <div class="lsub">Sistema de ventas e inventario</div>
-    <div class="lusers" id="login-users"><button class="ubtn" onclick="loginAs(&#39;u1&#39;)"><div class="uav">👨‍💼</div><div><div class="uname">Administrador</div><div class="urole">Administrador</div></div></button><button class="ubtn" onclick="loginAs(&#39;u2&#39;)"><div class="uav">🧑‍💼</div><div><div class="uname">Vendedor</div><div class="urole">Vendedor</div></div></button></div>
-    <div class="ldiv">o ingresá con PIN</div>
+    <div class="lusers" id="login-users"><button class="ubtn" onclick="askPin(&#39;u1&#39;)" data-uid="u1"><div class="uav">👨‍💼</div><div><div class="uname">Administrador</div><div class="urole">Administrador</div></div></button><button class="ubtn" onclick="askPin(&#39;u2&#39;)" data-uid="u2"><div class="uav">🧑‍💼</div><div><div class="uname">Vendedor</div><div class="urole">Vendedor</div></div></button></div>
+    <div class="ldiv" id="login-div">o ingresá tu contraseña</div>
     <div class="pinrow">
-      <input type="password" id="pin-input" placeholder="PIN" maxlength="6" inputmode="numeric" onkeydown="if(event.key===&#39;Enter&#39;)loginPin()">
+      <input type="password" id="pin-input" placeholder="Contraseña" maxlength="6" inputmode="numeric" autocomplete="off" onkeydown="if(event.key===&#39;Enter&#39;)loginPin()">
       <button class="btn bp" onclick="loginPin()">Entrar</button>
     </div>
+    <div id="login-target" style="display:none"></div>
     <div id="pin-err"></div>
     <div style="margin-top:14px;padding:10px 12px;background:var(--s2);border-radius:8px;font-size:.75rem;color:var(--mu);line-height:1.8">
-      🔑 <strong style="color:var(--tx)">PINs por defecto:</strong><br>
+      🔑 <strong style="color:var(--tx)">Contraseñas iniciales:</strong> cambialas en Usuarios<br>
       Administrador: <strong style="color:var(--ac)">1234</strong> &nbsp;·&nbsp; Vendedor: <strong style="color:var(--ac)">0000</strong>
     </div>
   </div>
@@ -270,6 +273,7 @@ tr:hover td{background:rgba(255,255,255,.012);}
     <div class="tbr">
       <span class="apill" id="apill">0</span>
       <span id="sync-indicator"></span>
+      <button type="button" class="btn bg bs" id="caja-chip" onclick="cajaChip()" style="font-size:.78rem;white-space:nowrap" title="Caja">🔓 Abrir caja</button>
       <div class="uchip"><span id="tav"></span><span id="tun" style="font-weight:500"></span><span id="tro" style="color:var(--mu)"></span></div>
       <button class="btn bg bs" onclick="logout()">Salir</button>
     </div>
@@ -319,17 +323,15 @@ if(bcProcessing)return;  // Bloquear si está escaneando
 scanTarget='pos';
 const code=this.value.trim().replace(/\s+/g,'');
 if(!code)return;  // Ignorar si está vacío
-if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
-  // Es PLU (12-13 dígitos empezando con 2)
-  handleBC(code);
-}else if(/^\d{13}$/.test(code)){
-  // Es Barcode EAN (13 dígitos exactos)
+if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.length>=6&&findBarcodeProduct(code))){
+  /* PLU de balanza, EAN-13, o CUALQUIER código de producto (ej: UPC de 12
+     dígitos como 754697497185) que exista en la base → se agrega solo. */
   handleBC(code);
 }else{
   // Es búsqueda manual
   renderPosSearch();
 }
-" onfocus="scanTarget='pos';renderPosSearch()" onchange="renderPosSearch()" onblur="setTimeout(()=>hidePosSearch(),200)" style="width:100%;font-size:1.1rem;padding:14px 16px;box-sizing:border-box" autofocus="">
+" onkeydown="return posEnterKey(event)" onfocus="scanTarget='pos';renderPosSearch()" onchange="renderPosSearch()" onblur="setTimeout(()=>hidePosSearch(),200)" style="width:100%;font-size:1.1rem;padding:14px 16px;box-sizing:border-box" autofocus="">
               <div id="pos-search-results" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.35);max-height:280px;overflow-y:auto;z-index:5;max-width:100%"></div>
               <datalist id="pos-q-nolist"></datalist>
               <!-- Datalist vacío compartido: al apuntarle el navegador NO ofrece
@@ -388,7 +390,16 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
         <span style="color:var(--mu);font-size:.8rem">hasta</span>
         <input type="date" id="d-hasta" onchange="renderDash()" title="Hasta" style="padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s2);font-size:.83rem">
         <button class="btn bg bs" onclick="dashClearDates()">✖ Sin filtro</button>
-        <span id="dash-range-lbl" style="font-size:.75rem;color:var(--mu);margin-left:auto"></span>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn bg bs" onclick="dashQuick('hoy')" title="Ventas de hoy">☀️ Hoy</button>
+          <button class="btn bg bs" onclick="dashQuick('ayer')" title="Ventas de ayer">🌙 Ayer</button>
+          <button class="btn bg bs" onclick="dashQuick('semana')" title="Últimos 7 días">📆 Semana</button>
+          <button class="btn bg bs" onclick="dashQuick('mes')" title="Mes en curso">🗓️ Mes</button>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <label style="display:flex;gap:6px;align-items:center;font-size:.8rem;font-weight:600">👤 Vendedor<select id="d-vend" onchange="renderDash()" title="Filtrar ventas por vendedor" style="padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s2);font-size:.83rem"><option value="">Todos</option></select></label>
+          <span id="dash-range-lbl" style="font-size:.75rem;color:var(--mu)"></span>
+        </div>
       </div>
       <div class="stats-grid">
         <div class="stat" data-i="📦"><div class="sl">Productos</div><div class="sv cy" id="s-tot">0</div></div>
@@ -577,7 +588,7 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
     <!-- USUARIOS -->
     <div class="view" id="view-usuarios">
       <div class="sec-hdr"><div class="sec-t">Usuarios</div><button class="btn bp bs" onclick="openUserM(null)">+ Nuevo</button></div>
-      <div class="tblw"><table><thead><tr><th>Usuario</th><th>Rol</th><th>PIN</th><th>Acciones</th></tr></thead><tbody id="users-tb"></tbody></table></div>
+      <div class="tblw"><table><thead><tr><th>Usuario</th><th>Rol</th><th>Contraseña</th><th>Acciones</th></tr></thead><tbody id="users-tb"></tbody></table></div>
     </div>
 
     <!-- CONFIGURACIÓN -->
@@ -662,8 +673,8 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
 
       <!-- USUARIOS Y CLAVES (solo administrador) -->
       <div class="cfg-section" id="cfg-users-section" style="display:none">
-        <div class="cfg-title">🔑 Usuarios y claves (PIN)</div>
-        <div style="font-size:.78rem;color:var(--mu);margin-bottom:12px">Creá o editá usuarios, asigná el rol (Administrador o Vendedor) y definí la clave PIN con la que ingresan al sistema.</div>
+        <div class="cfg-title">🔑 Usuarios y contraseñas</div>
+        <div style="font-size:.78rem;color:var(--mu);margin-bottom:12px">Creá o editá usuarios, asigná el rol (Administrador o Vendedor) y definí la contraseña de 4 dígitos con la que ingresan al sistema.</div>
         <div id="cfg-users-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
         <button class="btn bp bs" onclick="openUserM(null)">➕ Nuevo usuario / clave</button>
       </div>
@@ -713,13 +724,16 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
 
           <div class="mnl-h">1 · Entrar y usuarios</div>
           <ul class="mnl-ul">
-            <li class="mnl-li">Al abrir el sistema aparece la pantalla de acceso: cargá tu <b>PIN</b> y entrás.</li>
-            <li class="mnl-li">Los usuarios se cargan en <b>👥 Usuarios</b> o en <b>⚙️ Configuración → 🔑 Usuarios y claves (PIN)</b>: nombre, PIN y rol.</li>
+            <li class="mnl-li">Al abrir el sistema aparece la pantalla de acceso: hacé clic en tu nombre, escribí tu <b>contraseña</b> (4 dígitos) y entrás. Un clic solo ya no entra.</li>
+            <li class="mnl-li">Los usuarios se cargan en <b>👥 Usuarios</b> o en <b>⚙️ Configuración → 🔑 Usuarios y contraseñas</b>: nombre, contraseña y rol.</li>
             <li class="mnl-li"><b>Administrador:</b> ve todo (Dashboard, Reportes, Usuarios, Egresos Doña Cocina).</li>
-            <li class="mnl-li"><b>Vendedor:</b> sólo el Punto de Venta y sus ventas.</li>
-            <li class="mnl-li">Si olvidaste un PIN, el administrador abre el usuario, escribe uno nuevo y guarda.</li>
+            <li class="mnl-li"><b>Vendedor:</b> sólo el Punto de Venta y sus ventas (salvo que tenga ⭐ Acceso total).</li>
+            <li class="mnl-li"><b>⭐ Acceso total:</b> al crear o editar un usuario podés marcar «Acceso total»: un vendedor con esa marca ve y hace todo igual que el Administrador (Dashboard, Reportes, Usuarios, caja y configuración). La marca se muestra con ⭐ en la lista de usuarios.</li>
+            <li class="mnl-li">Si olvidaste tu contraseña, el administrador abre el usuario, escribe una nueva de 4 dígitos y guarda.</li>
+            <li class="mnl-li"><b>🧾 Caja (chip arriba a la derecha):</b> es opcional. <b>🔓 Abrir caja</b> pide el efectivo inicial; también podés vender sin abrirla.</li>
+            <li class="mnl-li"><b>🔒 Cerrar caja:</b> clic en el chip 🟩 → resumen de efectivo (ventas, otros ingresos, egresos y pagos a proveedores), contás lo que hay en la gaveta y ves la diferencia. Al guardar, la sesión se cierra sola.</li>
           </ul>
-          <div class="mnl-tip">💡 Entrá con tu propio PIN: cada venta queda registrada con el nombre de quien la hizo.</div>
+          <div class="mnl-tip">💡 Entrá con tu propia contraseña: nadie puede entrar a tu nombre si no la conoce. Cada vendedor tiene la suya.</div>
 
           <div class="mnl-h">2 · Menú lateral</div>
           <ul class="mnl-ul">
@@ -739,6 +753,7 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
             <li class="mnl-li">Al tocarlo se suma al carrito. Tocá la fila para cambiar la <b>cantidad</b>, agregar un <b>descuento</b> o sacarlo.</li>
             <li class="mnl-li">Tocá <b>💳 COBRAR</b>, elegí el medio de pago y cargá el dinero recibido: el sistema calcula el <b>vuelto</b>.</li>
             <li class="mnl-li">Tocá <b>✅ Confirmar venta</b>. El ticket se imprime solo si está activado en Configuración (o con 🖨 del ticket).</li>
+            <li class="mnl-li">Debajo del carrito se listan <b>todas las ventas del día</b> (ya no sólo las últimas 20): hora, medio de pago e importe, con el total del día arriba a la derecha.</li>
           </ol>
           <div class="mnl-tip">💡 <b>Pago dividido:</b> en el cobro elegí un segundo medio de pago con su monto (por ejemplo $5.000 en efectivo y el resto en QR).</div>
           <div class="mnl-tip">💡 <b>Cuenta corriente:</b> si elegís «Cuenta cte.» seleccioná el cliente; el importe queda como saldo y se cobra desde 🗂️ Fichas con «💰 Cobrar saldo».</div>
@@ -785,6 +800,8 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
           <div class="mnl-h">8 · Dashboard y Reportes</div>
           <ul class="mnl-ul">
             <li class="mnl-li"><b>📊 Dashboard</b>: resumen, productos más vendidos, horarios punta y medios de pago.</li>
+            <li class="mnl-li">En el Dashboard, los botones <b>☀️ Hoy · 🌙 Ayer · 📆 Semana · 🗓️ Mes</b> (junto al rango libre desde/hasta) filtran rápido las tarjetas «del período» y la tabla de compras.</li>
+            <li class="mnl-li">El selector <b>👤 Vendedor</b> muestra sólo las ventas de una persona; la etiqueta de la derecha indica el período y el vendedor elegidos.</li>
             <li class="mnl-li"><b>📊 Reportes</b>: ventas por día, semana o mes, con top de productos y exportación a Excel.</li>
             <li class="mnl-li"><b>🧾 Historial Ventas</b> permite abrir una venta para reimprimir el ticket o eliminarla.</li>
           </ul>
@@ -1598,10 +1615,47 @@ if(/^\d{12,13}$/.test(code)&&code[0]==='2'){
     <div class="fgrid">
       <div class="fg full"><label class="fl">Nombre *</label><input type="text" id="u-name" placeholder="Ej: María García"></div>
       <div class="fg"><label class="fl">Rol</label><select id="u-role"><option value="admin">Administrador</option><option value="vendedor">Vendedor</option><option value="deposito">Depósito</option></select></div>
-      <div class="fg"><label class="fl">PIN (4-6 dígitos)</label><div style="display:flex;gap:6px;align-items:center"><input type="password" id="u-pin" maxlength="6" inputmode="numeric" placeholder="••••" style="flex:1;min-width:0"><button type="button" class="btn bg bs" onclick="genUserPin()" title="Generar clave aleatoria" style="white-space:nowrap">🎲 Generar</button></div></div>
+      <div class="fg"><label class="fl">Contraseña (4 dígitos)</label><div style="display:flex;gap:6px;align-items:center"><input type="password" id="u-pin" maxlength="4" inputmode="numeric" placeholder="••••" style="flex:1;min-width:0"><button type="button" class="btn bg bs" onclick="genUserPin()" title="Generar clave aleatoria" style="white-space:nowrap">🎲 Generar</button></div></div>
       <div class="fg full"><label class="fl">Emoji avatar</label><input type="text" id="u-av" maxlength="2" placeholder="👤"></div>
+      <div class="fg full"><label class="fl">Permisos</label><label style="display:flex;gap:8px;align-items:flex-start;font-size:.83rem;cursor:pointer;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:9px 11px"><input type="checkbox" id="u-full" style="width:16px;height:16px;accent-color:var(--ac);cursor:pointer;margin-top:1px"><span>⭐ <b>Acceso total</b> — aunque sea Vendedor, ve y hace todo igual que el Administrador (Dashboard, Reportes, Usuarios, caja y configuración).</span></label></div>
     </div>
     <div class="mfoot"><button class="btn bg" onclick="closeO(&#39;m-user&#39;)">Cancelar</button><button class="btn bp" onclick="saveUser()">Guardar</button></div>
+  </div>
+</div>
+
+<!-- MODAL CAJA — abrir / detalle / cerrar -->
+<div class="overlay" id="m-caja">
+  <div class="modal">
+    <div class="mt" id="cj-title">🔓 Abrir caja</div>
+
+    <!-- ABRIR: pide el efectivo inicial -->
+    <div id="cj-abrir">
+      <div class="fgrid">
+        <div class="fg full"><label class="fl">Vendedor</label><input type="text" id="cj-user" disabled style="opacity:.75"></div>
+        <div class="fg"><label class="fl">Fecha y hora</label><input type="text" id="cj-fecha" disabled style="opacity:.75"></div>
+        <div class="fg"><label class="fl">💵 Efectivo inicial *</label><input type="number" id="cj-inicial" min="0" step="1" inputmode="numeric" placeholder="0"></div>
+        <div class="fg full"><label class="fl">Nota (opcional)</label><input type="text" id="cj-nota" placeholder="Ej: arranco con $2.000 de cambio"></div>
+      </div>
+      <div style="font-size:.76rem;color:var(--mu);line-height:1.7;margin-top:9px">La caja es <strong style="color:var(--tx)">opcional</strong>: también podés vender sin abrirla. Lo que pase con la caja abierta es lo que entra al resumen del cierre.</div>
+    </div>
+
+    <!-- CERRAR: resumen del efectivo + conteo -->
+    <div id="cj-cerrar" style="display:none">
+      <div id="cj-resumen" style="background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;font-size:.82rem"></div>
+      <div class="fgrid" style="margin-top:11px">
+        <div class="fg full"><label class="fl">💵 Efectivo contado (lo que hay en la gaveta) *</label><input type="number" id="cj-contado" min="0" step="1" inputmode="numeric" placeholder="0" oninput="cajaDiff()"></div>
+        <div class="fg full"><label class="fl">Diferencia contra lo esperado</label><div id="cj-diff" style="padding:8px 10px;background:var(--s1);border:1px solid var(--bd);border-radius:8px;font-size:.84rem;font-weight:600;color:var(--mu)">Ingresá lo contado</div></div>
+        <div class="fg full"><label class="fl">Nota del cierre (opcional)</label><input type="text" id="cj-nota-cierre" placeholder="Ej: faltan $500 por el vuelto de la mañana"></div>
+      </div>
+    </div>
+
+    <!-- HISTORIAL DE CIERRES (solo administrador) -->
+    <div id="cj-hist" style="display:none">
+      <div style="font-size:.78rem;color:var(--mu);margin:13px 0 7px">📋 Últimos cierres · solo administrador</div>
+      <div id="cj-hist-list" style="display:flex;flex-direction:column;gap:6px;max-height:230px;overflow-y:auto"></div>
+    </div>
+
+    <div class="mfoot"><button class="btn bg" id="cj-cancel" onclick="closeO(&#39;m-caja&#39;)">Cancelar</button><button class="btn bp" id="cj-ok" onclick="cajaOpen()">🔓 Abrir caja</button></div>
   </div>
 </div>
 
@@ -1921,6 +1975,7 @@ async function loadFromCloud(full){
       cfgApplyRemote(by.settings);
       cfgApplyBlob('egreso_cats',by.egreso_cats);
       cfgApplyBlob('prov_egresos',by.prov_egresos);
+      cfgApplyBlob('caja',by.caja);
     }
     /* Sólo se da por hecho el histórico si la nube respondió con ventas. */
     if(full&&Array.isArray(histRows(rs)))histFullAt=Date.now();
@@ -2606,26 +2661,66 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function roleL(r){return{admin:'Administrador',vendedor:'Vendedor',deposito:'Depósito'}[r]||r;}
+/* Acceso total: un usuario no-administrador con `full:true` ve y puede hacer
+   TODO lo mismo que el Administrador (secciones, reportes, usuarios y caja).
+   Se marca en 👥 Usuarios con la casilla "Acceso total". */
+function esAdmin(u){const x=(u!==undefined&&u!==null)?u:currentUser;return !!x&&(x.role==='admin'||x.full===true);}
+/* Muestra/oculta las entradas de solo-administrador según el usuario actual. */
+function applyPerms(){const ok=esAdmin(currentUser);['nav-u','nav-dash','nav-rep','nav-edc'].forEach(id=>{const el=$i(id);if(el)el.style.display=ok?'':'none';});}
+/* Ingreso por contraseña: cada vendedor tiene su PIN de 4 dígitos.
+   Clic en un usuario ya NO entra directo: lo selecciona y pide su clave
+   (askPin). loginAs() sigue siendo el acceso directo a la sesión y lo
+   usan los tests y el propio loginPin() una vez validada la clave. */
+let loginTarget=null,loginFails=0,loginLockUntil=0;
 function renderLoginUsers(){
   if(!users||!users.length)initUsers();
-  $i('login-users').innerHTML=users.map(u=>'<button class="ubtn" onclick="loginAs(\''+u.id+'\')">'+'<div class="uav">'+( u.avatar||'👤')+'</div><div><div class="uname">'+u.name+'</div><div class="urole">'+roleL(u.role)+'</div></div></button>').join('');
+  $i('login-users').innerHTML=users.map(u=>'<button class="ubtn" onclick="askPin(\''+u.id+'\')" data-uid="'+u.id+'">'+'<div class="uav">'+( u.avatar||'👤')+'</div><div><div class="uname">'+u.name+'</div><div class="urole">'+roleL(u.role)+'</div></div></button>').join('');
 }
-function loginAs(id){const u=users.find(x=>x.id===id);if(u){currentUser=u;startApp();}}
+function askPin(id){
+  const u=users.find(x=>x.id===id);if(!u)return;
+  loginTarget=id;
+  const err=$i('pin-err');if(err)err.textContent='';
+  const inp=$i('pin-input');if(inp){inp.value='';inp.focus();}
+  document.querySelectorAll('#login-users .ubtn').forEach(b=>b.classList.toggle('sel',b.getAttribute('data-uid')===id));
+  const box=$i('login-target');
+  if(box){box.style.display='block';box.textContent='Contraseña de '+u.name+' ('+roleL(u.role)+')';}
+}
+function loginAs(id){
+  const u=users.find(x=>x.id===id);if(!u)return;
+  currentUser=u;loginTarget=null;loginFails=0;
+  document.querySelectorAll('#login-users .ubtn').forEach(b=>b.classList.remove('sel'));
+  const box=$i('login-target');if(box){box.style.display='none';box.textContent='';}
+  const err=$i('pin-err');if(err)err.textContent='';
+  const inp=$i('pin-input');if(inp)inp.value='';
+  startApp();
+}
 function loginPin(){
-  const p=$i('pin-input').value.trim();
-  if(!p){$i('pin-err').textContent='Ingresá tu PIN';return;}
+  const inp=$i('pin-input'),p=(inp?inp.value:'').trim();
+  if(!p){$i('pin-err').textContent='Ingresá tu contraseña';return;}
   if(!users||!users.length)initUsers();
-  const u=users.find(x=>String(x.pin)===String(p));
-  if(u){currentUser=u;$i('pin-err').textContent='';startApp();}
-  else $i('pin-err').textContent='PIN incorrecto. Probá 1234 (Admin) u 0000 (Vendedor)';
+  const rest=loginLockUntil-Date.now();
+  if(rest>0){$i('pin-err').textContent='Demasiados intentos: esperá '+Math.ceil(rest/1000)+' s';return;}
+  let u=null;
+  if(loginTarget)u=users.find(x=>x.id===loginTarget&&String(x.pin)===p);
+  else u=users.find(x=>String(x.pin)===p);
+  if(u){loginAs(u.id);return;}
+  loginFails++;
+  if(loginFails>=5){
+    loginFails=0;loginLockUntil=Date.now()+30000;
+    $i('pin-err').textContent='5 intentos fallidos: acceso bloqueado 30 s';
+  }else{
+    const quien=loginTarget?(' de '+((users.find(x=>x.id===loginTarget)||{}).name||'')):'';
+    $i('pin-err').textContent='Contraseña'+quien+' incorrecta ('+loginFails+'/5)';
+  }
+  if(inp){inp.value='';inp.focus();}
 }
 function startApp(){
   if(!currentUser){currentUser={id:'u1',name:'Administrador',role:'admin',pin:'1234',avatar:'A'}}
   $i('login-screen').style.display='none';$i('app').style.display='block';
   $i('tav').textContent=currentUser.avatar||'👤';$i('tun').textContent=currentUser.name;$i('tro').textContent=' · '+roleL(currentUser.role);
   // Permisos por rol: Dashboard, Reportes y Usuarios son solo-administrador
-  const isAdmin=currentUser.role==='admin';
-  ['nav-u','nav-dash','nav-rep','nav-edc'].forEach(id=>{const el=$i(id);if(el)el.style.display=isAdmin?'':'none';});
+  // (o de "acceso total")
+  applyPerms();
   // Cada ingreso arranca en el Punto de Venta (nadie queda en una vista de solo-admin)
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   $i('view-pos').classList.add('active');
@@ -2635,16 +2730,242 @@ function startApp(){
      de Egresos (no hace nada si no hay nada que mover). */
   try{provEgMigrate();}catch(e){console.warn('provEgMigrate:',e);}
   refreshAll();
+  renderCajaChip();
   /* En vivo cada 30 s; el historial COMPLETO se baja cada 10 min (histFullDue). */
   if(cloudMode)setInterval(async()=>{if(cloudMode&&sb&&currentUser){await loadFromCloud(histFullDue());refreshAll();}},30000);
 }
-function logout(){currentUser=null;$i('login-screen').style.display='flex';$i('app').style.display='none';$i('pin-input').value='';document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));const pv=$i('view-pos');if(pv)pv.classList.add('active');renderLoginUsers();}
+function logout(){currentUser=null;loginTarget=null;loginFails=0;loginLockUntil=0;$i('login-screen').style.display='flex';$i('app').style.display='none';$i('pin-input').value='';const lt=$i('login-target');if(lt){lt.style.display='none';lt.textContent='';}const pe=$i('pin-err');if(pe)pe.textContent='';document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));const pv=$i('view-pos');if(pv)pv.classList.add('active');renderLoginUsers();}
+
+/* ══ CAJA — apertura, resumen de efectivo y cierre ══
+   La apertura es OPCIONAL: cualquiera puede entrar sin caja.
+   El cierre usa "efectivo puro" (lo que de verdad toca la gaveta):
+     (+) ventas cobradas en efectivo (incluido el 2º pago de una venta mixta)
+     (+) otros ingresos en efectivo (cobros de fichas de clientes, sin trueques)
+     (−) egresos pagados en efectivo (Egresos y Egresos Doña Cocina)
+     (−) pagos a proveedores en efectivo (módulo Proveedores)            */
+function cajaActual(){return LS.get('caja')||null;}
+function cajaHist(){const h=LS.get('cajas');return Array.isArray(h)?h:[];}
+/* Une los cierres que vienen de la nube con los locales: manda el registro más
+   reciente de cada id y ordena del más nuevo al más viejo (máx. 400).
+   Devuelve TRUE sólo si aportó algo: así, si nada cambió, no se dispara una
+   subida y no se genera un bucle de sincronización entre equipos. */
+function cajaMerge(list){
+  if(!Array.isArray(list)||!list.length)return false;
+  const by={},mine=cajaHist();
+  let gained=false;
+  mine.forEach(c=>{if(c&&c.id)by[c.id]=c;});
+  list.forEach(c=>{
+    if(!c||!c.id)return;
+    const old=by[c.id];
+    if(!old){by[c.id]=c;gained=true;}
+    else if((c.tsClose||0)>(old.tsClose||0)){by[c.id]=c;gained=true;}
+  });
+  if(!gained)return false;
+  const out=Object.keys(by).map(k=>by[k]).sort((a,b)=>(b.tsClose||b.tsOpen||0)-(a.tsClose||a.tsOpen||0));
+  if(out.length>400)out.length=400;
+  LS.set('cajas',out);
+  try{cajaRenderHist();}catch(e){}
+  return true;
+}
+function renderCajaChip(){
+  const chip=$i('caja-chip');if(!chip)return;
+  const c=cajaActual();
+  if(c){
+    chip.textContent='🟩 Caja abierta · $'+fn(c.inicial);
+    chip.style.color='var(--ok)';chip.style.borderColor='var(--ok)';
+    chip.title='Caja de '+c.userName+' · abierta el '+new Date(c.tsOpen).toLocaleString('es-AR')+'\nEfectivo inicial: $'+fn(c.inicial)+(c.nota?'\nNota: '+c.nota:'')+'\nClic para verla y cerrarla';
+  }else{
+    chip.textContent='🔓 Abrir caja';
+    chip.style.color='';chip.style.borderColor='';
+    chip.title='Abrir caja (opcional): nadie queda bloqueado sin abrirla';
+  }
+}
+function cajaChip(){const c=cajaActual();if(c)cajaShowCierre(c);else cajaShowApertura();}
+function cajaShowApertura(){
+  const u=currentUser||{name:'',role:''};
+  $i('cj-title').textContent='🔓 Abrir caja';
+  $i('cj-abrir').style.display='';
+  $i('cj-cerrar').style.display='none';
+  $i('cj-user').value=u.name||'';
+  $i('cj-fecha').value=new Date().toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  $i('cj-inicial').value='0';
+  $i('cj-nota').value='';
+  $i('cj-ok').textContent='🔓 Abrir caja';
+  $i('cj-ok').onclick=cajaOpen;
+  $i('cj-cancel').textContent='Cancelar';
+  cajaRenderHist();
+  openO('m-caja');
+  setTimeout(()=>{const el=$i('cj-inicial');if(el){el.focus();try{el.select();}catch(e){}}},60);
+}
+function cajaOpen(){
+  const raw=$i('cj-inicial').value,ini=parseFloat(raw);
+  if(raw===''||isNaN(ini)||ini<0){toast('Ingresá el efectivo inicial (puede ser 0)','err');return;}
+  if(!currentUser){toast('Ingresá con tu usuario para abrir caja','err');return;}
+  const c={id:'cj'+Date.now(),userId:currentUser.id,userName:currentUser.name,userRole:currentUser.role,tsOpen:Date.now(),inicial:amt(ini),nota:$i('cj-nota').value.trim()};
+  LS.set('caja',c);renderCajaChip();closeO('m-caja');
+  toast('🔓 Caja abierta · efectivo inicial $'+fn(c.inicial));
+}
+function cajaShowCierre(c){
+  const r=cajaResumen(c);
+  const L=(l,txt,alto)=>'<div style="display:flex;justify-content:space-between;gap:10px;'+(alto?'background:rgba(245,197,24,.10);border:1px solid rgba(245,197,24,.35);border-radius:8px;margin-top:7px;padding:8px 9px;font-weight:700':'padding:6px 2px;border-bottom:1px dashed var(--bd)')+'"><span'+(alto?'':'')+'>'+l+'</span><strong style="white-space:nowrap">'+txt+'</strong></div>';
+  $i('cj-title').textContent='🔒 Cerrar caja';
+  $i('cj-abrir').style.display='none';
+  $i('cj-cerrar').style.display='';
+  $i('cj-resumen').innerHTML=
+    '<div style="font-size:.75rem;color:var(--mu);line-height:1.7;margin-bottom:7px">Caja de <strong style="color:var(--tx)">'+(c.userName||'')+'</strong> · abierta '+new Date(c.tsOpen).toLocaleString('es-AR')+' → '+new Date().toLocaleString('es-AR')+(c.nota?'<br>Nota de apertura: '+c.nota:'')+'</div>'+
+    L('💵 Efectivo inicial','$'+fn(r.inicial))+
+    L('(+) Ventas en efectivo · '+r.nVentas+' venta'+(r.nVentas===1?'':'s'),' +$'+fn(r.ventas))+
+    L('(+) Otros ingresos en efectivo',' +$'+fn(r.otros))+
+    L('(−) Egresos en efectivo',' −$'+fn(r.egresosEf))+
+    L('(−) Pagos a proveedores en efectivo',' −$'+fn(r.provEf))+
+    L('= EFECTIVO ESPERADO EN GAVETA','$'+fn(r.esperado),true);
+  $i('cj-contado').value='';
+  $i('cj-nota-cierre').value='';
+  $i('cj-diff').textContent='Ingresá lo contado';
+  $i('cj-diff').style.color='var(--mu)';
+  $i('cj-ok').textContent='🔒 Cerrar caja y salir';
+  $i('cj-ok').onclick=cajaDoClose;
+  $i('cj-cancel').textContent='Seguir vendiendo';
+  cajaRenderHist();
+  openO('m-caja');
+  setTimeout(()=>{const el=$i('cj-contado');if(el)el.focus();},60);
+}
+function cajaDiff(){
+  const c=cajaActual();if(!c)return;
+  const el=$i('cj-diff');if(!el)return;
+  const raw=$i('cj-contado').value;
+  if(raw===''){el.textContent='Ingresá lo contado';el.style.color='var(--mu)';return;}
+  const r=cajaResumen(c),d=amt((parseFloat(raw)||0)-r.esperado);
+  if(d===0){el.textContent='✅ Sin diferencia ($0)';el.style.color='var(--ok)';}
+  else if(d>0){el.textContent='⬆ Sobrante de $'+fn(d);el.style.color='var(--ok)';}
+  else{el.textContent='⬇ Faltante de $'+fn(-d);el.style.color='var(--err)';}
+}
+function cajaResumen(c){
+  const desde=c.tsOpen,hasta=Date.now(),inWin=ts=>!!ts&&ts>=desde&&ts<=hasta;
+  let ventas=0,nVentas=0;
+  sales.forEach(s=>{
+    if(!inWin(s.ts))return;
+    const p2=s.pay2amount||0;let e=0;
+    if(s.pay==='efectivo')e+=s.pay2?Math.max(0,(s.total||0)-p2):(s.total||0);
+    if(s.pay2==='efectivo')e+=p2;
+    if(e>0){ventas+=e;nVentas++;}
+  });
+  let otros=0;
+  ctaMovs.forEach(m=>{
+    if(!inWin(m.ts)||m.type!=='pago')return;
+    if(/trueque/i.test(m.note||''))return;                 // trueque: no es dinero
+    const ct=contacts.find(x=>x.id===m.contactId);
+    if(!ct||ct.type!=='cliente')return;                    // solo cobros a clientes
+    otros+=m.amount||0;
+  });
+  let efEgresos=0;
+  egresos.concat(egresosDC).forEach(g=>{
+    if(Array.isArray(g.pays)&&g.pays.length){
+      g.pays.forEach(p=>{if(p.tipo==='efectivo'&&inWin(p.date))efEgresos+=p.amount||0;});
+    }else if(g.paid&&(g.tipoPago||'efectivo')==='efectivo'&&inWin(g.ts)){
+      efEgresos+=g.total||0;                               // gastos/compras viejos
+    }
+  });
+  let efProv=0;
+  provPayments.forEach(p=>{if(p.type==='efectivo'&&inWin(p.date))efProv+=p.amount||0;});
+  return {inicial:c.inicial||0,ventas:amt(ventas),nVentas:nVentas,otros:amt(otros),egresosEf:amt(efEgresos),provEf:amt(efProv),esperado:amt((c.inicial||0)+ventas+otros-efEgresos-efProv),desde:desde,hasta:hasta};
+}
+function cajaDoClose(){
+  const c=cajaActual();
+  if(!c){toast('No hay caja abierta','err');closeO('m-caja');return;}
+  const raw=$i('cj-contado').value;
+  if(raw===''){toast('Ingresá el efectivo contado en la gaveta','err');return;}
+  const contado=amt(parseFloat(raw)||0),r=cajaResumen(c),dif=amt(contado-r.esperado);
+  const reg=Object.assign({},c,{
+    tsClose:Date.now(),contado:contado,esperado:r.esperado,dif:dif,
+    nVentas:r.nVentas,ventas:r.ventas,otros:r.otros,egresosEf:r.egresosEf,provEf:r.provEf,
+    notaCierre:$i('cj-nota-cierre').value.trim(),cerradoPor:currentUser?currentUser.name:''
+  });
+  const h=cajaHist();h.unshift(reg);if(h.length>400)h.length=400;
+  LS.set('cajas',h);LS.set('caja',null);
+  try{cfgDirty('caja');}catch(e){}   /* sube el cierre a la nube (si está activa) */
+  renderCajaChip();closeO('m-caja');
+  toast(dif===0?'🔒 Caja cerrada sin diferencia':(dif>0?'🔒 Caja cerrada · sobrante de $'+fn(dif):'🔒 Caja cerrada · faltante de $'+fn(-dif)));
+  /* Como pediste: cerrar caja = cerrar sesión */
+  setTimeout(()=>{logout();},450);
+}
+
+/* ── Historial de cierres y su impresión (solo administrador) ── */
+function cajaEsAdmin(){return esAdmin(currentUser);}
+function cajaRenderHist(){
+  const box=$i('cj-hist');if(!box)return;
+  if(!cajaEsAdmin()){box.style.display='none';return;}
+  box.style.display='';
+  const el=$i('cj-hist-list');if(!el)return;
+  const h=cajaHist();
+  if(!h.length){el.innerHTML='<div style="font-size:.78rem;color:var(--mu);padding:6px 2px">Todavía no hay cierres guardados.</div>';return;}
+  el.innerHTML=h.slice(0,30).map(c=>{
+    const d=c.dif||0,tag=(d<0)?'var(--err)':'var(--ok)';
+    const txt=d===0?'Sin diferencia':(d>0?'Sobrante de $'+fn(d):'Faltante de $'+fn(-d));
+    return '<div style="display:flex;align-items:center;gap:9px;background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:7px 9px;font-size:.78rem">'
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="color:var(--mu)">'+new Date(c.tsClose||c.tsOpen).toLocaleString('es-AR')+' · '+escH(c.userName||'')+'</div>'
+      +'<div style="margin-top:2px">Esperado $'+fn(c.esperado)+' · Contado $'+fn(c.contado)+' · <strong style="color:'+tag+'">'+txt+'</strong></div>'
+      +'</div>'
+      +'<button class="btn bg bs bic" title="Imprimir este cierre" onclick="cajaPrintHist(\''+escH(String(c.id))+'\')">🖨</button>'
+      +'</div>';
+  }).join('')+'<button class="btn bg bs" onclick="cajaPrintHist()" style="width:100%;margin-top:8px">🖨 Imprimir todo el historial</button>';
+}
+function cajaPrintHist(id){
+  const h=cajaHist();
+  if(!h.length){toast('Sin cierres para imprimir','err');return;}
+  const shop=(function(){try{return (cfg()&&cfg().shop)||'StockPro';}catch(e){return 'StockPro';}})();
+  if(id){
+    const c=h.find(x=>String(x.id)===String(id));
+    if(!c){toast('Cierre no encontrado','err');return;}
+    const d=c.dif||0;
+    const R=(l,v,cls)=>'<tr'+(cls?' style="background:'+cls+'"':'')+'><td>'+l+'</td><td style="text-align:right">'+v+'</td></tr>';
+    const html='<h1 style="text-align:center;color:#2c3e50">CIERRE DE CAJA</h1>'
+      +'<p style="text-align:center;color:#555">'+escH(shop)+' · '+new Date(c.tsClose||c.tsOpen).toLocaleString('es-AR')+'</p>'
+      +'<table>'
+      +'<tr><td><b>Vendedor</b></td><td style="text-align:right">'+escH(c.userName||'')+'</td></tr>'
+      +'<tr><td><b>Abrida</b></td><td style="text-align:right">'+(c.tsOpen?new Date(c.tsOpen).toLocaleString('es-AR'):'—')+'</td></tr>'
+      +'<tr><td><b>Cerrada</b></td><td style="text-align:right">'+(c.tsClose?new Date(c.tsClose).toLocaleString('es-AR'):'—')+'</td></tr>'
+      +'<tr><td><b>Efectivo inicial</b></td><td style="text-align:right">$'+fn(c.inicial)+'</td></tr>'
+      +R('(+) Ventas en efectivo ('+fqty(c.nVentas||0)+')','$'+fn(c.ventas))
+      +R('(+) Otros ingresos en efectivo','$'+fn(c.otros))
+      +R('(−) Egresos en efectivo','-$'+fn(c.egresosEf))
+      +R('(−) Pagos a proveedores en efectivo','-$'+fn(c.provEf))
+      +R('<b>= EFECTIVO ESPERADO</b>','<b>$'+fn(c.esperado)+'</b>','#e8f5e9')
+      +R('<b>EFECTIVO CONTADO</b>','<b>$'+fn(c.contado)+'</b>')
+      +R('<b>DIFERENCIA</b>','<b>'+(d===0?'$0 sin diferencia':(d>0?'Sobrante de $'+fn(d):'Faltante de $'+fn(-d)))+'</b>',(d===0?'#e8f5e9':'#fdecea'))
+      +'</table>'
+      +((c.notaCierre||c.nota)?'<p><b>Nota:</b> '+escH(c.notaCierre||c.nota)+'</p>':'')
+      +'<p style="color:#999;font-size:9pt">Cerrado por '+escH(c.cerradoPor||c.userName||'')+' · Impreso '+new Date().toLocaleString('es-AR')+'</p>';
+    spPrintFrame(html,'CIERRE DE CAJA');
+    return;
+  }
+  const rows=h.map(c=>{
+    const d=c.dif||0;
+    return '<tr><td>'+new Date(c.tsClose||c.tsOpen).toLocaleString('es-AR')+'</td><td>'+escH(c.userName||'')+'</td>'
+      +'<td style="text-align:right">$'+fn(c.inicial)+'</td>'
+      +'<td style="text-align:right">$'+fn(c.ventas)+'</td>'
+      +'<td style="text-align:right">-$'+fn(c.egresosEf)+'</td>'
+      +'<td style="text-align:right">-$'+fn(c.provEf)+'</td>'
+      +'<td style="text-align:right"><b>$'+fn(c.esperado)+'</b></td>'
+      +'<td style="text-align:right">$'+fn(c.contado)+'</td>'
+      +'<td style="text-align:right;color:'+(d<0?'#c62828':'#2e7d32')+'"><b>'+(d===0?'$0':(d>0?'+'+fn(d):fn(d)))+'</b></td></tr>';
+  }).join('');
+  const tot=h.reduce((a,c)=>{a.e+=(c.esperado||0);a.ct+=(c.contado||0);a.d+=(c.dif||0);return a;},{e:0,ct:0,d:0});
+  const html='<h1 style="text-align:center;color:#2c3e50">HISTORIAL DE CAJAS</h1>'
+    +'<p style="text-align:center;color:#555">'+escH(shop)+' · '+h.length+' cierre'+(h.length===1?'':'s')+' · Impreso '+new Date().toLocaleString('es-AR')+'</p>'
+    +'<table><tr style="background:#667eea;color:#fff"><th>Cerrada</th><th>Vendedor</th><th>Inicial</th><th>Ventas ef.</th><th>Egresos</th><th>Prov.</th><th>Esperado</th><th>Contado</th><th>Diferencia</th></tr>'
+    +rows
+    +'<tr style="background:#f2f4f7"><td colspan="6"><b>TOTALES</b></td><td style="text-align:right"><b>$'+fn(tot.e)+'</b></td><td style="text-align:right"><b>$'+fn(tot.ct)+'</b></td><td style="text-align:right"><b>$'+fn(tot.d)+'</b></td></tr>'
+    +'</table>';
+  spPrintFrame(html,'HISTORIAL DE CAJAS');
+}
 
 // ══ NAV ══
 function nav(name,btn){
   // Control de acceso: Dashboard, Reportes y Usuarios son solo-administrador
   const adminOnly=['dashboard','reportes','usuarios','egresosdc'];
-  if(adminOnly.includes(name)&&(!currentUser||currentUser.role!=='admin')){toast('Sección disponible solo para el Administrador','err');return;}
+  if(adminOnly.includes(name)&&!esAdmin(currentUser)){toast('Sección disponible solo para el Administrador','err');return;}
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   $i('view-'+name).classList.add('active');
   if(btn){document.querySelectorAll('.ni').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
@@ -2747,6 +3068,7 @@ function cfgPayload(id){
   if(id==='settings')return cfg();
   if(id==='egreso_cats')return {ts:_blobTs[id]||0,items:egresoCats||[]};
   if(id==='prov_egresos')return {ts:_blobTs[id]||0,items:provEgresos||[]};
+  if(id==='caja')return {ts:_blobTs[id]||0,items:cajaHist()};
   return null;
 }
 async function cfgPush(){
@@ -2791,6 +3113,15 @@ function cfgApplyRemote(row){
 }
 function cfgApplyBlob(id,row){
   if(!row||!row.data||!Array.isArray(row.data.items))return false;
+  /* Cajas: se UNEN siempre, sin aplicar el criterio "gana lo más nuevo" de
+     abajo. Cada equipo cierra las suyas y los cierres de la otra PC suelen
+     tener fecha ANTERIOR a lo local: con el criterio normal se descartarían
+     y se perderían. Si el merge aportó algo, se vuelve a subir la unión. */
+  if(id==='caja'){
+    const gained=cajaMerge(row.data.items);
+    if(gained)cfgDirty('caja');
+    return gained;
+  }
   const rt=row.data.ts||0,lt=(_blobTs&&_blobTs[id])||0;
   /* Mismo criterio: blobts=0 (cache borrada o nunca modificado) ⇒ aplicar
      lo que venga de la nube. Así vuelven los motivos de gasto guardados y las
@@ -2819,6 +3150,7 @@ async function cfgRestoreFromCloud(){
     ok=cfgApplyRemote(by.settings)||ok;
     ok=cfgApplyBlob('egreso_cats',by.egreso_cats)||ok;
     ok=cfgApplyBlob('prov_egresos',by.prov_egresos)||ok;
+    ok=cfgApplyBlob('caja',by.caja)||ok;
     /* Subida de lo que tiene este equipo y la nube no (o lo local más nuevo). */
     const up=[];
     const rtOf=r=>(r&&r.data&&r.data.ts)||0;
@@ -2828,6 +3160,13 @@ async function cfgRestoreFromCloud(){
       up.push({id:'egreso_cats',data:{ts:_blobTs['egreso_cats'],items:egresoCats}});
     if(_blobTs&&_blobTs['prov_egresos']&&_blobTs['prov_egresos']>rtOf(by.prov_egresos)&&Array.isArray(provEgresos))
       up.push({id:'prov_egresos',data:{ts:_blobTs['prov_egresos'],items:provEgresos}});
+    /* Cajas: además de unir lo que venga de la nube, sube los cierres que la
+       nube todavía no tiene (p. ej. cerrada con este equipo sin conexión). */
+    const remoteC=(by.caja&&by.caja.data&&Array.isArray(by.caja.data.items))?by.caja.data.items:[];
+    const idsC=new Set(remoteC.map(function(c){return c&&c.id;}).filter(Boolean));
+    const localC=cajaHist();
+    if(localC.length&&localC.some(function(c){return c&&c.id&&!idsC.has(c.id);}))
+      up.push({id:'caja',data:{ts:Date.now(),items:localC}});
     if(up.length&&cloudMode&&sb){
       const r=await sb.from('config').upsert(up,{onConflict:'id'});
       if(r&&r.error)console.warn('config push:',r.error);else ok=true;
@@ -3322,6 +3661,32 @@ function decodePLU(code){
 }
 
 // ══ BARCODE ══
+/* Busca un producto por código de barras de forma tolerante:
+   1) igualdad exacta ("754697497185" === "754697497185")
+   2) solo dígitos (ignora espacios, guiones o "+")
+   3) dígitos sin ceros a la izquierda (un escáner en modo EAN-13 manda
+      "0754697497185" si el producto está guardado como UPC de 12 dígitos,
+      o al revés) — antes esto fallaba y el producto "no se seleccionaba solo".
+   Evita el TypeError si algún código quedó guardado como número. */
+function findBarcodeProduct(code){
+  if(code==null)return null;
+  const raw=String(code).trim().replace(/\s+/g,'');
+  if(!raw)return null;
+  const strip=s=>s.replace(/^0+/,'')||'0';
+  let p=products.find(x=>String(x.barcode==null?'':x.barcode).trim()===raw);
+  if(p)return p;
+  const dig=raw.replace(/\D/g,'');
+  if(!dig)return null;
+  const ds=strip(dig);
+  p=products.find(x=>{
+    const b=String(x.barcode==null?'':x.barcode).trim();
+    if(!b)return false;
+    const d=b.replace(/\D/g,'');
+    if(!d)return false;
+    return d===dig||strip(d)===ds;
+  });
+  return p||null;
+}
 let bcProcessing=false;  // Flag para evitar procesamientos simultáneos
 function handleBC(code){
   if(bcProcessing)return;  // Si ya está procesando, no hacer nada
@@ -3332,14 +3697,7 @@ function handleBC(code){
   
   // PRIMERO: Intentar como BARCODE regular
   if(scanTarget==='pos'){
-    let p=products.find(x=>x.barcode===code);
-    // Si no encuentra exacto, busca flexible
-    if(!p)p=products.find(x=>{
-      if(!x.barcode)return false;
-      const codeDigits=code.replace(/\D/g,'');
-      const bcDigits=x.barcode.replace(/\D/g,'');
-      return bcDigits===codeDigits;
-    });
+    const p=findBarcodeProduct(code);
     // Si encuentra por barcode, agrega automático
     if(p){
       addToCart(p.id);
@@ -3352,12 +3710,7 @@ function handleBC(code){
   
   // Escaneo dentro de la EDICIÓN de una venta → agrega el producto a ESA venta
   if(scanTarget==='sd'){
-    let sp=products.find(x=>x.barcode===code);
-    if(!sp)sp=products.find(x=>{
-      if(!x.barcode)return false;
-      const a=code.replace(/\D/g,''),b=x.barcode.replace(/\D/g,'');
-      return a&&b&&a===b;
-    });
+    const sp=findBarcodeProduct(code);
     if(sp){
       sdAddProduct(sp.id);
       if($i('sd-search'))$i('sd-search').value='';
@@ -3391,11 +3744,11 @@ function handleBC(code){
   
   // SI LLEGÓ AQUÍ, no encontró ni por barcode ni por PLU
   if(scanTarget==='search'||scanTarget===null){$i('pq').value=code;renderTbl();toast('Buscando: '+code);}
-  else if(scanTarget==='prod'){$i('p-bc').value=code;const p=products.find(x=>x.barcode===code);if(p)toast('✓ '+p.name);else toast('Código registrado');}
-  else if(scanTarget==='mov'){const p=products.find(x=>x.barcode===code);if(p){$i('m-prod-sel').value=p.id;updMovSt();toast('✓ '+p.name);}else toast('No encontrado','err');}
+  else if(scanTarget==='prod'){$i('p-bc').value=code;const p=findBarcodeProduct(code);if(p)toast('✓ '+p.name);else toast('Código registrado');}
+  else if(scanTarget==='mov'){const p=findBarcodeProduct(code);if(p){$i('m-prod-sel').value=p.id;updMovSt();toast('✓ '+p.name);}else toast('No encontrado','err');}
   else if(scanTarget==='pos'){$i('pos-q').value=code;renderPosSearch();toast('No encontrado','err');}
   else if(scanTarget==='sd'){$i('sd-search').value=code;renderSdGrid();toast('No encontrado','err');}
-  else if(scanTarget==='quickstock'){const p=products.find(x=>x.barcode===code||x.sku===code);if(p){selectQsProduct(p.id);}else{$i('qs-search').value=code;renderQsSearch();toast('No encontrado','err');}}
+  else if(scanTarget==='quickstock'){const p=findBarcodeProduct(code)||products.find(x=>String(x.sku||'').trim()===code);if(p){selectQsProduct(p.id);}else{$i('qs-search').value=code;renderQsSearch();toast('No encontrado','err');}}
   else if(scanTarget==='test'){toast('Código detectado: '+code);}
   }finally{ setTimeout(()=>{ bcProcessing=false; }, 250); }
 }
@@ -3505,7 +3858,7 @@ function renderPos(){fillPosCats();renderPosGrid();renderCart();renderPosSales()
 
 function renderPosSales(){
   const tod=new Date();tod.setHours(0,0,0,0);
-  const todaySales=sales.filter(s=>s.ts>=tod.getTime()).slice(0,20);
+  const todaySales=sales.filter(s=>s.ts>=tod.getTime());/* TODAS las ventas del día (antes: últimas 20) */
   const el=$i('pos-sales-list');const totEl=$i('pos-sales-total');
   if(!el)return;
   const totalHoy=todaySales.reduce((a,s)=>a+s.total,0);
@@ -3550,39 +3903,74 @@ function normalizeStr(str){
   return String(str).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 }
 
+/* Lista de resultados del buscador del POS (compartida por el dropdown y
+   por Enter, para que las dos rutas midan exactamente lo mismo). */
+function posSearchList(){
+  const q=($i('pos-q').value||'').trim();
+  if(!q)return [];
+  const qNorm=normalizeStr(q);
+  return products.filter(p=>{
+    const nameNorm=normalizeStr(p.name);
+    const skuNorm=normalizeStr(p.sku||'');
+    return nameNorm.includes(qNorm) || normalizeStr(p.barcode).includes(qNorm) || skuNorm.includes(qNorm) || normalizeStr(p.pluCode).includes(qNorm) || normalizeStr(p.marca).includes(qNorm) || normalizeStr(p.proveedor).includes(qNorm);
+  }).slice(0,30);
+}
 function renderPosSearch(){
   const q=($i('pos-q').value||'').trim();
   const box=$i('pos-search-results');
   if(!q){box.style.display='none';box.innerHTML='';return;}
   const c=cfg();
-  const qNorm=normalizeStr(q);
-  const list=products.filter(p=>{
-    const nameNorm=normalizeStr(p.name);
-    const skuNorm=normalizeStr(p.sku||'');
-    return nameNorm.includes(qNorm) || normalizeStr(p.barcode).includes(qNorm) || skuNorm.includes(qNorm) || normalizeStr(p.pluCode).includes(qNorm) || normalizeStr(p.marca).includes(qNorm) || normalizeStr(p.proveedor).includes(qNorm);
-  }).slice(0,30);
+  const list=posSearchList();
   if(!list.length){box.innerHTML='<div style="padding:14px;text-align:center;color:var(--mu);font-size:.85rem">Sin resultados</div>';box.style.display='block';return;}
   box.innerHTML=list.map(p=>{const out=p.stock<=0&&!c.sellNoStock;return '<button type="button" class="psr-row'+(out?' is-out':'')+'" onmousedown="event.preventDefault()" onclick="addToCart(\''+p.id+'\');clearPosSearch()"><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left">'+p.name+'</div><div style="font-size:.72rem;color:var(--mu);text-align:left">'+(p.tipo=='kg'?'⚖️ ':'📦 ')+fn(p.stock)+(p.tipo=='kg'?' kg':' uds')+(out?' · Sin stock':'')+'</div></div><div style="font-family:var(--fh);font-weight:700;color:var(--ac);white-space:nowrap">'+(c.currency||'$')+fn(p.price)+(p.tipo=='kg'?'/kg':'')+'</div></button>';}).join('');
   box.style.display='block';
 }
 function clearPosSearch(){$i('pos-q').value='';hidePosSearch();}
 function hidePosSearch(){const box=$i('pos-search-results');if(box){box.style.display='none';}}
+/* Enter en el buscador del POS:
+   · código de producto (12/13 dígitos, con o sin cero) → lo agrega al carrito;
+   · un único resultado de búsqueda → lo agrega;
+   · varios → deja el dropdown abierto para elegir.
+   Así un escáner lento (que no dispara el oninput) y la escritura manual
+   terminan siempre en la misma acción. */
+function posEnterKey(ev){
+  const el=ev.target;
+  const v=(el&&el.value||'').trim();
+  if(!ev||ev.key!=='Enter'||!v)return true;
+  ev.preventDefault();ev.stopPropagation();
+  if(bcProcessing)return false;
+  scanTarget='pos';
+  if(/^[0-9]+$/.test(v)&&findBarcodeProduct(v)){handleBC(v);return false;}
+  const list=posSearchList();
+  if(list.length===1){
+    const p=list[0];
+    addToCart(p.id);clearPosSearch();toast('✅ '+p.name+' agregado');
+    return false;
+  }
+  renderPosSearch();
+  return false;
+}
 
 // ══ DASHBOARD ══
 function renderDash(){
+  dashFillVendors();/* carga los vendedores de las ventas (conserva la selección) */
+  const vendSel=$i('d-vend'),vend=vendSel?(vendSel.value||''):'';
+  const vKey=s=>{const u=((s&&s.user)||'').trim();return u||'__sin__';};
+  const enV=s=>!vend||vKey(s)===vend;
   $i('s-tot').textContent=products.length;$i('s-ok').textContent=products.filter(p=>sst(p)==='ok').length;$i('s-out').textContent=products.filter(p=>sst(p)==='out').length;$i('s-low').textContent=products.filter(p=>sst(p)==='low').length;
   const tv=products.reduce((a,p)=>a+(p.cost||0)*p.stock,0);$i('s-val').textContent='$'+fn(tv);
   const pp=products.filter(p=>p.cost>0&&p.price>0);$i('s-mg').textContent=(pp.length?pp.reduce((a,p)=>a+mg(p.cost,p.price),0)/pp.length:0).toFixed(1)+'%';
   const tod=new Date();tod.setHours(0,0,0,0);const mo=new Date(tod.getFullYear(),tod.getMonth(),1);
-  $i('s-vhoy').textContent='$'+fn(sales.filter(s=>s.ts>=tod.getTime()).reduce((a,s)=>a+s.total,0));
-  $i('s-vmes').textContent='$'+fn(sales.filter(s=>s.ts>=mo.getTime()).reduce((a,s)=>a+s.total,0));
+  $i('s-vhoy').textContent='$'+fn(sales.filter(s=>s.ts>=tod.getTime()&&enV(s)).reduce((a,s)=>a+s.total,0));
+  $i('s-vmes').textContent='$'+fn(sales.filter(s=>s.ts>=mo.getTime()&&enV(s)).reduce((a,s)=>a+s.total,0));
   const last=movements.slice(0,5);$i('dash-mv').innerHTML=last.length?last.map(mvH).join(''):'<div class="empty"><div class="eic">📋</div>Sin movimientos</div>';
   /* ══ PERÍODO (filtro de fechas) + COMPRAS DE PROVEEDORES TOTALIZADAS ══ */
   const r=rangeFromInputs('d-desde','d-hasta');
   const enR=ts=>(!r.from||ts>=r.from)&&(!r.to||ts<=r.to);
   const lbl=$i('dash-range-lbl');
-  if(lbl)lbl.textContent=r.has?('Período: '+fd(r.from||0)+(r.to?' → '+fd(r.to):' → hoy')):'Sin filtro: todas las fechas';
-  const vPer=sales.filter(s=>enR(s.ts));
+  const vendLbl=vend?(' · Vendedor: '+(vend==='__sin__'?'(sin vendedor)':vend)):'';
+  if(lbl)lbl.textContent=(r.has?('Período: '+fd(r.from||0)+(r.to?' → '+fd(r.to):' → hoy')):'Sin filtro: todas las fechas')+vendLbl;
+  const vPer=sales.filter(s=>enR(s.ts)&&enV(s));
   $i('s-vper').textContent='$'+fn(vPer.reduce((a,s)=>a+(s.total||0),0));
   const compras=provOrders.filter(o=>o&&o.deleted!==true&&o.status!=='anulado'&&enR(spNum(o.date)));
   const cTot=compras.reduce((a,o)=>a+spNum(o.totalCost),0);
@@ -3610,6 +3998,28 @@ function rangeFromInputs(did,hid){
   return {from:rd?day0(rd):0,to:rh?day1(rh):0,has:!!(rd||rh)};
 }
 function dashClearDates(){const a=$i('d-desde'),b=$i('d-hasta');if(a)a.value='';if(b)b.value='';renderDash();}
+/* Botones rápidos del Dashboard: hoy / ayer / semana (7 días) / mes en curso. */
+function dashQuick(k){
+  const a=$i('d-desde'),b=$i('d-hasta');if(!a||!b)return;
+  const d=new Date(),hoy=new Date(d.getFullYear(),d.getMonth(),d.getDate());
+  const iso=x=>x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');
+  let f=new Date(hoy),t=new Date(hoy);
+  if(k==='ayer'){f=new Date(hoy.getFullYear(),hoy.getMonth(),hoy.getDate()-1);t=new Date(f);}
+  else if(k==='semana'){f=new Date(hoy.getFullYear(),hoy.getMonth(),hoy.getDate()-6);}
+  else if(k==='mes'){f=new Date(d.getFullYear(),d.getMonth(),1);}
+  a.value=iso(f);b.value=iso(t);renderDash();
+}
+/* Opciones del filtro "Vendedor": todos los que vendieron, con la selección
+   actual intacta (así renderDash() puede volver a leerla en cada redibujo). */
+function dashFillVendors(){
+  const sel=$i('d-vend');if(!sel)return;
+  const prev=sel.value||'';
+  const set={};sales.forEach(s=>{const u=((s&&s.user)||'').trim()||'__sin__';set[u]=1;});
+  const keys=Object.keys(set).sort((x,y)=>(x==='__sin__')?1:(y==='__sin__'?-1:String(x).localeCompare(String(y),'es')));
+  sel.innerHTML='<option value="">Todos</option>'+keys.map(k=>'<option value="'+escH(k)+'">'+escH(k==='__sin__'?'(sin vendedor)':k)+'</option>').join('');
+  sel.value=prev;
+  if(sel.value!==prev)sel.value='';
+}
 function mvH(m){const ic={entrada:'📥',salida:'📤',ajuste:'⚙️',venta:'🛒'},mc={entrada:'iin',salida:'iout',ajuste:'iadj',venta:'iout'},qc={entrada:'qin',salida:'qout',ajuste:'qadj',venta:'qout'},sg={entrada:'+',salida:'−',ajuste:'=',venta:'−'};return '<div class="mvi"><div class="mvic '+(mc[m.type]||'iadj')+'">'+(ic[m.type]||'📦')+'</div><div class="mvb"><div class="mvn">'+m.pname+'</div><div class="mvm">'+(m.note||m.type)+(m.user?' · '+m.user:'')+' · '+fd(m.ts)+'</div></div><div class="mvq '+(qc[m.type]||'qadj')+'">'+(sg[m.type]||'')+fqty(m.qty)+'</div></div>';}
 
 // ══ PRODUCTOS ══
@@ -3923,26 +4333,26 @@ function openCatM(){$i('c-name').value='';$i('c-em').value='';$i('c-min').value=
 function saveCat(){const name=$i('c-name').value.trim();if(!name){toast('Nombre obligatorio','err');return;}categories.push({id:uid(),name,emoji:$i('c-em').value.trim()||'📦',min:parseInt($i('c-min').value)||5});persist();closeO('m-cat');renderCats();toast('Categoría creada ✓');}
 
 // ══ USUARIOS ══
-function renderUsers(){$i('users-tb').innerHTML=users.map(u=>'<tr><td>'+(u.avatar||'👤')+' <strong>'+u.name+'</strong></td><td><span class="ctag">'+roleL(u.role)+'</span></td><td><span style="letter-spacing:.18em">••••</span></td><td><button class="btn bg bs bic" onclick="openUserM(\''+u.id+'\')">✏️</button> <button class="btn bg bs bic" onclick="delUser(\''+u.id+'\')">🗑️</button></td></tr>').join('');renderCfgUsers();}
+function renderUsers(){$i('users-tb').innerHTML=users.map(u=>'<tr><td>'+(u.avatar||'👤')+' <strong>'+u.name+'</strong></td><td><span class="ctag">'+roleL(u.role)+(u.full===true?' ⭐':'')+'</span></td><td><span style="letter-spacing:.18em">••••</span></td><td><button class="btn bg bs bic" onclick="openUserM(\''+u.id+'\')">✏️</button> <button class="btn bg bs bic" onclick="delUser(\''+u.id+'\')">🗑️</button></td></tr>').join('');renderCfgUsers();}
 
 // ══ USUARIOS Y CLAVES DENTRO DE CONFIGURACIÓN ══
 function renderCfgUsers(){
   const box=$i('cfg-users-list');if(!box)return;
   // Solo el administrador ve y puede editar las claves
-  const isAdmin=!!currentUser&&currentUser.role==='admin';
+  const isAdmin=esAdmin(currentUser);
   const sec=$i('cfg-users-section');if(sec)sec.style.display=isAdmin?'':'none';
   if(!isAdmin){box.innerHTML='';return;}
   if(!users||!users.length)initUsers();
-  box.innerHTML=users.map(u=>'<div style="display:flex;align-items:center;gap:10px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px"><div style="font-size:1.3rem">'+(u.avatar||'👤')+'</div><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:.88rem">'+u.name+'</div><div style="font-size:.72rem;color:var(--mu)">'+roleL(u.role)+' · Clave: <strong style="color:var(--ac);letter-spacing:.14em">'+(u.pin||'—')+'</strong></div></div><button class="btn bg bs bic" onclick="openUserM(\''+u.id+'\')" title="Editar usuario y clave">✏️</button><button class="btn bg bs bic" onclick="delUser(\''+u.id+'\')" title="Eliminar">🗑️</button></div>').join('')||'<div style="font-size:.8rem;color:var(--mu)">Sin usuarios cargados.</div>';
+  box.innerHTML=users.map(u=>'<div style="display:flex;align-items:center;gap:10px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px"><div style="font-size:1.3rem">'+(u.avatar||'👤')+'</div><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:.88rem">'+u.name+'</div><div style="font-size:.72rem;color:var(--mu)">'+roleL(u.role)+(u.full===true?' ⭐ Acceso total':'')+' · Clave: <strong style="color:var(--ac);letter-spacing:.14em">'+(u.pin||'—')+'</strong></div></div><button class="btn bg bs bic" onclick="openUserM(\''+u.id+'\')" title="Editar usuario y clave">✏️</button><button class="btn bg bs bic" onclick="delUser(\''+u.id+'\')" title="Eliminar">🗑️</button></div>').join('')||'<div style="font-size:.8rem;color:var(--mu)">Sin usuarios cargados.</div>';
 }
 function genUserPin(){
-  let p='';for(let i=0;i<6;i++)p+=Math.floor(Math.random()*10);
+  let p='';for(let i=0;i<4;i++)p+=Math.floor(Math.random()*10);
   const el=$i('u-pin');if(!el)return;el.value=p;
   if(el.type==='password'){el.type='text';setTimeout(()=>{if(el)el.type='password';},4000);}
-  toast('Clave generada: '+p);
+  toast('Contraseña generada: '+p);
 }
-function openUserM(id){editUserId=id;['name','pin','av'].forEach(f=>$i('u-'+f).value='');$i('u-role').value='vendedor';if(id){const u=users.find(x=>x.id===id);if(u){$i('u-name').value=u.name;$i('u-role').value=u.role;$i('u-pin').value=u.pin;$i('u-av').value=u.avatar||'';}}openO('m-user');}
-function saveUser(){const name=$i('u-name').value.trim(),pin=$i('u-pin').value.trim();if(!name||!pin){toast('Nombre y PIN obligatorios','err');return;}if(editUserId){const idx=users.findIndex(x=>x.id===editUserId);if(idx>-1)users[idx]={...users[idx],name,role:$i('u-role').value,pin,avatar:$i('u-av').value.trim()||'👤'};toast('Usuario actualizado ✓');}else{users.push({id:uid(),name,role:$i('u-role').value,pin,avatar:$i('u-av').value.trim()||'👤'});toast('Usuario creado ✓');}persist();closeO('m-user');renderUsers();}
+function openUserM(id){editUserId=id;['name','pin','av'].forEach(f=>$i('u-'+f).value='');$i('u-role').value='vendedor';$i('u-full').checked=false;if(id){const u=users.find(x=>x.id===id);if(u){$i('u-name').value=u.name;$i('u-role').value=u.role;$i('u-pin').value=u.pin;$i('u-av').value=u.avatar||'';$i('u-full').checked=u.full===true;}}openO('m-user');}
+function saveUser(){const name=$i('u-name').value.trim(),pin=$i('u-pin').value.trim(),full=$i('u-full').checked===true;if(!name){toast('Nombre obligatorio','err');return;}if(!/^\d{4}$/.test(pin)){toast('La contraseña debe tener 4 dígitos','err');return;}if(editUserId){const idx=users.findIndex(x=>x.id===editUserId);if(idx>-1)users[idx]={...users[idx],name,role:$i('u-role').value,pin,avatar:$i('u-av').value.trim()||'👤',full};toast('Usuario actualizado ✓');}else{users.push({id:uid(),name,role:$i('u-role').value,pin,avatar:$i('u-av').value.trim()||'👤',full});toast('Usuario creado ✓');}persist();closeO('m-user');renderUsers();if(currentUser&&editUserId&&currentUser.id===editUserId)applyPerms();}
 function delUser(id){if(id===currentUser?.id){toast('No podés eliminarte','err');return;}$i('confirm-msg').textContent='¿Eliminar usuario?';$i('confirm-ok').onclick=function(){users=users.filter(x=>x.id!==id);persistDelUser(id);persist();renderUsers();closeO('m-confirm');toast('Eliminado','err');};openO('m-confirm');}
 
 // ══ PRODUCTOS CRUD ══
