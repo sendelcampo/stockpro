@@ -751,6 +751,7 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
           <ol class="mnl-ol">
             <li class="mnl-li">Buscá el producto: escribí en el buscador (encuentra por nombre, código o categoría, con o sin acentos), escaneá el código de barras o tocá la foto.</li>
             <li class="mnl-li">Al tocarlo se suma al carrito. Tocá la fila para cambiar la <b>cantidad</b>, agregar un <b>descuento</b> o sacarlo.</li>
+            <li class="mnl-li">Los botones <b>−</b> y <b>+</b> de la fila mueven <b>números enteros</b> (1, 2, 3…) cuando el producto está cargado «📦 Por unidad», y <b>0,1</b> cuando está «⚖️ Por kilogramo». La línea siempre sigue al producto: si cambiaste un producto de kilo a unidad (✏️ en 📦 Productos → Tipo de venta), el carrito se acomoda solo.</li>
             <li class="mnl-li">Tocá <b>💳 COBRAR</b>, elegí el medio de pago y cargá el dinero recibido: el sistema calcula el <b>vuelto</b>.</li>
             <li class="mnl-li">Tocá <b>✅ Confirmar venta</b>. El ticket se imprime solo si está activado en Configuración (o con 🖨 del ticket).</li>
             <li class="mnl-li">Debajo del carrito se listan <b>todas las ventas del día</b> (ya no sólo las últimas 20): hora, medio de pago e importe, con el total del día arriba a la derecha.</li>
@@ -3430,7 +3431,32 @@ function removeFromCart(idx){
   else cart=cart.filter(x=>x.pid!==idx); // fallback
   renderCart();
 }
+/* ══ EL TIPO DE LA FILA SIEMPRE SIGUE A LA FICHA DEL PRODUCTO ══
+   Los botones ± del carrito mueven ENTEROS cuando el producto es "Por unidad"
+   y DECIMALES (0,1) cuando es "Por kilogramo". Si la línea quedó con otro tipo
+   que la ficha (se cambió el tipo del producto, vino de un escaneo de balanza o
+   de datos viejos) la corrige acá SIN tocar el importe de la línea:
+     unidad → kilo:  price pasa a ser el total (unitario × cantidad)
+     kilo   → unidad: price vuelve a ser el unitario (total = unitario × cant)
+   Se ejecuta en cada redibujo, así el carrito nunca muestra botones raros. */
+function cartNormalize(){
+  for(let i=0;i<cart.length;i++){
+    const it=cart[i];if(!it)continue;
+    const p=it.pid?products.find(x=>x.id===it.pid):null;
+    if(!p)continue;                       // producto eliminado: la fila queda como está
+    const wantKg=(p.tipo==='kg');
+    if(wantKg&&it.tipo!=='kg'){
+      const unit=Number(it.price)||0,q=Number(it.qty)||1;
+      it.pricePerKg=unit;it.price=amt(unit*q);it.tipo='kg';
+    }else if(!wantKg&&it.tipo==='kg'){
+      const unit=(it.pricePerKg!=null?Number(it.pricePerKg):Number(it.price))||0;
+      it.price=unit;it.qty=Math.max(1,Math.round(Number(it.qty)||1));
+      it.tipo='unidad';delete it.pricePerKg;
+    }
+  }
+}
 function changeQty(idx,delta){
+  cartNormalize();
   const it=cart[idx];if(!it)return;
   const p=products.find(x=>x.id===it.pid);
   const isKg=it.tipo==='kg';
@@ -3438,7 +3464,7 @@ function changeQty(idx,delta){
     it.qty=parseFloat(Math.max(0.001,it.qty+delta).toFixed(3));
     it.price=amt(it.pricePerKg*it.qty);
   } else {
-    it.qty+=delta;
+    it.qty=Math.round(it.qty+delta);   /* por unidad SIEMPRE números enteros */
     if(it.qty<=0){cart.splice(idx,1);}
     else if(p&&it.qty>p.stock&&!cfg().sellNoStock){it.qty=p.stock;toast('Máximo stock','err');}
   }
@@ -3490,6 +3516,7 @@ function setUnitTotalPrice(idx,val){
   renderCart();
 }
 function renderCart(resetScroll){
+  cartNormalize();/* la fila imita a la ficha: unidad ⇒ enteros, kilo ⇒ 0,1 */
   const c=cfg();const cur=c.currency||'$';
   const ciEl=$i('cart-items');
   if(cartQtyEditing){renderCartTotals();return;}
