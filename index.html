@@ -11,23 +11,26 @@
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:var(--fb);background:var(--bg);color:var(--tx);min-height:100vh;overflow-x:hidden;}
 #login-screen{position:fixed;inset:0;background:var(--bg);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px;}
-.lbox{background:var(--s1);border:1px solid var(--bd);border-radius:20px;padding:36px 32px;width:100%;max-width:380px;}
-.llogo{font-family:var(--fh);font-size:2rem;font-weight:800;text-align:center;margin-bottom:2px;}
+.lbox{background:var(--s1);border:1px solid var(--bd);border-radius:16px;padding:18px 16px 12px;width:100%;max-width:400px;max-height:100%;overflow-y:auto;}
+.llogo{font-family:var(--fh);font-size:1.3rem;font-weight:800;text-align:center;margin-bottom:1px;}
 .llogo span{color:var(--ac);}
-.lsub{text-align:center;color:var(--mu);font-size:.83rem;margin-bottom:28px;}
-.lusers{display:flex;flex-direction:column;gap:8px;margin-bottom:18px;}
-.ubtn{background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:all .2s;width:100%;}
+.lsub{text-align:center;color:var(--mu);font-size:.7rem;margin-bottom:12px;}
+/* Mosaico compacto: los usuarios crecen en COLUMNAS y la grilla tiene scroll
+   propio, así con muchos usuarios la pantalla no se sigue agrandando. */
+.lusers{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:6px;margin-bottom:10px;max-height:40vh;overflow-y:auto;padding:2px;}
+.ubtn{background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:7px 5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;transition:all .2s;width:100%;min-width:0;overflow:hidden;}
+.ubtn>div{max-width:100%;min-width:0;overflow:hidden;}
 .ubtn:hover{border-color:var(--ac);}
 .ubtn.sel{border-color:var(--ac);background:var(--s3);box-shadow:0 0 0 2px rgba(255,255,255,.07);}
-#login-target{margin-top:9px;text-align:center;font-size:.78rem;color:var(--ac);font-weight:600;}
-.uav{width:34px;height:34px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.uname{font-weight:500;font-size:.88rem;color:var(--tx);text-align:left;}
-.urole{font-size:.73rem;color:var(--mu);text-align:left;}
-.ldiv{text-align:center;color:var(--mu);font-size:.78rem;margin:10px 0;position:relative;}
+#login-target{margin-top:7px;text-align:center;font-size:.74rem;color:var(--ac);font-weight:600;}
+.uav{width:26px;height:26px;font-size:.95rem;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.uname{font-weight:600;font-size:.74rem;color:var(--tx);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+.urole{font-size:.62rem;color:var(--mu);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+.ldiv{text-align:center;color:var(--mu);font-size:.74rem;margin:8px 0;position:relative;}
 .ldiv::before,.ldiv::after{content:'';position:absolute;top:50%;width:38%;height:1px;background:var(--bd);}
 .ldiv::before{left:0;}.ldiv::after{right:0;}
 .pinrow{display:flex;gap:8px;}
-.pinrow input{flex:1;background:var(--s2);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:10px 14px;font-family:var(--fb);font-size:.9rem;outline:none;letter-spacing:.3em;transition:border-color .2s;}
+.pinrow input{flex:1;background:var(--s2);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:9px 12px;font-family:var(--fb);font-size:.86rem;outline:none;letter-spacing:.3em;transition:border-color .2s;}
 .pinrow input:focus{border-color:var(--ac);}
 #pin-err{color:var(--err);font-size:.78rem;margin-top:5px;min-height:14px;}
 #app{display:none;}
@@ -254,9 +257,8 @@ tr:hover td{background:rgba(255,255,255,.012);}
     </div>
     <div id="login-target" style="display:none"></div>
     <div id="pin-err"></div>
-    <div style="margin-top:14px;padding:10px 12px;background:var(--s2);border-radius:8px;font-size:.75rem;color:var(--mu);line-height:1.8">
-      🔑 <strong style="color:var(--tx)">Contraseñas iniciales:</strong> cambialas en Usuarios<br>
-      Administrador: <strong style="color:var(--ac)">1234</strong> &nbsp;·&nbsp; Vendedor: <strong style="color:var(--ac)">0000</strong>
+    <div style="margin-top:10px;padding:8px 11px;background:var(--s2);border-radius:8px;font-size:.73rem;color:var(--mu);line-height:1.6">
+      🔑 <b style="color:var(--tx)">Vendedor sin nombre:</b> escribí <strong style="color:var(--ac);letter-spacing:.14em">0000</strong> y tocá <b>Entrar</b>
     </div>
   </div>
 </div>
@@ -674,7 +676,7 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
       <!-- USUARIOS Y CLAVES (solo administrador) -->
       <div class="cfg-section" id="cfg-users-section" style="display:none">
         <div class="cfg-title">🔑 Usuarios y contraseñas</div>
-        <div style="font-size:.78rem;color:var(--mu);margin-bottom:12px">Creá o editá usuarios, asigná el rol (Administrador o Vendedor) y definí la contraseña de 4 dígitos con la que ingresan al sistema.</div>
+        <div style="font-size:.78rem;color:var(--mu);margin-bottom:12px">Creá o editá usuarios, asigná el rol (Administrador o Vendedor) y definí la contraseña de 4 dígitos con la que ingresan al sistema. Lo puede hacer cualquier usuario; eliminar usuarios es sólo para Administrador.</div>
         <div id="cfg-users-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
         <button class="btn bp bs" onclick="openUserM(null)">➕ Nuevo usuario / clave</button>
       </div>
@@ -724,12 +726,14 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
 
           <div class="mnl-h">1 · Entrar y usuarios</div>
           <ul class="mnl-ul">
-            <li class="mnl-li">Al abrir el sistema aparece la pantalla de acceso: hacé clic en tu nombre, escribí tu <b>contraseña</b> (4 dígitos) y entrás. Un clic solo ya no entra.</li>
-            <li class="mnl-li">Los usuarios se cargan en <b>👥 Usuarios</b> o en <b>⚙️ Configuración → 🔑 Usuarios y contraseñas</b>: nombre, contraseña y rol.</li>
+            <li class="mnl-li">Al abrir el sistema aparece la pantalla de acceso, con los nombres en forma <b>compacta</b> (en columnas, con scroll): hacé clic en tu nombre, escribí tu <b>contraseña</b> (4 dígitos) y entrás. Un clic solo ya no entra.</li>
+            <li class="mnl-li">Para entrar <b>sin elegir nombre</b> alcanza con escribir la contraseña del vendedor <b>0000</b> y tocar Entrar (no aparecen más las contraseñas del administrador en la pantalla de acceso).</li>
+            <li class="mnl-li">Los usuarios se cargan en <b>👥 Usuarios</b> o en <b>⚙️ Configuración → 🔑 Usuarios y contraseñas</b>: nombre, contraseña y rol. <b>Cualquier usuario</b> puede agregar y editar usuarios desde Configuración (eliminarlos es sólo para Administrador).</li>
+            <li class="mnl-li"><b>Las contraseñas nunca se muestran ajenas:</b> un vendedor ve en la lista únicamente la suya y a las demás las ve tapadas (••••); al editar a otro usuario el campo de clave queda vacío y, si se guarda así, la clave <b>no cambia</b>.</li>
             <li class="mnl-li"><b>Administrador:</b> ve todo (Dashboard, Reportes, Usuarios, Egresos Doña Cocina).</li>
             <li class="mnl-li"><b>Vendedor:</b> sólo el Punto de Venta y sus ventas (salvo que tenga ⭐ Acceso total).</li>
             <li class="mnl-li"><b>⭐ Acceso total:</b> al crear o editar un usuario podés marcar «Acceso total»: un vendedor con esa marca ve y hace todo igual que el Administrador (Dashboard, Reportes, Usuarios, caja y configuración). La marca se muestra con ⭐ en la lista de usuarios.</li>
-            <li class="mnl-li">Si olvidaste tu contraseña, el administrador abre el usuario, escribe una nueva de 4 dígitos y guarda.</li>
+            <li class="mnl-li">Si olvidaste tu contraseña, abrí el usuario en <b>⚙️ Configuración → 🔑 Usuarios y contraseñas</b>, escribí una nueva de 4 dígitos y guardá.</li>
             <li class="mnl-li"><b>🧾 Caja (chip arriba a la derecha):</b> es opcional. <b>🔓 Abrir caja</b> pide el efectivo inicial; también podés vender sin abrirla.</li>
             <li class="mnl-li"><b>🔒 Cerrar caja:</b> clic en el chip 🟩 → resumen de efectivo (ventas, otros ingresos, egresos y pagos a proveedores), contás lo que hay en la gaveta y ves la diferencia. Al guardar, la sesión se cierra sola.</li>
           </ul>
@@ -768,6 +772,7 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
             <li class="mnl-li">Cada producto tiene <b>código de barras</b> (escáner) y código secundario; los de kilo generan su <b>PLU</b> para la balanza.</li>
             <li class="mnl-li">✏️ Editar o 🗑 eliminar desde la lista; <b>✏️ Editar seleccionados</b> cambia precios o stock de varios productos a la vez.</li>
             <li class="mnl-li"><b>📋 Actualizar stock rápido</b> carga mercadería entrante sin abrir producto por producto.</li>
+            <li class="mnl-li"><b>Velocidad:</b> para no trabarse con miles de artículos, en pantalla se muestran los primeros 300 productos (y las primeras 200 fichas del POS), y abajo aparece <b>«Ver los N más»</b> para cargar el resto. El contador, las búsquedas, las 🔔 Alertas y los reportes siempre usan la lista <b>completa</b>.</li>
             <li class="mnl-li">El stock baja solo cuando se vende y las <b>🔔 Alertas</b> avisan cuando queda por debajo del mínimo.</li>
           </ul>
 
@@ -3913,13 +3918,17 @@ function renderPosSales(){
   }).join('');
 }
 function fillPosCats(){const sel=$i('pos-cat');const cv=sel.value;sel.innerHTML='<option value="">Todas las categorías</option>';categories.forEach(c=>{const o=document.createElement('option');o.value=c.name;o.textContent=c.emoji+' '+c.name;sel.appendChild(o);});sel.value=cv;}
-function renderPosGrid(){
+function renderPosGrid(keep){
   const cat=$i('pos-cat').value;
   let list=products.filter(p=>!cat||p.cat===cat);
   const rank=getSalesRank();list.sort((a,b)=>{if(a.stock>0&&b.stock<=0)return -1;if(a.stock<=0&&b.stock>0)return 1;return(rank[b.id]||0)-(rank[a.id]||0);});
   const grid=$i('pos-grid');const c=cfg();const allowNoStock=c.sellNoStock;
   if(!list.length){grid.innerHTML='<div class="empty"><div class="eic">🔍</div>Sin resultados</div>';return;}
-  grid.innerHTML=list.map(p=>{const out=p.stock<=0;const sold=rank[p.id]||0;const hot=sold>0?'<span class="pc-hot">🔥'+fqty(sold)+'</span>':'';return '<div class="prod-card'+(out&&!allowNoStock?' out-of-stock':'')+'" onclick="addToCart(\''+p.id+'\')">'+(out?'<span class="pc-out">'+(allowNoStock?'⚠️0':'SIN STOCK')+'</span>':'')+'<div class="pc-name">'+hot+p.name+'</div>'+'<div class="pc-price">'+(c.currency||'$')+fn(p.price)+(p.tipo=='kg'?'/kg':'')+'</div>'+'<div class="pc-stock">'+(p.tipo=='kg'?'⚖️ ':'📦 ')+fqty(p.stock)+(p.tipo=='kg'?' kg':' uds')+'</div></div>';}).join('');
+  /* Tope en pantalla: 200 fichas (ordenadas por stock y más vendidos) y el
+     resto detrás de "Ver los N más". 6.000 fichas = 0,8 s de congelón. */
+  if(!keep)histShown.grid=HIST_PAGE.grid;
+  const vis=list.slice(0,histShown.grid);
+  grid.innerHTML=vis.map(p=>{const out=p.stock<=0;const sold=rank[p.id]||0;const hot=sold>0?'<span class="pc-hot">🔥'+fqty(sold)+'</span>':'';return '<div class="prod-card'+(out&&!allowNoStock?' out-of-stock':'')+'" onclick="addToCart(\''+p.id+'\')">'+(out?'<span class="pc-out">'+(allowNoStock?'⚠️0':'SIN STOCK')+'</span>':'')+'<div class="pc-name">'+hot+p.name+'</div>'+'<div class="pc-price">'+(c.currency||'$')+fn(p.price)+(p.tipo=='kg'?'/kg':'')+'</div>'+'<div class="pc-stock">'+(p.tipo=='kg'?'⚖️ ':'📦 ')+fqty(p.stock)+(p.tipo=='kg'?' kg':' uds')+'</div></div>';}).join('')+(list.length>vis.length?histMoreBtn('grid',list.length-vis.length):'');
 }
 
 function normalizeStr(str){
@@ -4050,7 +4059,7 @@ function dashFillVendors(){
 function mvH(m){const ic={entrada:'📥',salida:'📤',ajuste:'⚙️',venta:'🛒'},mc={entrada:'iin',salida:'iout',ajuste:'iadj',venta:'iout'},qc={entrada:'qin',salida:'qout',ajuste:'qadj',venta:'qout'},sg={entrada:'+',salida:'−',ajuste:'=',venta:'−'};return '<div class="mvi"><div class="mvic '+(mc[m.type]||'iadj')+'">'+(ic[m.type]||'📦')+'</div><div class="mvb"><div class="mvn">'+m.pname+'</div><div class="mvm">'+(m.note||m.type)+(m.user?' · '+m.user:'')+' · '+fd(m.ts)+'</div></div><div class="mvq '+(qc[m.type]||'qadj')+'">'+(sg[m.type]||'')+fqty(m.qty)+'</div></div>';}
 
 // ══ PRODUCTOS ══
-function renderTbl(){
+function renderTbl(keep){
   const q=normalizeStr(($i('pq').value||'').trim()),cat=$i('pcat').value,st=$i('pst').value;
   const prov=$i('pprov')?$i('pprov').value:'';
   let list=products.filter(p=>{const mq=!q||normalizeStr(p.name).includes(q)||normalizeStr(p.sku).includes(q)||normalizeStr(p.barcode).includes(q)||normalizeStr(p.marca).includes(q)||normalizeStr(p.proveedor).includes(q);return mq&&(!cat||p.cat===cat)&&(!st||sst(p)===st)&&(!prov||p.proveedor===prov);});
@@ -4058,7 +4067,11 @@ function renderTbl(){
   const tb=$i('prod-tb');
   const badge=$i('prod-count-badge');if(badge)badge.textContent='('+products.length+' producto'+(products.length!==1?'s':'')+(list.length!==products.length?' · '+list.length+' filtrados':'')+')';
   if(!list.length){tb.innerHTML='<tr><td colspan="9"><div class="empty"><div class="eic">🔍</div>Sin resultados</div></td></tr>';return;}
-  tb.innerHTML=list.map(p=>{const m=mg(p.cost,p.price);const ms=p.cost&&p.price?'<span style="color:'+(m>=0?'var(--ok)':'var(--err)')+'">'+m.toFixed(1)+'%</span>':'—';const chk=selectedIds.has(p.id);const codeTxt=p.barcode||p.sku||'—';return '<tr style="'+(chk?'background:rgba(245,197,24,.06)':'')+'"><td><input type="checkbox" class="row-chk" data-id="'+p.id+'" '+(chk?'checked':'')+' onchange="toggleChk(\''+p.id+'\',this.checked)" style="cursor:pointer;width:15px;height:15px"></td><td style="font-family:var(--fh);font-size:.78rem;color:var(--mu);white-space:nowrap">'+codeTxt+'</td><td><strong>'+p.name+'</strong></td><td>'+(p.cat?'<span class="ctag">'+catEm(p.cat)+' '+p.cat+'</span>':'—')+'</td><td><strong>'+fn(p.stock)+'</strong><small style="color:var(--mu)"> '+(p.tipo=='kg'?'kg':'uds')+' · mín '+(p.min||5)+'</small></td><td>'+(p.price?'$'+fn(p.price):'—')+'</td><td>'+ms+'</td><td>'+sbdg(sst(p))+'</td><td style="white-space:nowrap;position:sticky;right:0;background:'+(chk?'var(--s3)':'var(--s2)')+';z-index:1"><button class="btn bg bs bic" onclick="openMov(\'entrada\');$i(\'m-prod-sel\').value=\''+p.id+'\';updMovSt()" title="Entrada">📥</button><button class="btn bg bs bic" onclick="openMov(\'salida\');$i(\'m-prod-sel\').value=\''+p.id+'\';updMovSt()" title="Salida">📤</button><button class="btn bg bs bic" onclick="openProd(\''+p.id+'\')" title="Editar">✏️</button><button class="btn bg bs bic" onclick="delProd(\''+p.id+'\')" title="Eliminar">🗑️</button></td></tr>';}).join('');
+  /* Tope en pantalla: 300 filas (el resto detrás de "Ver los N más"). Con
+     6.000 productos pintar todos los renglones tardaba 2,2 segundos. */
+  if(!keep)histShown.prod=HIST_PAGE.prod;
+  const vis=list.slice(0,histShown.prod);
+  tb.innerHTML=vis.map(p=>{const m=mg(p.cost,p.price);const ms=p.cost&&p.price?'<span style="color:'+(m>=0?'var(--ok)':'var(--err)')+'">'+m.toFixed(1)+'%</span>':'—';const chk=selectedIds.has(p.id);const codeTxt=p.barcode||p.sku||'—';return '<tr style="'+(chk?'background:rgba(245,197,24,.06)':'')+'"><td><input type="checkbox" class="row-chk" data-id="'+p.id+'" '+(chk?'checked':'')+' onchange="toggleChk(\''+p.id+'\',this.checked)" style="cursor:pointer;width:15px;height:15px"></td><td style="font-family:var(--fh);font-size:.78rem;color:var(--mu);white-space:nowrap">'+codeTxt+'</td><td><strong>'+p.name+'</strong></td><td>'+(p.cat?'<span class="ctag">'+catEm(p.cat)+' '+p.cat+'</span>':'—')+'</td><td><strong>'+fn(p.stock)+'</strong><small style="color:var(--mu)"> '+(p.tipo=='kg'?'kg':'uds')+' · mín '+(p.min||5)+'</small></td><td>'+(p.price?'$'+fn(p.price):'—')+'</td><td>'+ms+'</td><td>'+sbdg(sst(p))+'</td><td style="white-space:nowrap;position:sticky;right:0;background:'+(chk?'var(--s3)':'var(--s2)')+';z-index:1"><button class="btn bg bs bic" onclick="openMov(\'entrada\');$i(\'m-prod-sel\').value=\''+p.id+'\';updMovSt()" title="Entrada">📥</button><button class="btn bg bs bic" onclick="openMov(\'salida\');$i(\'m-prod-sel\').value=\''+p.id+'\';updMovSt()" title="Salida">📤</button><button class="btn bg bs bic" onclick="openProd(\''+p.id+'\')" title="Editar">✏️</button><button class="btn bg bs bic" onclick="delProd(\''+p.id+'\')" title="Eliminar">🗑️</button></td></tr>';}).join('')+(list.length>vis.length?'<tr><td colspan="9">'+histMoreBtn('prod',list.length-vis.length)+'</td></tr>':'');
   updBulkBar();
 }
 
@@ -4102,13 +4115,15 @@ function salesClearDates(){const a=$i('vf-desde'),b=$i('vf-hasta');if(a)a.value=
 /* ══ TOPE EN PANTALLA (lote 5) ══
    Con el historial completo, renderMov() tardaba 2,5 s y renderSales() 0,7 s
    (se refrescan cada 30 s, y el buscador de movimientos, en CADA tecla).
+   Igual pasaba con Productos (2,2 s) y con la grilla del POS (0,8 s) con
+   miles de artículos: al pintar TODO el DOM el navegador se congela.
    Los KPIs, totales y reportes siempre usan la lista COMPLETA; en pantalla se
    muestran HIST_PAGE filas y el resto queda detrás de "Ver los N más".
    Al cambiar cualquier filtro vuelve el tope liviano. */
-const HIST_PAGE={sales:200,mov:300};
-const HIST_STEP={sales:300,mov:500};
-let histShown={sales:HIST_PAGE.sales,mov:HIST_PAGE.mov};
-function histMore(kind){histShown[kind]+=HIST_STEP[kind];if(kind==='sales')renderSales();else renderMov();}
+const HIST_PAGE={sales:200,mov:300,prod:300,grid:200};
+const HIST_STEP={sales:300,mov:500,prod:500,grid:600};
+let histShown={sales:HIST_PAGE.sales,mov:HIST_PAGE.mov,prod:HIST_PAGE.prod,grid:HIST_PAGE.grid};
+function histMore(kind){histShown[kind]+=HIST_STEP[kind];if(kind==='sales')renderSales();else if(kind==='mov')renderMov();else if(kind==='grid')renderPosGrid(true);else renderTbl(true);}
 function histMoreBtn(kind,rest){return '<div style="text-align:center;padding:10px"><button class="btn bd2 bs" onclick="histMore(\''+kind+'\')">⬇ Ver los '+rest+' más</button></div>';}
 function salesFilter(){histShown.sales=HIST_PAGE.sales;renderSales();}
 function movFilter(){histShown.mov=HIST_PAGE.mov;renderMov();}
@@ -4365,12 +4380,17 @@ function renderUsers(){$i('users-tb').innerHTML=users.map(u=>'<tr><td>'+(u.avata
 // ══ USUARIOS Y CLAVES DENTRO DE CONFIGURACIÓN ══
 function renderCfgUsers(){
   const box=$i('cfg-users-list');if(!box)return;
-  // Solo el administrador ve y puede editar las claves
-  const isAdmin=esAdmin(currentUser);
-  const sec=$i('cfg-users-section');if(sec)sec.style.display=isAdmin?'':'none';
-  if(!isAdmin){box.innerHTML='';return;}
+  /* Usuarios y contraseñas en Configuración: habilitado para TODOS los roles
+     (el alta y la edición las puede hacer cualquier usuario). El borrado lo ve
+     sólo Administrador / ⭐ Acceso total. */
+  const sec=$i('cfg-users-section');if(sec)sec.style.display='';
+  const canDel=esAdmin(currentUser);
+  /* Una clave jamás se muestra a otro usuario: el vendedor ve la suya propia y
+     a las demás las ve tapadas (la del administrador, menos todavía). En el
+     modal tampoco se carga la clave ajena: se deja vacía y vacío = no cambiarla. */
+  const veTodas=esAdmin(currentUser);
   if(!users||!users.length)initUsers();
-  box.innerHTML=users.map(u=>'<div style="display:flex;align-items:center;gap:10px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px"><div style="font-size:1.3rem">'+(u.avatar||'👤')+'</div><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:.88rem">'+u.name+'</div><div style="font-size:.72rem;color:var(--mu)">'+roleL(u.role)+(u.full===true?' ⭐ Acceso total':'')+' · Clave: <strong style="color:var(--ac);letter-spacing:.14em">'+(u.pin||'—')+'</strong></div></div><button class="btn bg bs bic" onclick="openUserM(\''+u.id+'\')" title="Editar usuario y clave">✏️</button><button class="btn bg bs bic" onclick="delUser(\''+u.id+'\')" title="Eliminar">🗑️</button></div>').join('')||'<div style="font-size:.8rem;color:var(--mu)">Sin usuarios cargados.</div>';
+  box.innerHTML=users.map(u=>'<div style="display:flex;align-items:center;gap:10px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px"><div style="font-size:1.3rem">'+(u.avatar||'👤')+'</div><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:.88rem">'+u.name+'</div><div style="font-size:.72rem;color:var(--mu)">'+roleL(u.role)+(u.full===true?' ⭐ Acceso total':'')+' · Clave: <strong style="color:var(--ac);letter-spacing:.14em">'+((veTodas||(currentUser&&currentUser.id===u.id))?(u.pin||'—'):'••••')+'</strong></div></div><button class="btn bg bs bic" onclick="openUserM(\''+u.id+'\')" title="Editar usuario y clave">✏️</button>'+(canDel?'<button class="btn bg bs bic" onclick="delUser(\''+u.id+'\')" title="Eliminar">🗑️</button>':'')+'</div>').join('')||'<div style="font-size:.8rem;color:var(--mu)">Sin usuarios cargados.</div>';
 }
 function genUserPin(){
   let p='';for(let i=0;i<4;i++)p+=Math.floor(Math.random()*10);
@@ -4378,9 +4398,9 @@ function genUserPin(){
   if(el.type==='password'){el.type='text';setTimeout(()=>{if(el)el.type='password';},4000);}
   toast('Contraseña generada: '+p);
 }
-function openUserM(id){editUserId=id;['name','pin','av'].forEach(f=>$i('u-'+f).value='');$i('u-role').value='vendedor';$i('u-full').checked=false;if(id){const u=users.find(x=>x.id===id);if(u){$i('u-name').value=u.name;$i('u-role').value=u.role;$i('u-pin').value=u.pin;$i('u-av').value=u.avatar||'';$i('u-full').checked=u.full===true;}}openO('m-user');}
-function saveUser(){const name=$i('u-name').value.trim(),pin=$i('u-pin').value.trim(),full=$i('u-full').checked===true;if(!name){toast('Nombre obligatorio','err');return;}if(!/^\d{4}$/.test(pin)){toast('La contraseña debe tener 4 dígitos','err');return;}if(editUserId){const idx=users.findIndex(x=>x.id===editUserId);if(idx>-1)users[idx]={...users[idx],name,role:$i('u-role').value,pin,avatar:$i('u-av').value.trim()||'👤',full};toast('Usuario actualizado ✓');}else{users.push({id:uid(),name,role:$i('u-role').value,pin,avatar:$i('u-av').value.trim()||'👤',full});toast('Usuario creado ✓');}persist();closeO('m-user');renderUsers();if(currentUser&&editUserId&&currentUser.id===editUserId)applyPerms();}
-function delUser(id){if(id===currentUser?.id){toast('No podés eliminarte','err');return;}$i('confirm-msg').textContent='¿Eliminar usuario?';$i('confirm-ok').onclick=function(){users=users.filter(x=>x.id!==id);persistDelUser(id);persist();renderUsers();closeO('m-confirm');toast('Eliminado','err');};openO('m-confirm');}
+function openUserM(id){editUserId=id;['name','pin','av'].forEach(f=>$i('u-'+f).value='');$i('u-role').value='vendedor';$i('u-full').checked=false;const pinEl=$i('u-pin');if(pinEl)pinEl.placeholder='••••';if(id){const u=users.find(x=>x.id===id);if(u){$i('u-name').value=u.name;$i('u-role').value=u.role;$i('u-av').value=u.avatar||'';$i('u-full').checked=u.full===true;const veClave=esAdmin(currentUser)||(currentUser&&currentUser.id===u.id);if(pinEl){pinEl.value=veClave?(u.pin||''):'';pinEl.placeholder=veClave?'••••':'•••• (vacío = no cambiarla)';}}}openO('m-user');}
+function saveUser(){const name=$i('u-name').value.trim(),pin=$i('u-pin').value.trim(),full=$i('u-full').checked===true;if(!name){toast('Nombre obligatorio','err');return;}let nPin=pin;if(editUserId){const ex=users.find(x=>x.id===editUserId);if(ex&&!nPin)nPin=ex.pin||'';}if(!/^\d{4}$/.test(nPin)){toast('La contraseña debe tener 4 dígitos','err');return;}if(editUserId){const idx=users.findIndex(x=>x.id===editUserId);if(idx>-1)users[idx]={...users[idx],name,role:$i('u-role').value,pin:nPin,avatar:$i('u-av').value.trim()||'👤',full};toast('Usuario actualizado ✓');}else{users.push({id:uid(),name,role:$i('u-role').value,pin:nPin,avatar:$i('u-av').value.trim()||'👤',full});toast('Usuario creado ✓');}persist();closeO('m-user');renderUsers();if(currentUser&&editUserId&&currentUser.id===editUserId)applyPerms();}
+function delUser(id){if(!esAdmin(currentUser)){toast('Sólo un administrador puede eliminar usuarios','err');return;}if(id===currentUser?.id){toast('No podés eliminarte','err');return;}$i('confirm-msg').textContent='¿Eliminar usuario?';$i('confirm-ok').onclick=function(){users=users.filter(x=>x.id!==id);persistDelUser(id);persist();renderUsers();closeO('m-confirm');toast('Eliminado','err');};openO('m-confirm');}
 
 // ══ PRODUCTOS CRUD ══
 function openProd(id){
