@@ -433,12 +433,14 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
           <button class="btn bg bs" onclick="exportInventoryExcel()">📊 Exportar Excel</button>
           <button class="btn bg bs" onclick="exportPluCsv()">⚖️ Exportar PLU (balanza)</button>
           <button class="btn bg bs" onclick="openQuickStock()">📋 Actualizar stock rápido</button>
+          <button class="btn bg bs" onclick="openAmpPrice()">💰 Precios masivos</button>
           <button class="btn bp bs" onclick="openProd(null)">+ Agregar</button>
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
         <input type="text" id="pq" placeholder="🔍 Nombre, marca, SKU, código o proveedor..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" list="sug-nolist" oninput="renderTbl()" style="flex:1;min-width:160px">
         <select id="pcat" onchange="renderTbl()"><option value="">Todas las categorías</option></select>
+        <select id="p-amp" onchange="renderTbl()" title="Filtrar por categoría amplia (suelto / producto / sin precio)"><option value="">Todas las categorías amplias</option><option value="econ">🟢 Sueltos económicos</option><option value="prod">📦 Productos</option><option value="suelto">🟠 Sueltos</option><option value="nopre">⚠️ Sin precio</option></select>
         <select id="pprov" onchange="renderTbl()" title="Filtrar por proveedor"><option value="">Todos los proveedores</option></select>
         <select id="pst" onchange="renderTbl()"><option value="">Todo</option><option value="ok">En stock</option><option value="low">Stock bajo</option><option value="out">Sin stock</option></select>
       </div>
@@ -772,6 +774,8 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
             <li class="mnl-li">Cada producto tiene <b>código de barras</b> (escáner) y código secundario; los de kilo generan su <b>PLU</b> para la balanza.</li>
             <li class="mnl-li">✏️ Editar o 🗑 eliminar desde la lista; <b>✏️ Editar seleccionados</b> cambia precios o stock de varios productos a la vez.</li>
             <li class="mnl-li"><b>📋 Actualizar stock rápido</b> carga mercadería entrante sin abrir producto por producto.</li>
+            <li class="mnl-li"><b>Categorías amplias:</b> al lado del nombre, cada producto muestra su grupo: <b>🟢 Sueltos económicos</b> (se pesa en balanza y vale menos de $20.000), <b>📦 Productos</b> (envasados, por unidad), <b>🟠 Sueltos</b> (se pesa y vale $20.000 o más) y <b>⚠️ Sin precio</b>. Se asignan <b>solas</b> según la ficha (no hay que cargar nada) y se filtran con el combo <i>Todas las categorías amplias</i>.</li>
+            <li class="mnl-li"><b>💰 Precios masivos:</b> sube (o baja) el precio de muchos productos de una sola vez. Elegís el <b>alcance</b> —los <b>seleccionados</b>, una <b>categoría</b> o una <b>categoría amplia</b>—, el porcentaje y aplicás; antes de guardar ves un <b>preview</b> con los precios de ejemplo. El precio se redondea <b>siempre al múltiplo de $100</b> y los productos <b>sin precio no se tocan</b>. No modifica costo, stock ni categoría, y no se cruza con «✏️ Editar seleccionados».</li>
             <li class="mnl-li"><b>Velocidad:</b> para no trabarse con miles de artículos, en pantalla se muestran los primeros 300 productos (y las primeras 200 fichas del POS), y abajo aparece <b>«Ver los N más»</b> para cargar el resto. El contador, las búsquedas, las 🔔 Alertas y los reportes siempre usan la lista <b>completa</b>.</li>
             <li class="mnl-li">El stock baja solo cuando se vende y las <b>🔔 Alertas</b> avisan cuando queda por debajo del mínimo.</li>
           </ul>
@@ -1611,6 +1615,27 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
       <div class="fg full"><label class="fl">Ajuste stock (+10 suma, -5 resta, 20 fija)</label><input type="text" id="bk-stock-delta" placeholder="— Sin cambio —"></div>
     </div>
     <div class="mfoot"><button class="btn bg" onclick="closeO(&#39;m-bulk&#39;)">Cancelar</button><button class="btn bp" onclick="bulkEditSave()">Aplicar cambios</button></div>
+  </div>
+</div>
+
+<!-- MODAL PRECIOS MASIVOS (aumento por lote) — IDs propios: NO toca los bk-* de arriba -->
+<div class="overlay" id="m-amp">
+  <div class="modal" style="max-width:520px">
+    <div class="mt">💰 Aumento masivo de precios</div>
+    <div id="amp-hint" style="font-size:.78rem;color:var(--mu);margin-bottom:12px">Elegí qué productos se tocan y de cuánto sube (o baja) el precio. Sólo cambia el precio de venta: no toca costo, stock ni categoría.</div>
+    <div class="fgrid">
+      <div class="fg full"><label class="fl">Alcance (qué productos se actualizan)</label>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:.82rem">
+          <label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="radio" name="amp-scope" id="amp-sc-sel" value="sel" onchange="ampScopeChg()" style="width:auto;flex:0 0 auto"> <span>Productos seleccionados (<span id="amp-sel-n">0</span>)</span></label>
+          <div style="display:flex;gap:8px;align-items:center"><input type="radio" name="amp-scope" id="amp-sc-cat" value="cat" onchange="ampScopeChg()" style="width:auto;flex:0 0 auto"><span>Categoría:</span><select id="amp-cat" onchange="ampScopeChg()" disabled style="flex:1;min-width:0"><option value="">— Elegí una categoría —</option></select></div>
+          <div style="display:flex;gap:8px;align-items:center"><input type="radio" name="amp-scope" id="amp-sc-amp" value="amp" checked onchange="ampScopeChg()" style="width:auto;flex:0 0 auto"><span>Categoría amplia:</span><select id="amp-amp" onchange="ampScopeChg()" style="flex:1;min-width:0"><option value="">— Elegí una categoría amplia —</option></select></div>
+        </div>
+      </div>
+      <div class="fg"><label class="fl">Variación del precio (%)</label><input type="number" id="amp-pct" value="10" step="1" oninput="ampPreview()" placeholder="Ej: 15"></div>
+      <div class="fg"><label class="fl">Redondeo</label><input type="text" value="Múltiplo de $100 (fijo)" disabled style="color:var(--mu)"></div>
+      <div class="fg full"><div id="amp-preview" style="background:var(--s3);border-radius:7px;padding:9px 12px;font-size:.78rem;min-height:34px;color:var(--mu)">Elegí el alcance para ver qué se va a actualizar.</div></div>
+    </div>
+    <div class="mfoot"><button class="btn bg" onclick="closeO(&#39;m-amp&#39;)">Cancelar</button><button class="btn bp" onclick="ampSave()">Aplicar aumento</button></div>
   </div>
 </div>
 
@@ -4059,10 +4084,28 @@ function dashFillVendors(){
 function mvH(m){const ic={entrada:'📥',salida:'📤',ajuste:'⚙️',venta:'🛒'},mc={entrada:'iin',salida:'iout',ajuste:'iadj',venta:'iout'},qc={entrada:'qin',salida:'qout',ajuste:'qadj',venta:'qout'},sg={entrada:'+',salida:'−',ajuste:'=',venta:'−'};return '<div class="mvi"><div class="mvic '+(mc[m.type]||'iadj')+'">'+(ic[m.type]||'📦')+'</div><div class="mvb"><div class="mvn">'+m.pname+'</div><div class="mvm">'+(m.note||m.type)+(m.user?' · '+m.user:'')+' · '+fd(m.ts)+'</div></div><div class="mvq '+(qc[m.type]||'qadj')+'">'+(sg[m.type]||'')+fqty(m.qty)+'</div></div>';}
 
 // ══ PRODUCTOS ══
+/* ══ CATEGORÍAS AMPLIAS ══
+   Agrupación "amplia" (a la vez que la categoría normal) para diferenciar el
+   inventario y poder actualizar precios por lote. Se calcula SOLA a partir de la
+   ficha: no hay que cargar nada y siempre queda al día cuando cambia el precio.
+     · sin precio de venta        → ⚠️ Sin precio
+     · se vende en balanza (kg)   → 🟢 Sueltos económicos (< AMP_MIN) / 🟠 Sueltos (>= AMP_MIN)
+     · todo lo demás (envasado)   → 📦 Productos */
+const AMP_MIN=20000;
+const AMP_LIST=[
+  {k:'econ',  emo:'🟢', nom:'Sueltos económicos', corto:'Suelto econ.', col:'#45d99a', desc:'Se pesa en balanza y vale menos de $'+AMP_MIN.toLocaleString('es-AR')},
+  {k:'prod',  emo:'📦', nom:'Productos',          corto:'Producto',    col:'#6ea8fa', desc:'Envasados, vendidos por unidad'},
+  {k:'suelto',emo:'🟠', nom:'Sueltos',            corto:'Suelto',      col:'#fba050', desc:'Se pesa en balanza y vale $'+AMP_MIN.toLocaleString('es-AR')+' o más'},
+  {k:'nopre', emo:'⚠️', nom:'Sin precio',         corto:'Sin precio',  col:'#f07272', desc:'No tiene precio de venta cargado'}
+];
+function ampKey(p){const pr=Number(p&&p.price)||0;if(pr<=0)return 'nopre';if(p&&p.tipo==='kg')return pr<AMP_MIN?'econ':'suelto';return 'prod';}
+function ampInfo(k){for(let i=0;i<AMP_LIST.length;i++)if(AMP_LIST[i].k===k)return AMP_LIST[i];return AMP_LIST[1];}
+function ampTag(p){const a=ampInfo(ampKey(p));return '<span class="ctag" style="border:1px solid '+a.col+';color:'+a.col+';background:transparent" title="'+a.nom+' — '+a.desc+'">'+a.emo+' '+a.corto+'</span>';}
 function renderTbl(keep){
   const q=normalizeStr(($i('pq').value||'').trim()),cat=$i('pcat').value,st=$i('pst').value;
   const prov=$i('pprov')?$i('pprov').value:'';
-  let list=products.filter(p=>{const mq=!q||normalizeStr(p.name).includes(q)||normalizeStr(p.sku).includes(q)||normalizeStr(p.barcode).includes(q)||normalizeStr(p.marca).includes(q)||normalizeStr(p.proveedor).includes(q);return mq&&(!cat||p.cat===cat)&&(!st||sst(p)===st)&&(!prov||p.proveedor===prov);});
+  const amp=$i('p-amp')?$i('p-amp').value:'';
+  let list=products.filter(p=>{const mq=!q||normalizeStr(p.name).includes(q)||normalizeStr(p.sku).includes(q)||normalizeStr(p.barcode).includes(q)||normalizeStr(p.marca).includes(q)||normalizeStr(p.proveedor).includes(q);return mq&&(!cat||p.cat===cat)&&(!st||sst(p)===st)&&(!prov||p.proveedor===prov)&&(!amp||ampKey(p)===amp);});
   list=list.slice().sort((a,b)=>a.name.localeCompare(b.name,'es'));
   const tb=$i('prod-tb');
   const badge=$i('prod-count-badge');if(badge)badge.textContent='('+products.length+' producto'+(products.length!==1?'s':'')+(list.length!==products.length?' · '+list.length+' filtrados':'')+')';
@@ -4071,7 +4114,7 @@ function renderTbl(keep){
      6.000 productos pintar todos los renglones tardaba 2,2 segundos. */
   if(!keep)histShown.prod=HIST_PAGE.prod;
   const vis=list.slice(0,histShown.prod);
-  tb.innerHTML=vis.map(p=>{const m=mg(p.cost,p.price);const ms=p.cost&&p.price?'<span style="color:'+(m>=0?'var(--ok)':'var(--err)')+'">'+m.toFixed(1)+'%</span>':'—';const chk=selectedIds.has(p.id);const codeTxt=p.barcode||p.sku||'—';return '<tr style="'+(chk?'background:rgba(245,197,24,.06)':'')+'"><td><input type="checkbox" class="row-chk" data-id="'+p.id+'" '+(chk?'checked':'')+' onchange="toggleChk(\''+p.id+'\',this.checked)" style="cursor:pointer;width:15px;height:15px"></td><td style="font-family:var(--fh);font-size:.78rem;color:var(--mu);white-space:nowrap">'+codeTxt+'</td><td><strong>'+p.name+'</strong></td><td>'+(p.cat?'<span class="ctag">'+catEm(p.cat)+' '+p.cat+'</span>':'—')+'</td><td><strong>'+fn(p.stock)+'</strong><small style="color:var(--mu)"> '+(p.tipo=='kg'?'kg':'uds')+' · mín '+(p.min||5)+'</small></td><td>'+(p.price?'$'+fn(p.price):'—')+'</td><td>'+ms+'</td><td>'+sbdg(sst(p))+'</td><td style="white-space:nowrap;position:sticky;right:0;background:'+(chk?'var(--s3)':'var(--s2)')+';z-index:1"><button class="btn bg bs bic" onclick="openMov(\'entrada\');$i(\'m-prod-sel\').value=\''+p.id+'\';updMovSt()" title="Entrada">📥</button><button class="btn bg bs bic" onclick="openMov(\'salida\');$i(\'m-prod-sel\').value=\''+p.id+'\';updMovSt()" title="Salida">📤</button><button class="btn bg bs bic" onclick="openProd(\''+p.id+'\')" title="Editar">✏️</button><button class="btn bg bs bic" onclick="delProd(\''+p.id+'\')" title="Eliminar">🗑️</button></td></tr>';}).join('')+(list.length>vis.length?'<tr><td colspan="9">'+histMoreBtn('prod',list.length-vis.length)+'</td></tr>':'');
+  tb.innerHTML=vis.map(p=>{const m=mg(p.cost,p.price);const ms=p.cost&&p.price?'<span style="color:'+(m>=0?'var(--ok)':'var(--err)')+'">'+m.toFixed(1)+'%</span>':'—';const chk=selectedIds.has(p.id);const codeTxt=p.barcode||p.sku||'—';return '<tr style="'+(chk?'background:rgba(245,197,24,.06)':'')+'"><td><input type="checkbox" class="row-chk" data-id="'+p.id+'" '+(chk?'checked':'')+' onchange="toggleChk(\''+p.id+'\',this.checked)" style="cursor:pointer;width:15px;height:15px"></td><td style="font-family:var(--fh);font-size:.78rem;color:var(--mu);white-space:nowrap">'+codeTxt+'</td><td><strong>'+p.name+'</strong> '+ampTag(p)+'</td><td>'+(p.cat?'<span class="ctag">'+catEm(p.cat)+' '+p.cat+'</span>':'—')+'</td><td><strong>'+fn(p.stock)+'</strong><small style="color:var(--mu)"> '+(p.tipo=='kg'?'kg':'uds')+' · mín '+(p.min||5)+'</small></td><td>'+(p.price?'$'+fn(p.price):'—')+'</td><td>'+ms+'</td><td>'+sbdg(sst(p))+'</td><td style="white-space:nowrap;position:sticky;right:0;background:'+(chk?'var(--s3)':'var(--s2)')+';z-index:1"><button class="btn bg bs bic" onclick="openMov(\'entrada\');$i(\'m-prod-sel\').value=\''+p.id+'\';updMovSt()" title="Entrada">📥</button><button class="btn bg bs bic" onclick="openMov(\'salida\');$i(\'m-prod-sel\').value=\''+p.id+'\';updMovSt()" title="Salida">📤</button><button class="btn bg bs bic" onclick="openProd(\''+p.id+'\')" title="Editar">✏️</button><button class="btn bg bs bic" onclick="delProd(\''+p.id+'\')" title="Eliminar">🗑️</button></td></tr>';}).join('')+(list.length>vis.length?'<tr><td colspan="9">'+histMoreBtn('prod',list.length-vis.length)+'</td></tr>':'');
   updBulkBar();
 }
 
@@ -4108,6 +4151,71 @@ function bulkEditSave(){
   let changed=0;
   products.forEach(p=>{if(!selectedIds.has(p.id))return;if(cat)p.cat=cat;if(min!=='')p.min=parseInt(min)||0;if(cost!=='')setProdCostBase(p,spNum(cost));if(price!=='')p.price=parseFloat(price)||0;if(delta!==''){if(delta.startsWith('+'))p.stock+=parseInt(delta.slice(1))||0;else if(delta.startsWith('-'))p.stock=Math.max(0,p.stock-(parseInt(delta.slice(1))||0));else{const v=parseInt(delta)||0;if(v!==p.stock){p.stock=Math.max(0,v);}}addMvt(p.id,'ajuste',p.stock,'Edición');}changed++;});
   persist();closeO('m-bulk');selectedIds.clear();refreshAll();toast('✅ '+changed+' producto'+(changed!==1?'s':'')+' actualizado'+(changed!==1?'s':''));
+}
+
+// ══ PRECIOS MASIVOS ══
+/* Aumento (o descuento) por lote, con redondeo SIEMPRE al múltiplo de $100.
+   Va en su propio modal (m-amp / ids amp-*) y no toca nada de la edición
+   masiva (m-bulk / bk-*): no cambia costo, stock, categoría ni la selección. */
+function ampRound(v){return Math.round(v/100)*100;}
+function ampScope(){const r=document.querySelector('input[name="amp-scope"]:checked');return r?r.value:'amp';}
+function ampScopeList(){
+  const sc=ampScope();
+  if(sc==='sel')return products.filter(p=>selectedIds.has(p.id));
+  if(sc==='cat'){const c=$i('amp-cat').value;return c?products.filter(p=>p.cat===c):[];}
+  const a=$i('amp-amp').value;return a?products.filter(p=>ampKey(p)===a):[];
+}
+function ampPlan(){
+  const pct=spNum($i('amp-pct')?$i('amp-pct').value:'');
+  const list=ampScopeList(),cambios=[];let skip=0,zero=0;
+  for(let i=0;i<list.length;i++){const p=list[i],old=Number(p.price)||0;
+    if(old<=0){skip++;continue;}                 /* sin precio: no se toca */
+    const np=ampRound(old*(1+pct/100));
+    if(!(np>0)){zero++;continue;}                /* el redondeo lo dejaría en $0 */
+    if(np!==old)cambios.push({p:p,old:old,np:np});}
+  return {pct:pct,list:list,cambios:cambios,skip:skip,zero:zero};
+}
+function ampPreview(){
+  const box=$i('amp-preview');if(!box)return;
+  const sc=ampScope();
+  if((sc==='sel'&&!selectedIds.size)||(sc==='cat'&&!$i('amp-cat').value)||(sc==='amp'&&!$i('amp-amp').value)){
+    box.innerHTML='Elegí el alcance para ver qué se va a actualizar.';return;}
+  const pl=ampPlan();
+  if(pl.pct===0){box.innerHTML='Ingresá un porcentaje distinto de 0 para aplicar.';return;}
+  if(!pl.cambios.length){
+    box.innerHTML='No hay productos para actualizar en ese alcance.'+((pl.skip||pl.zero)?' ('+(pl.skip+pl.zero)+' sin precio: no se tocan)':'');return;}
+  const dir=pl.pct>0?'Aumento':'Descuento';
+  const muestra=pl.cambios.slice(0,3).map(c=>escH(c.p.name)+' <b style="color:var(--tx)">$'+fn(c.old)+' → $'+fn(c.np)+'</b>').join('<br>');
+  const sin=pl.skip+pl.zero;
+  box.innerHTML='<div style="color:var(--tx);font-weight:600">'+dir+' del '+pl.pct+'% · '+pl.cambios.length+' producto'+(pl.cambios.length!==1?'s':'')+' se actualizará'+(pl.cambios.length!==1?'n':'')+'</div>'
+    +'<div style="margin-top:4px">'+muestra+(pl.cambios.length>3?'<br>…y '+(pl.cambios.length-3)+' más':'')+'</div>'
+    +(sin?'<div style="color:var(--warn);margin-top:4px">'+sin+' sin precio (o en $0): no se tocan</div>':'')
+    +'<div style="margin-top:4px">Precio redondeado siempre al múltiplo de $100.</div>';
+}
+function openAmpPrice(){
+  const n=$i('amp-sel-n');if(n)n.textContent=selectedIds.size;
+  const rs=$i('amp-sc-sel'),rc=$i('amp-sc-cat'),ra=$i('amp-sc-amp');
+  if(rs){rs.disabled=selectedIds.size===0;rs.checked=selectedIds.size>0;}
+  if(!(rs&&rs.checked)&&!(rc&&rc.checked)&&ra)ra.checked=true;
+  fillCatSel('amp-cat');const ac=$i('amp-cat');if(ac&&ac.options[0])ac.options[0].textContent='— Elegí una categoría —';
+  const aa=$i('amp-amp');
+  if(aa){const cv=aa.value;aa.innerHTML='<option value="">— Elegí una categoría amplia —</option>'+AMP_LIST.map(a=>'<option value="'+a.k+'">'+a.emo+' '+a.nom+'</option>').join('');if(cv&&aa.querySelector('option[value="'+cv+'"]'))aa.value=cv;}
+  const pct=$i('amp-pct');if(pct&&pct.value==='')pct.value='10';
+  ampScopeChg();openO('m-amp');
+}
+function ampScopeChg(){
+  if($i('amp-cat'))$i('amp-cat').disabled=(ampScope()!=='cat');
+  if($i('amp-amp'))$i('amp-amp').disabled=(ampScope()!=='amp');
+  ampPreview();
+}
+function ampSave(){
+  const pl=ampPlan();
+  if(pl.pct===0){toast('Ingresá un porcentaje distinto de 0','err');return;}
+  if(!pl.cambios.length){toast('No hay productos para actualizar en ese alcance','err');return;}
+  pl.cambios.forEach(c=>{c.p.price=c.np;});
+  const sin=pl.skip+pl.zero;
+  persist();closeO('m-amp');refreshAll();
+  toast('✅ '+pl.cambios.length+' precio'+(pl.cambios.length!==1?'s':'')+' actualizado'+(pl.cambios.length!==1?'s':'')+(sin?' · '+sin+' sin precio (sin tocar)':''));
 }
 
 // ══ VENTAS ══
