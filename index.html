@@ -803,6 +803,7 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
           <div class="mnl-h">7 · Egresos y Fichas de clientes</div>
           <ul class="mnl-ul">
             <li class="mnl-li"><b>📤 Egresos → + Nuevo gasto</b>: categoría, monto, forma de pago y estado (pagado, parcial o no pagado).</li>
+            <li class="mnl-li">Cada gasto guarda <b>fecha y hora</b>: al cargarlo viene «ahora» y se puede cambiar (para anotar un gasto de otro día u hora). La columna <b>FECHA</b> de la lista muestra día, mes y hora.</li>
             <li class="mnl-li">Las categorías de gasto se cargan y se renombran en la misma pantalla.</li>
             <li class="mnl-li"><b>🗂️ Fichas</b>: saldo de cada cliente, movimientos y botones para cobrar o cargar un pago.</li>
           </ul>
@@ -1238,6 +1239,7 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
       <div class="fg full" id="gasto-cats-list" style="display:none;max-height:170px;overflow:auto;border:1px dashed var(--bd);border-radius:6px;padding:6px"></div>
       <div class="fg full"><label class="fl">Monto ($) *</label><input type="number" id="gasto-amount" min="0" step="0.01" placeholder="0"></div>
       <div class="fg full"><label class="fl">Descripción</label><input type="text" id="gasto-note" placeholder="Ej: Sueldo de Marzo — Juan"></div>
+      <div class="fg full"><label class="fl">Fecha y hora</label><input type="datetime-local" id="gasto-dt"><div style="font-size:.66rem;color:var(--mu);margin-top:3px">Cuándo ocurrió el gasto. Por defecto, ahora.</div></div>
       <div class="fg full"><label class="fl">Tipo de Pago</label><select id="gasto-tipo-pago"><option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option><option value="tarjeta">Tarjeta</option><option value="cuenta">Cuenta corriente</option><option value="cheque">Cheque</option><option value="otros">Otros</option></select></div>
       <div class="fg full"><label class="fl">Estado</label><select id="gasto-pay"><option value="pagado">Pagado (completo)</option><option value="pendiente">Pendiente / a pagar en partes</option></select><div style="font-size:.68rem;color:var(--mu);margin-top:4px">Para cargar pagos parciales con fecha y detalle: guardá el gasto y tocá 💳 en la lista de egresos.</div></div>
     </div>
@@ -1940,6 +1942,47 @@ function mergeHist(cur,cloud,full){
   out.sort(function(a,b){return (b.ts||0)-(a.ts||0);});
   return out;
 }
+/* ══ BORRADOS: marcas contra la "resurrección" ══
+   Borrar es una carrera contra loadFromCloud(): si la nube todavía tiene la
+   fila (el DELETE no llegó — se cortó la red o la pestaña del celular quedó
+   en segundo plano — o la carga empezó ANTES del borrado) el merge la trae de
+   vuelta y, como loadFromCloud() termina en persist(), la re-sube: el registro
+   "revive" en todos los equipos. Por eso:
+   1. cada borrado deja su ID en LocalStorage (síncrono, sobrevive al cierre);
+   2. todo lo que venga de la nube se limpia con cleanRows();
+   3. si la nube la trae de vuelta, retombDeleted() la vuelve a marcar
+      deleted:true (mismo criterio que provDeleted, en Proveedores). */
+const DEL_MAX=400;
+let delIds=JSON.parse(localStorage.getItem('del_ids')||'{}');
+if(!delIds||typeof delIds!=='object'||Array.isArray(delIds))delIds={};
+function delIdsSave(){try{localStorage.setItem('del_ids',JSON.stringify(delIds));}catch(e){}}
+function markDeleted(table,id){
+  if(!table||!id)return;
+  const a=delIds[table]||(delIds[table]=[]);
+  if(a.indexOf(id)<0){a.push(id);if(a.length>DEL_MAX)a.splice(0,a.length-DEL_MAX);delIdsSave();}
+}
+function dropDeleted(table,arr){
+  const a=delIds[table];
+  if(!Array.isArray(arr)||!a||!a.length)return arr;
+  return arr.filter(x=>!(x&&x.id&&a.indexOf(x.id)>=0));
+}
+function cleanRows(table,arr){
+  if(!Array.isArray(arr))return arr;
+  return dropDeleted(table,arr.filter(d=>d&&d.deleted!==true));
+}
+function retombDeleted(table,rows){
+  const a=delIds[table];
+  if(!a||!a.length||!cloudMode||!sb)return;
+  /* Acepta las dos formas que trae loadFromCloud: [{id,data}] (fetchAllRows)
+     o {data:[...]} (sb.from().select().order().limit()). */
+  const list=Array.isArray(rows)?rows:((rows&&Array.isArray(rows.data))?rows.data:null);
+  if(!list)return;
+  const up=[];
+  list.forEach(function(x){const d=x?(x.data||x):null;
+    if(!d||!d.id||d.deleted===true)return;
+    if(a.indexOf(d.id)>=0)up.push({id:d.id,deleted:true,ts:d.ts});});
+  if(up.length)cloudUpsert(table,up).catch(function(){});
+}
 async function loadFromCloud(full){
   if(!sb)return;
   try{
@@ -1953,14 +1996,22 @@ async function loadFromCloud(full){
       cfgFetch()
     ]);
     /* Si la nube viene vacia o con error, NO se pisa lo local: persist() sube lo local y lo repone. */
-    if(rp&&rp.length)products=rp.map(r=>r.data);if(rc&&rc.length)categories=rc.map(r=>r.data);if(ru&&ru.length)users=ru.map(r=>r.data);if(rct&&rct.length)contacts=rct.map(r=>r.data);
+    /* Nada borrado en este equipo vuelve: se quitan las tumbas (deleted:true)
+       y los IDs de nuestra lista de borrados (delIds). */
+    if(rp&&rp.length)products=cleanRows('products',rp.map(r=>r.data));if(rc&&rc.length)categories=rc.map(r=>r.data);if(ru&&ru.length)users=cleanRows('users',ru.map(r=>r.data));if(rct&&rct.length)contacts=cleanRows('contacts',rct.map(r=>r.data));
     /* Fusionar (nunca pisar): mergeHist() devuelve null si no vino nada, así
        que una nube vacía o caída deja lo local intacto. El orden queda
        descendente por ts, que es lo que esperan renderMov/renderSales. */
-    const mrgMv=mergeHist(movements,rm,full);if(mrgMv)movements=mrgMv;
-    const mrgS=mergeHist(sales,rs,full);if(mrgS)sales=mrgS;
-    const mrgCm=mergeHist(ctaMovs,rcm,true);if(mrgCm)ctaMovs=mrgCm;
-    const rowsEg=histRows(reg);if(rowsEg&&rowsEg.length){const allEg=mergeHist(egresos.concat(egresosDC),rowsEg,true)||[];egresos=allEg.filter(e=>e.mod!=='dc');egresosDC=allEg.filter(e=>e.mod==='dc');}
+    const mrgMv=mergeHist(movements,rm,full);if(mrgMv)movements=cleanRows('movements',mrgMv);
+    const mrgS=mergeHist(sales,rs,full);if(mrgS)sales=cleanRows('sales',mrgS);
+    const mrgCm=mergeHist(ctaMovs,rcm,true);if(mrgCm)ctaMovs=cleanRows('cta_movs',mrgCm);
+    const rowsEg=histRows(reg);if(rowsEg&&rowsEg.length){const allEg=mergeHist(egresos.concat(egresosDC),rowsEg,true)||[];const egOk=cleanRows('egresos',allEg);egresos=egOk.filter(e=>e.mod!=='dc');egresosDC=egOk.filter(e=>e.mod==='dc');}
+    /* RE-TUMBA: si la nube trae de vuelta algo que borramos (otra PC con la
+       copia vieja lo subió de nuevo), se marca deleted:true conservando su ts
+       (para no alterar el orden por fecha); así ese equipo también lo deja de
+       mostrar y de subir. */
+    retombDeleted('products',rp);retombDeleted('users',ru);retombDeleted('contacts',rct);
+    retombDeleted('sales',rs);retombDeleted('cta_movs',rcm);retombDeleted('egresos',reg);
     if(Array.isArray(rpo)){
       const ids=new Set(rpo.map(r=>r&&r.id));
       if(rpo.length){
@@ -2042,12 +2093,13 @@ async function persist(){
 }
 async function persistMov(m){LS.set('m',movements);if(cloudMode&&sb)await cloudUpsert('movements',[m]);}
 async function persistSale(s){LS.set('s',sales);if(!cloudMode||!sb)return;showSync('⏳ Guardando...',true);await cloudUpsert('sales',[s]);showSync('☁️ Guardado',true);}
-async function persistDelProd(id){LS.set('p',products);if(cloudMode&&sb)await cloudDelete('products',id);}
-async function persistDelSale(id){LS.set('s',sales);if(cloudMode&&sb)await cloudDelete('sales',id);}
-async function persistDelUser(id){LS.set('u',users);if(cloudMode&&sb)await cloudDelete('users',id);}
-async function persistDelContact(id,movIds){LS.set('ct',contacts);LS.set('cm',ctaMovs);if(cloudMode&&sb){await cloudDelete('contacts',id);await Promise.all(movIds.map(mid=>cloudDelete('cta_movs',mid)));}}
-async function persistDelCtaMov(id){LS.set('cm',ctaMovs);if(cloudMode&&sb)await cloudDelete('cta_movs',id);}
-async function persistDelEgreso(id){LS.set('eg',egresos);if(cloudMode&&sb)await cloudDelete('egresos',id);}
+async function persistDelProd(id){LS.set('p',products);markDeleted('products',id);if(cloudMode&&sb)await cloudDelete('products',id);}
+async function persistDelSale(id){LS.set('s',sales);markDeleted('sales',id);if(cloudMode&&sb)await cloudDelete('sales',id);}
+async function persistDelUser(id){LS.set('u',users);markDeleted('users',id);if(cloudMode&&sb)await cloudDelete('users',id);}
+async function persistDelContact(id,movIds){LS.set('ct',contacts);LS.set('cm',ctaMovs);markDeleted('contacts',id);(movIds||[]).forEach(mid=>markDeleted('cta_movs',mid));if(cloudMode&&sb){await cloudDelete('contacts',id);await Promise.all((movIds||[]).map(mid=>cloudDelete('cta_movs',mid)));}}
+async function persistDelCtaMov(id){LS.set('cm',ctaMovs);markDeleted('cta_movs',id);if(cloudMode&&sb)await cloudDelete('cta_movs',id);}
+/* Guarda AMBAS listas: un gasto de Doña Cocina vive en 'egdc', no en 'eg'. */
+async function persistDelEgreso(id){LS.set('eg',egresos);LS.set('egdc',egresosDC);markDeleted('egresos',id);if(cloudMode&&sb)await cloudDelete('egresos',id);}
 function useLocalMode(){cloudMode=false;$i('setup-banner').style.display='none';if(!users.length)initUsers();if(!products.length)loadDemo();renderLoginUsers();}
 async function tryAutoConnect(){
   if(!window.supabase)return false;
@@ -5280,10 +5332,16 @@ function delEgPay(i){
   persist();refreshAll();renderEgPay();
   toast('Pago eliminado','err');
 }
+/* Fecha y hora del gasto: el input datetime-local usa formato local
+   "AAAA-MM-DDTHH:MM" (sin Z), que Date.parse interpreta en hora local. */
+function gastoDtFmt(ts){const t=(ts==null||isNaN(ts))?Date.now():Number(ts);const d=new Date(t),p=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes());}
+function gastoDtVal(){const el=$i('gasto-dt');const v=el?el.value:'';const t=v?Date.parse(v):NaN;return isNaN(t)?Date.now():t;}
 function openGastoM(modo){
   egModo=(modo==='dc')?'dc':'eg';
   fillGastoCats('');
   $i('gasto-amount').value='';$i('gasto-note').value='';$i('gasto-tipo-pago').value='efectivo';$i('gasto-pay').value='pagado';$i('gasto-editing-id').value='';
+  const dtEl=$i('gasto-dt');if(dtEl)dtEl.value=gastoDtFmt(Date.now());
   onGastoCatChg();
   const l=$i('gasto-cats-list');if(l)l.style.display='none';
   $i('gasto-title').textContent=(egModo==='dc')?'🍳 Nuevo gasto — Doña Cocina':'📤 Nuevo gasto';
@@ -5297,6 +5355,7 @@ function saveGasto(){
   const tipoPago=$i('gasto-tipo-pago').value;
   if(!amount){toast('Ingresá un monto','err');return;}
   const note=$i('gasto-note').value.trim();
+  const dt=gastoDtVal(); /* fecha y hora elegidas en el formulario */
   const fullPaid=$i('gasto-pay').value==='pagado';
   const editId=$i('gasto-editing-id').value;
   const arr=egArr();
@@ -5306,14 +5365,14 @@ function saveGasto(){
     if(!g){toast('Gasto no encontrado','err');return;}
     /* Migra gastos antiguos (solo tenían paid:true/false) a lista de pagos */
     if(!Array.isArray(g.pays))g.pays=g.paid?[{id:uid(),amount:spNum(g.total),date:g.ts||Date.now(),detail:'Pago registrado anteriormente',tipo:g.tipoPago||'efectivo'}]:[];
-    Object.assign(g,{category,total:amount,note,tipoPago},extra);
+    Object.assign(g,{category,total:amount,note,tipoPago,ts:dt},extra);
     /* "Pagado" completa los pagos hasta llegar al total; los pagos parciales
        que ya estaban cargados se respetan (no se borran). */
     if(fullPaid){const rest=Math.round((amount-egPaid(g))*100)/100;if(rest>0.005)g.pays.push({id:uid(),amount:rest,date:Date.now(),detail:'Pago restante',tipo:tipoPago});}
     egPaySync(g);
   } else {
-    const pays=fullPaid?[{id:uid(),amount:amount,date:Date.now(),detail:'Pago completo',tipo:tipoPago}]:[];
-    arr.unshift(Object.assign({id:uid(),ts:Date.now(),type:'gasto',category,providerName:category,items:[],total:amount,note,tipoPago,pays,paid:pays.length>0},extra));
+    const pays=fullPaid?[{id:uid(),amount:amount,date:dt,detail:'Pago completo',tipo:tipoPago}]:[];
+    arr.unshift(Object.assign({id:uid(),ts:dt,type:'gasto',category,providerName:category,items:[],total:amount,note,tipoPago,pays,paid:pays.length>0},extra));
   }
   persist();refreshAll();closeO('m-gasto');toast('✅ Gasto registrado');
 }
@@ -5322,6 +5381,7 @@ function editGasto(id,modo){
   const g=egArr().find(x=>x.id===id);if(!g)return;
   fillGastoCats(g.category||'Otro');
   $i('gasto-amount').value=g.total;$i('gasto-note').value=g.note||'';$i('gasto-pay').value=g.paid?'pagado':'pendiente';$i('gasto-tipo-pago').value=g.tipoPago||'efectivo';
+  const dtEl=$i('gasto-dt');if(dtEl)dtEl.value=gastoDtFmt(g.ts||Date.now());
   $i('gasto-editing-id').value=id;
   onGastoCatChg();
   const l=$i('gasto-cats-list');if(l)l.style.display='none';
