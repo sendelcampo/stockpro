@@ -391,6 +391,10 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
         <input type="date" id="d-desde" onchange="renderDash()" title="Desde" style="padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s2);font-size:.83rem">
         <span style="color:var(--mu);font-size:.8rem">hasta</span>
         <input type="date" id="d-hasta" onchange="renderDash()" title="Hasta" style="padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s2);font-size:.83rem">
+        <span style="color:var(--mu);font-size:.8rem">· 🕐 de</span>
+        <input type="time" id="d-hdesde" onchange="renderDash()" title="Hora desde (vacío = todo el día)" style="padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s2);font-size:.83rem">
+        <span style="color:var(--mu);font-size:.8rem">a</span>
+        <input type="time" id="d-hhasta" onchange="renderDash()" title="Hora hasta (vacío = todo el día)" style="padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s2);font-size:.83rem">
         <button class="btn bg bs" onclick="dashClearDates()">✖ Sin filtro</button>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn bg bs" onclick="dashQuick('hoy')" title="Ventas de hoy">☀️ Hoy</button>
@@ -409,7 +413,7 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
         <div class="stat" data-i="❌"><div class="sl">Sin stock</div><div class="sv cr" id="s-out">0</div></div>
         <div class="stat" data-i="⚠️"><div class="sl">Stock bajo</div><div class="sv cy" id="s-low">0</div></div>
         <div class="stat" data-i="💰"><div class="sl">Valor inventario</div><div class="sv cb" id="s-val" style="font-size:1rem">$0</div></div>
-        <div class="stat" data-i="📈"><div class="sl">Margen promedio</div><div class="sv cg" id="s-mg">0%</div></div>
+        <div class="stat" data-i="📈"><div class="sl">Marcación promedio</div><div class="sv cg" id="s-mg">0%</div></div>
         <div class="stat" data-i="🧾"><div class="sl">Ventas hoy</div><div class="sv cy" id="s-vhoy">$0</div></div>
         <div class="stat" data-i="📅"><div class="sl">Ventas del mes</div><div class="sv cg" id="s-vmes">$0</div></div>
         <div class="stat" data-i="🗓️"><div class="sl">Ventas del período</div><div class="sv cy" id="s-vper" style="font-size:1rem">$0</div></div>
@@ -455,7 +459,7 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
       <div class="tblw">
         <table><thead><tr>
           <th style="width:32px"><input type="checkbox" id="chk-all" onchange="toggleAllChk(this)" style="cursor:pointer;width:15px;height:15px"></th>
-          <th>Código</th><th>Producto</th><th>Categoría</th><th>Stock</th><th>Precio</th><th>Margen</th><th>Estado</th><th style="position:sticky;right:0;background:var(--s2);z-index:2">Acciones</th>
+          <th>Código</th><th>Producto</th><th>Categoría</th><th>Stock</th><th>Precio</th><th>Marcación</th><th>Estado</th><th style="position:sticky;right:0;background:var(--s2);z-index:2">Acciones</th>
         </tr></thead><tbody id="prod-tb"></tbody></table>
       </div>
     </div>
@@ -468,7 +472,11 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
           <input type="date" id="vf-desde" onchange="salesFilter()" title="Desde" style="padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s2);font-size:.83rem">
           <span style="color:var(--mu);font-size:.78rem">hasta</span>
           <input type="date" id="vf-hasta" onchange="salesFilter()" title="Hasta" style="padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s2);font-size:.83rem">
-          <button class="btn bg bs" onclick="salesClearDates()" title="Quitar el rango de fechas">✖</button>
+          <span style="color:var(--mu);font-size:.78rem">· 🕐 de</span>
+          <input type="time" id="vf-hdesde" onchange="salesFilter()" title="Hora desde (vacío = todo el día)" style="padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s2);font-size:.83rem">
+          <span style="color:var(--mu);font-size:.78rem">a</span>
+          <input type="time" id="vf-hhasta" onchange="salesFilter()" title="Hora hasta (vacío = todo el día)" style="padding:6px;border:1px solid var(--bd);border-radius:4px;color:var(--tx);background:var(--s2);font-size:.83rem">
+          <button class="btn bg bs" onclick="salesClearDates()" title="Quitar el rango de fechas y horas">✖</button>
           <select id="vfilt" onchange="salesFilter()"><option value="all">Todo</option><option value="today">Hoy</option><option value="week">Esta semana</option><option value="month">Este mes</option></select>
         </div>
       </div>
@@ -506,7 +514,7 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
 
       <!-- HORARIOS DE MÁS VENTAS -->
       <div class="cfg-section">
-        <div class="cfg-title">🕐 Horarios de más ventas</div>
+        <div class="cfg-title">🕐 Horarios de más ventas <span style="font-size:.72rem;font-weight:400;color:var(--mu)">· sólo ventas dentro del horario de atención: lun a vie 9:30 a 20:30 · sáb 9:30 a 13:30 y de 16:30 a 20:30 · dom 9:30 a 13:30</span></div>
         <div id="rep-horas"></div>
       </div>
 
@@ -810,11 +818,11 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
 
           <div class="mnl-h">8 · Dashboard y Reportes</div>
           <ul class="mnl-ul">
-            <li class="mnl-li"><b>📊 Dashboard</b>: resumen, productos más vendidos, horarios punta y medios de pago.</li>
-            <li class="mnl-li">En el Dashboard, los botones <b>☀️ Hoy · 🌙 Ayer · 📆 Semana · 🗓️ Mes</b> (junto al rango libre desde/hasta) filtran rápido las tarjetas «del período» y la tabla de compras.</li>
+            <li class="mnl-li"><b>📊 Dashboard</b>: resumen del negocio (stock, valor, ventas de hoy, del mes y del período). La tarjeta <b>Marcación promedio</b> promedia sólo los productos con precio y costo cargados y con marcación de 30% a 300%.</li>
+            <li class="mnl-li">En el Dashboard, los botones <b>☀️ Hoy · 🌙 Ayer · 📆 Semana · 🗓️ Mes</b> (junto al rango libre desde/hasta) filtran rápido las tarjetas «del período» y la tabla de compras. Los campos <b>🕐 de … a …</b> acotan las ventas por horario (vacío = todo el día; si el «desde» es mayor que el «hasta» el rango pasa por la medianoche).</li>
             <li class="mnl-li">El selector <b>👤 Vendedor</b> muestra sólo las ventas de una persona; la etiqueta de la derecha indica el período y el vendedor elegidos.</li>
-            <li class="mnl-li"><b>📊 Reportes</b>: ventas por día, semana o mes, con top de productos y exportación a Excel.</li>
-            <li class="mnl-li"><b>🧾 Historial Ventas</b> permite abrir una venta para reimprimir el ticket o eliminarla.</li>
+            <li class="mnl-li"><b>📊 Reportes</b>: ventas por día, semana o mes, con top de productos, <b>🕐 horarios de más ventas</b> (cuenta sólo las ventas hechas dentro del horario de atención: lun a vie de 9:30 a 20:30, sáb de 9:30 a 13:30 y de 16:30 a 20:30, dom de 9:30 a 13:30), medios de pago y exportación a Excel.</li>
+            <li class="mnl-li"><b>🧾 Historial Ventas</b> permite abrir una venta para reimprimir el ticket o eliminarla. Arriba hay filtros de fechas, atajos (Todo / Hoy / Esta semana / Este mes) y <b>🕐 horario: de … a …</b> — dejalo vacío para ver todo el día; si el «desde» es mayor que el «hasta», el rango pasa por la medianoche (ej. 20:00 a 02:00).</li>
           </ul>
 
           <div class="mnl-h">9 · Configuración</div>
@@ -1450,13 +1458,12 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
       <div class="fg full">
         <div class="margi" id="margi">
           <span class="mil">Ganancia</span><span class="miv" id="mi-g">$0</span>
-          <span class="mil">Margen</span><span class="miv" id="mi-m">0%</span>
-          <span class="mil">Markup</span><span class="miv" id="mi-mk">0%</span>
+          <span class="mil">Marcación</span><span class="miv" id="mi-mk">0%</span>
           <span class="mil">Valor en stock</span><span class="miv" id="mi-sv">$0</span>
         </div>
       </div>
       <div class="fg full" style="background:var(--s2);border-radius:8px;padding:10px 12px;border:1px solid var(--bd)">
-        <div style="font-size:.72rem;color:var(--ac);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px">📊 Calcular precio por margen</div>
+        <div style="font-size:.72rem;color:var(--ac);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px">📊 Calcular precio por marcación</div>
         <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
           <div class="fg" style="flex:1;min-width:80px"><label class="fl">% Ganancia</label><input type="text" inputmode="decimal" id="p-margin-pct" placeholder="Ej: 40" oninput="calcPriceFromMargin()"></div>
           <div class="fg" style="flex:1;min-width:100px"><label class="fl">Redondear a</label>
@@ -1608,10 +1615,9 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
         <div id="bk-calc-result" style="font-size:.78rem;color:var(--mu);margin-top:7px;min-height:16px"></div>
       </div>
       <div class="fg full" id="bk-margin-info" style="display:none">
-        <div style="background:var(--s3);border-radius:7px;padding:8px 12px;font-size:.78rem;display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;text-align:center">
+        <div style="background:var(--s3);border-radius:7px;padding:8px 12px;font-size:.78rem;display:grid;grid-template-columns:1fr 1fr;gap:4px;text-align:center">
           <div><div style="color:var(--mu)">Ganancia</div><div id="bk-mg-gain" style="font-weight:600;color:var(--ok)">$0</div></div>
-          <div><div style="color:var(--mu)">Margen</div><div id="bk-mg-pct" style="font-weight:600;color:var(--ok)">0%</div></div>
-          <div><div style="color:var(--mu)">Markup</div><div id="bk-mg-mk" style="font-weight:600;color:var(--ok)">0%</div></div>
+          <div><div style="color:var(--mu)">Marcación</div><div id="bk-mg-mk" style="font-weight:600;color:var(--ok)">0%</div></div>
         </div>
       </div>
       <div class="fg full"><label class="fl">Ajuste stock (+10 suma, -5 resta, 20 fija)</label><input type="text" id="bk-stock-delta" placeholder="— Sin cambio —"></div>
@@ -2720,7 +2726,13 @@ function fd(ts){const d=new Date(ts);return d.toLocaleDateString('es-AR',{day:'2
 function sst(p){if(p.stock<=0)return 'out';if(p.stock<=(p.min||5))return 'low';return 'ok';}
 function sbdg(s){const m={ok:'bok',low:'blow',out:'bout'},l={ok:'En stock',low:'Stock bajo',out:'Sin stock'};return '<span class="bdg '+m[s]+'">'+l[s]+'</span>';}
 function mg(c,p){if(!c||!p||c<=0||p<=0)return 0;return(p-c)/p*100;}
-function mk(c,p){if(!c||c<=0)return 0;return(p-c)/c*100;}
+/* mk = MARCACIÓN (markup) = (precio−costo)/costo·100. mg = margen (sobre el
+   precio) y ya no se muestra en Productos ni en el Dashboard. */
+function mk(c,p){if(!c||c<=0||!p||p<=0)return 0;return(p-c)/c*100;}
+/* Rango de marcación que entra al promedio del Dashboard: lo que está fuera
+   (producto sin precio/costo, o costo cargado mal —ej. $1— que dispara el
+   porcentaje) no ensucia el promedio. */
+const MK_MIN=30,MK_MAX=300;
 function catEm(n){const c=categories.find(x=>x.name===n);return c?c.emoji:'';}
 function toast(msg,type){const el=$i('toast');el.textContent=msg;el.className='toast show '+(type||'ok');clearTimeout(el._t);el._t=setTimeout(()=>{el.className='toast';},2800);}
 
@@ -4070,20 +4082,28 @@ function renderDash(){
   const vendSel=$i('d-vend'),vend=vendSel?(vendSel.value||''):'';
   const vKey=s=>{const u=((s&&s.user)||'').trim();return u||'__sin__';};
   const enV=s=>!vend||vKey(s)===vend;
+  /* Filtro de HORAS libre (inputs type=time): acota las tarjetas de ventas. */
+  const hD=$i('d-hdesde')?$i('d-hdesde').value:'',hH=$i('d-hhasta')?$i('d-hhasta').value:'';
+  const enH=s=>enRangoHora(s.ts,hD,hH);
   $i('s-tot').textContent=products.length;$i('s-ok').textContent=products.filter(p=>sst(p)==='ok').length;$i('s-out').textContent=products.filter(p=>sst(p)==='out').length;$i('s-low').textContent=products.filter(p=>sst(p)==='low').length;
   const tv=products.reduce((a,p)=>a+(p.cost||0)*p.stock,0);$i('s-val').textContent='$'+fn(tv);
-  const pp=products.filter(p=>p.cost>0&&p.price>0);$i('s-mg').textContent=(pp.length?pp.reduce((a,p)=>a+mg(p.cost,p.price),0)/pp.length:0).toFixed(1)+'%';
+  /* Marcación promedio: sólo productos con precio y costo cargados y con una
+     marcación creíble (MK_MIN–MK_MAX = 30% a 300%). Sin precio, sin costo o con
+     un porcentaje disparado por un costo mal cargado no entran al promedio. */
+  const pp=products.filter(p=>{if(!(p.cost>0)||!(p.price>0))return false;const k=mk(p.cost,p.price);return k>=MK_MIN&&k<=MK_MAX;});
+  $i('s-mg').textContent=(pp.length?pp.reduce((a,p)=>a+mk(p.cost,p.price),0)/pp.length:0).toFixed(1)+'%';
   const tod=new Date();tod.setHours(0,0,0,0);const mo=new Date(tod.getFullYear(),tod.getMonth(),1);
-  $i('s-vhoy').textContent='$'+fn(sales.filter(s=>s.ts>=tod.getTime()&&enV(s)).reduce((a,s)=>a+s.total,0));
-  $i('s-vmes').textContent='$'+fn(sales.filter(s=>s.ts>=mo.getTime()&&enV(s)).reduce((a,s)=>a+s.total,0));
+  $i('s-vhoy').textContent='$'+fn(sales.filter(s=>s.ts>=tod.getTime()&&enV(s)&&enH(s)).reduce((a,s)=>a+s.total,0));
+  $i('s-vmes').textContent='$'+fn(sales.filter(s=>s.ts>=mo.getTime()&&enV(s)&&enH(s)).reduce((a,s)=>a+s.total,0));
   const last=movements.slice(0,5);$i('dash-mv').innerHTML=last.length?last.map(mvH).join(''):'<div class="empty"><div class="eic">📋</div>Sin movimientos</div>';
   /* ══ PERÍODO (filtro de fechas) + COMPRAS DE PROVEEDORES TOTALIZADAS ══ */
   const r=rangeFromInputs('d-desde','d-hasta');
   const enR=ts=>(!r.from||ts>=r.from)&&(!r.to||ts<=r.to);
   const lbl=$i('dash-range-lbl');
   const vendLbl=vend?(' · Vendedor: '+(vend==='__sin__'?'(sin vendedor)':vend)):'';
-  if(lbl)lbl.textContent=(r.has?('Período: '+fd(r.from||0)+(r.to?' → '+fd(r.to):' → hoy')):'Sin filtro: todas las fechas')+vendLbl;
-  const vPer=sales.filter(s=>enR(s.ts)&&enV(s));
+  const horaLbl=(hD||hH)?(' · Hora: '+(hD||'00:00')+' → '+(hH||'24:00')):'';
+  if(lbl)lbl.textContent=(r.has?('Período: '+fd(r.from||0)+(r.to?' → '+fd(r.to):' → hoy')):'Sin filtro: todas las fechas')+vendLbl+horaLbl;
+  const vPer=sales.filter(s=>enR(s.ts)&&enV(s)&&enH(s));
   $i('s-vper').textContent='$'+fn(vPer.reduce((a,s)=>a+(s.total||0),0));
   const compras=provOrders.filter(o=>o&&o.deleted!==true&&o.status!=='anulado'&&enR(spNum(o.date)));
   const cTot=compras.reduce((a,o)=>a+spNum(o.totalCost),0);
@@ -4110,7 +4130,7 @@ function rangeFromInputs(did,hid){
   const rd=g(did),rh=g(hid);
   return {from:rd?day0(rd):0,to:rh?day1(rh):0,has:!!(rd||rh)};
 }
-function dashClearDates(){const a=$i('d-desde'),b=$i('d-hasta');if(a)a.value='';if(b)b.value='';renderDash();}
+function dashClearDates(){const a=$i('d-desde'),b=$i('d-hasta'),h1=$i('d-hdesde'),h2=$i('d-hhasta');if(a)a.value='';if(b)b.value='';if(h1)h1.value='';if(h2)h2.value='';renderDash();}
 /* Botones rápidos del Dashboard: hoy / ayer / semana (7 días) / mes en curso. */
 function dashQuick(k){
   const a=$i('d-desde'),b=$i('d-hasta');if(!a||!b)return;
@@ -4166,7 +4186,7 @@ function renderTbl(keep){
      6.000 productos pintar todos los renglones tardaba 2,2 segundos. */
   if(!keep)histShown.prod=HIST_PAGE.prod;
   const vis=list.slice(0,histShown.prod);
-  tb.innerHTML=vis.map(p=>{const m=mg(p.cost,p.price);const ms=p.cost&&p.price?'<span style="color:'+(m>=0?'var(--ok)':'var(--err)')+'">'+m.toFixed(1)+'%</span>':'—';const chk=selectedIds.has(p.id);const codeTxt=p.barcode||p.sku||'—';return '<tr style="'+(chk?'background:rgba(245,197,24,.06)':'')+'"><td><input type="checkbox" class="row-chk" data-id="'+p.id+'" '+(chk?'checked':'')+' onchange="toggleChk(\''+p.id+'\',this.checked)" style="cursor:pointer;width:15px;height:15px"></td><td style="font-family:var(--fh);font-size:.78rem;color:var(--mu);white-space:nowrap">'+codeTxt+'</td><td><strong>'+p.name+'</strong> '+ampTag(p)+'</td><td>'+(p.cat?'<span class="ctag">'+catEm(p.cat)+' '+p.cat+'</span>':'—')+'</td><td><strong>'+fn(p.stock)+'</strong><small style="color:var(--mu)"> '+(p.tipo=='kg'?'kg':'uds')+' · mín '+(p.min||5)+'</small></td><td>'+(p.price?'$'+fn(p.price):'—')+'</td><td>'+ms+'</td><td>'+sbdg(sst(p))+'</td><td style="white-space:nowrap;position:sticky;right:0;background:'+(chk?'var(--s3)':'var(--s2)')+';z-index:1"><button class="btn bg bs bic" onclick="openMov(\'entrada\');$i(\'m-prod-sel\').value=\''+p.id+'\';updMovSt()" title="Entrada">📥</button><button class="btn bg bs bic" onclick="openMov(\'salida\');$i(\'m-prod-sel\').value=\''+p.id+'\';updMovSt()" title="Salida">📤</button><button class="btn bg bs bic" onclick="openProd(\''+p.id+'\')" title="Editar">✏️</button><button class="btn bg bs bic" onclick="delProd(\''+p.id+'\')" title="Eliminar">🗑️</button></td></tr>';}).join('')+(list.length>vis.length?'<tr><td colspan="9">'+histMoreBtn('prod',list.length-vis.length)+'</td></tr>':'');
+  tb.innerHTML=vis.map(p=>{const m=mk(p.cost,p.price);const ms=p.cost&&p.price?'<span style="color:'+(m>=0?'var(--ok)':'var(--err)')+'">'+m.toFixed(1)+'%</span>':'—';const chk=selectedIds.has(p.id);const codeTxt=p.barcode||p.sku||'—';return '<tr style="'+(chk?'background:rgba(245,197,24,.06)':'')+'"><td><input type="checkbox" class="row-chk" data-id="'+p.id+'" '+(chk?'checked':'')+' onchange="toggleChk(\''+p.id+'\',this.checked)" style="cursor:pointer;width:15px;height:15px"></td><td style="font-family:var(--fh);font-size:.78rem;color:var(--mu);white-space:nowrap">'+codeTxt+'</td><td><strong>'+p.name+'</strong> '+ampTag(p)+'</td><td>'+(p.cat?'<span class="ctag">'+catEm(p.cat)+' '+p.cat+'</span>':'—')+'</td><td><strong>'+fn(p.stock)+'</strong><small style="color:var(--mu)"> '+(p.tipo=='kg'?'kg':'uds')+' · mín '+(p.min||5)+'</small></td><td>'+(p.price?'$'+fn(p.price):'—')+'</td><td>'+ms+'</td><td>'+sbdg(sst(p))+'</td><td style="white-space:nowrap;position:sticky;right:0;background:'+(chk?'var(--s3)':'var(--s2)')+';z-index:1"><button class="btn bg bs bic" onclick="openMov(\'entrada\');$i(\'m-prod-sel\').value=\''+p.id+'\';updMovSt()" title="Entrada">📥</button><button class="btn bg bs bic" onclick="openMov(\'salida\');$i(\'m-prod-sel\').value=\''+p.id+'\';updMovSt()" title="Salida">📤</button><button class="btn bg bs bic" onclick="openProd(\''+p.id+'\')" title="Editar">✏️</button><button class="btn bg bs bic" onclick="delProd(\''+p.id+'\')" title="Eliminar">🗑️</button></td></tr>';}).join('')+(list.length>vis.length?'<tr><td colspan="9">'+histMoreBtn('prod',list.length-vis.length)+'</td></tr>':'');
   updBulkBar();
 }
 
@@ -4186,8 +4206,8 @@ function bulkDelete(){
   };
   openO('m-confirm');
 }
-function calcBkMargin(){const cost=spNum($i('bk-cost').value),price=parseFloat($i('bk-price').value)||0,info=$i('bk-margin-info');if(cost>0&&price>0){const g=price-cost,m=mg(cost,price),mu=mk(cost,price),cls=g>=0?'var(--ok)':'var(--err)';$i('bk-mg-gain').textContent='$'+fn(g);$i('bk-mg-gain').style.color=cls;$i('bk-mg-pct').textContent=m.toFixed(1)+'%';$i('bk-mg-pct').style.color=cls;$i('bk-mg-mk').textContent=mu.toFixed(1)+'%';$i('bk-mg-mk').style.color=cls;info.style.display='';}else info.style.display='none';}
-function calcBkPriceFromMargin(){const cost=spNum($i('bk-cost').value),pct=parseFloat($i('bk-margin-pct').value)||0,round=parseInt($i('bk-round').value)||1,res=$i('bk-calc-result');if(!cost||!pct){res.textContent='';return;}let price=cost*(1+pct/100);if(round>1)price=Math.ceil(price/round)*round;res.innerHTML='Precio sugerido: <strong style="color:var(--ac)">$'+fn(price)+'</strong> · Margen: '+pct+'% · Ganancia: $'+fn(price-cost);$i('bk-price').value=price.toFixed(2);calcBkMargin();}
+function calcBkMargin(){const cost=spNum($i('bk-cost').value),price=parseFloat($i('bk-price').value)||0,info=$i('bk-margin-info');if(cost>0&&price>0){const g=price-cost,mu=mk(cost,price),cls=g>=0?'var(--ok)':'var(--err)';$i('bk-mg-gain').textContent='$'+fn(g);$i('bk-mg-gain').style.color=cls;$i('bk-mg-mk').textContent=mu.toFixed(1)+'%';$i('bk-mg-mk').style.color=cls;info.style.display='';}else info.style.display='none';}
+function calcBkPriceFromMargin(){const cost=spNum($i('bk-cost').value),pct=parseFloat($i('bk-margin-pct').value)||0,round=parseInt($i('bk-round').value)||1,res=$i('bk-calc-result');if(!cost||!pct){res.textContent='';return;}let price=cost*(1+pct/100);if(round>1)price=Math.ceil(price/round)*round;res.innerHTML='Precio sugerido: <strong style="color:var(--ac)">$'+fn(price)+'</strong> · Marcación: '+pct+'% · Ganancia: $'+fn(price-cost);$i('bk-price').value=price.toFixed(2);calcBkMargin();}
 function applyCalcPrice(){const cost=spNum($i('bk-cost').value),pct=parseFloat($i('bk-margin-pct').value)||0,round=parseInt($i('bk-round').value)||1;if(!cost||!pct){toast('Ingresá costo y % ganancia','err');return;}let price=cost*(1+pct/100);if(round>1)price=Math.ceil(price/round)*round;$i('bk-price').value=price.toFixed(2);calcBkMargin();toast('Precio calculado: $'+fn(price));}
 function bulkEditOpen(){
   if(!selectedIds.size)return;const n=selectedIds.size;
@@ -4271,7 +4291,7 @@ function ampSave(){
 }
 
 // ══ VENTAS ══
-function salesClearDates(){const a=$i('vf-desde'),b=$i('vf-hasta');if(a)a.value='';if(b)b.value='';histShown.sales=HIST_PAGE.sales;renderSales();}
+function salesClearDates(){const a=$i('vf-desde'),b=$i('vf-hasta'),h1=$i('vf-hdesde'),h2=$i('vf-hhasta');if(a)a.value='';if(b)b.value='';if(h1)h1.value='';if(h2)h2.value='';histShown.sales=HIST_PAGE.sales;renderSales();}
 /* ══ TOPE EN PANTALLA (lote 5) ══
    Con el historial completo, renderMov() tardaba 2,5 s y renderSales() 0,7 s
    (se refrescan cada 30 s, y el buscador de movimientos, en CADA tecla).
@@ -4295,9 +4315,12 @@ function renderSales(){
   /* Rango de fechas elegido a mano (desde/hasta): se aplica ANTES de los
      atajos "Hoy / Semana / Mes" y funciona igual en Dashboard y Proveedores. */
   const rg=rangeFromInputs('vf-desde','vf-hasta');
+  /* Rango libre de HORAS: los inputs type=time del filtro (vacío = sin límite). */
+  const hd=$i('vf-hdesde')?$i('vf-hdesde').value:'',hh=$i('vf-hhasta')?$i('vf-hhasta').value:'';
   let list=sales.filter(s=>{
     if(rg.from&&s.ts<rg.from)return false;
     if(rg.to&&s.ts>rg.to)return false;
+    if(!enRangoHora(s.ts,hd,hh))return false;
     if(filt==='today')return s.ts>=tod.getTime();if(filt==='week')return s.ts>=wk.getTime();if(filt==='month')return s.ts>=mo.getTime();return true;
   });
   $i('vs-count').textContent=list.length;$i('vs-total').textContent='$'+fn(list.reduce((a,s)=>a+s.total,0));$i('vs-units').textContent=fqty(list.reduce((a,s)=>a+s.items.reduce((b,i)=>b+i.qty,0),0));const avg=list.length?list.reduce((a,s)=>a+s.total,0)/list.length:0;$i('vs-avg').textContent='$'+fn(avg);
@@ -4530,7 +4553,7 @@ function renderCats(){
 }
 function selectCat(n){selCat=selCat===n?null:n;renderCats();}
 function addDC(d){if(categories.find(c=>c.name===d.name))return;categories.push({id:uid(),...d});persist();renderCats();toast(d.emoji+' '+d.name+' agregada ✓');}
-function renderCatProds(){const el=$i('cat-prods');if(!selCat){el.innerHTML='<div style="color:var(--mu);font-size:.83rem">Seleccioná una categoría.</div>';return;}const list=products.filter(p=>p.cat===selCat);if(!list.length){el.innerHTML='<div class="empty"><div class="eic">📦</div>Sin productos</div>';return;}const c=cfg();el.innerHTML='<div class="tblw"><table><thead><tr><th>Producto</th><th>Stock</th><th>Precio</th><th>Margen</th><th>Estado</th></tr></thead><tbody>'+list.map(p=>{const m=mg(p.cost,p.price);return '<tr><td>'+p.name+'</td><td>'+fqty(p.stock)+'</td><td>'+(p.price?(c.currency||'$')+fn(p.price):'—')+'</td><td>'+(p.cost&&p.price?'<span style="color:'+(m>=0?'var(--ok)':'var(--err)')+'">'+m.toFixed(1)+'%</span>':'—')+'</td><td>'+sbdg(sst(p))+'</td></tr>';}).join('')+'</tbody></table></div>';}
+function renderCatProds(){const el=$i('cat-prods');if(!selCat){el.innerHTML='<div style="color:var(--mu);font-size:.83rem">Seleccioná una categoría.</div>';return;}const list=products.filter(p=>p.cat===selCat);if(!list.length){el.innerHTML='<div class="empty"><div class="eic">📦</div>Sin productos</div>';return;}const c=cfg();el.innerHTML='<div class="tblw"><table><thead><tr><th>Producto</th><th>Stock</th><th>Precio</th><th>Marcación</th><th>Estado</th></tr></thead><tbody>'+list.map(p=>{const m=mk(p.cost,p.price);return '<tr><td>'+p.name+'</td><td>'+fqty(p.stock)+'</td><td>'+(p.price?(c.currency||'$')+fn(p.price):'—')+'</td><td>'+(p.cost&&p.price?'<span style="color:'+(m>=0?'var(--ok)':'var(--err)')+'">'+m.toFixed(1)+'%</span>':'—')+'</td><td>'+sbdg(sst(p))+'</td></tr>';}).join('')+'</tbody></table></div>';}
 function openCatM(){$i('c-name').value='';$i('c-em').value='';$i('c-min').value=5;openO('m-cat');}
 function saveCat(){const name=$i('c-name').value.trim();if(!name){toast('Nombre obligatorio','err');return;}categories.push({id:uid(),name,emoji:$i('c-em').value.trim()||'📦',min:parseInt($i('c-min').value)||5});persist();closeO('m-cat');renderCats();toast('Categoría creada ✓');}
 
@@ -4652,7 +4675,7 @@ function provApplyItemsToProducts(items,includeIva,affectPrice,supplier){
   });
   return touched;
 }
-function updMarginInfo(){const c=pEffCost(),p=parseFloat($i('p-price').value)||0,st=parseFloat($i('p-stk').value)||0;const g=p-c,m=mg(c,p),mk2=mk(c,p);const cls=g>=0?'pos':'neg';$i('mi-g').textContent='$'+fn(g);$i('mi-g').className='miv '+cls;$i('mi-m').textContent=m.toFixed(1)+'%';$i('mi-m').className='miv '+cls;$i('mi-mk').textContent=mk2.toFixed(1)+'%';$i('mi-mk').className='miv '+cls;$i('mi-sv').textContent='$'+fn(c*st);}
+function updMarginInfo(){const c=pEffCost(),p=parseFloat($i('p-price').value)||0,st=parseFloat($i('p-stk').value)||0;const g=p-c,mk2=mk(c,p);const cls=g>=0?'pos':'neg';$i('mi-g').textContent='$'+fn(g);$i('mi-g').className='miv '+cls;$i('mi-mk').textContent=mk2.toFixed(1)+'%';$i('mi-mk').className='miv '+cls;$i('mi-sv').textContent='$'+fn(c*st);}
 function calcM(){updMarginInfo();calcSuggest();}
 /* Solo refresca la info y muestra el precio SUGERIDO: NO escribe en "Precio
    venta". Antes, con el % de ganancia precargado, tocar el costo (o teclear el
@@ -4734,7 +4757,7 @@ function dlTemplate(){if(typeof XLSX==='undefined'){ensureXLSX(dlTemplate);retur
 
 // ══ EXPORT EXCEL ══
 function exportExcel(){
-  if(typeof XLSX==='undefined'){ensureXLSX(exportExcel);return;}const wb=XLSX.utils.book_new();const c=cfg();const inv=[['Nombre','Código barras','SKU','Categoría','Marca','Proveedor','Stock','Stock mín','Precio costo','Precio venta','Margen %','Valor stock','Estado']];products.forEach(p=>{const s={ok:'En stock',low:'Stock bajo',out:'Sin stock'}[sst(p)];inv.push([p.name,p.barcode||'',p.sku||'',p.cat||'',p.marca||'',p.proveedor||'',p.stock,p.min||5,p.cost||0,p.price||0,mg(p.cost,p.price).toFixed(1)+'%',(p.cost||0)*p.stock,s]);});XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(inv),'Inventario');const PL={efectivo:'Efectivo',qr:'QR',transferencia:'Transferencia',debito:'Débito',credito:'Crédito',cuenta:'Cuenta cte.',otro:'Otro'};const vsht=[['Fecha','ID Venta','Productos','Total','Descuento','Pago 1','Pago 2','Monto 2','Usuario']];sales.forEach(s=>vsht.push([fd(s.ts),'#'+s.id.slice(-6).toUpperCase(),s.items.map(i=>fqty(i.qty)+'x '+i.name).join(', '),s.total,s.disc||0,PL[s.pay]||s.pay,s.pay2?(PL[s.pay2]||s.pay2):'',s.pay2amount||0,s.user||'']));XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(vsht),'Ventas');const msht=[['Fecha','Producto','Tipo','Cantidad','Nota','Usuario']];movements.forEach(m=>msht.push([fd(m.ts),m.pname,m.type,m.qty,m.note||'',m.user||'']));XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(msht),'Movimientos');const asht=[['Producto','Stock','Stock mín','Estado']];products.filter(p=>sst(p)!=='ok').forEach(p=>asht.push([p.name,p.stock,p.min||5,{low:'Stock bajo',out:'Sin stock'}[sst(p)]]));XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(asht),'Alertas');XLSX.writeFile(wb,'StockPro_'+new Date().toLocaleDateString('es-AR').replace(/\//g,'-')+'.xlsx');toast('Excel exportado ✓');}
+  if(typeof XLSX==='undefined'){ensureXLSX(exportExcel);return;}const wb=XLSX.utils.book_new();const c=cfg();const inv=[['Nombre','Código barras','SKU','Categoría','Marca','Proveedor','Stock','Stock mín','Precio costo','Precio venta','Marcación %','Valor stock','Estado']];products.forEach(p=>{const s={ok:'En stock',low:'Stock bajo',out:'Sin stock'}[sst(p)];inv.push([p.name,p.barcode||'',p.sku||'',p.cat||'',p.marca||'',p.proveedor||'',p.stock,p.min||5,p.cost||0,p.price||0,mk(p.cost,p.price).toFixed(1)+'%',(p.cost||0)*p.stock,s]);});XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(inv),'Inventario');const PL={efectivo:'Efectivo',qr:'QR',transferencia:'Transferencia',debito:'Débito',credito:'Crédito',cuenta:'Cuenta cte.',otro:'Otro'};const vsht=[['Fecha','ID Venta','Productos','Total','Descuento','Pago 1','Pago 2','Monto 2','Usuario']];sales.forEach(s=>vsht.push([fd(s.ts),'#'+s.id.slice(-6).toUpperCase(),s.items.map(i=>fqty(i.qty)+'x '+i.name).join(', '),s.total,s.disc||0,PL[s.pay]||s.pay,s.pay2?(PL[s.pay2]||s.pay2):'',s.pay2amount||0,s.user||'']));XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(vsht),'Ventas');const msht=[['Fecha','Producto','Tipo','Cantidad','Nota','Usuario']];movements.forEach(m=>msht.push([fd(m.ts),m.pname,m.type,m.qty,m.note||'',m.user||'']));XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(msht),'Movimientos');const asht=[['Producto','Stock','Stock mín','Estado']];products.filter(p=>sst(p)!=='ok').forEach(p=>asht.push([p.name,p.stock,p.min||5,{low:'Stock bajo',out:'Sin stock'}[sst(p)]]));XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(asht),'Alertas');XLSX.writeFile(wb,'StockPro_'+new Date().toLocaleDateString('es-AR').replace(/\//g,'-')+'.xlsx');toast('Excel exportado ✓');}
 
 // ══ BACKUP ══
 function autoBackup(){
@@ -4841,6 +4864,27 @@ function getFilteredSales(){
     return true;
   });
 }
+/* ¿La venta cayó dentro del horario de atención? Se usa en el reporte de
+   horarios (gráfico y Excel): lun a vie 9:30 a 20:30 · sáb 9:30 a 13:30 y de
+   16:30 a 20:30 · dom 9:30 a 13:30. Lo demás no se cuenta. */
+function enHorario(ts){
+  const d=new Date(ts),wd=d.getDay(),m=d.getHours()*60+d.getMinutes();
+  if(wd>=1&&wd<=5)return m>=570&&m<=1230;                     // lun–vie 9:30–20:30
+  if(wd===6)return(m>=570&&m<=810)||(m>=990&&m<=1230);        // sáb 9:30–13:30 y 16:30–20:30
+  if(wd===0)return m>=570&&m<=810;                            // dom 9:30–13:30
+  return false;
+}
+/* Rango libre de HORAS (inputs type=time) para filtrar ventas: se convierte a
+   minutos del día. Desde > hasta = el rango cruza la medianoche (20:00 → 02:00).
+   Campo vacío = sin límite por ese lado. Lo usan Historial de ventas y Dashboard. */
+function tmin(s){const m=/^(\d{1,2}):(\d{2})$/.exec(String(s==null?'':s).trim());return m?(+m[1])*60+(+m[2]):-1;}
+function enRangoHora(ts,desde,hasta){
+  const D=tmin(desde),H=tmin(hasta);
+  if(D<0&&H<0)return true;
+  const d=new Date(ts),m=d.getHours()*60+d.getMinutes();
+  if(D>=0&&H>=0)return D<=H?(m>=D&&m<=H):(m>=D||m<=H);
+  return D>=0?m>=D:m<=H;
+}
 
 function renderReportes(){
   const list=getFilteredSales();
@@ -4876,9 +4920,10 @@ function renderReportes(){
       +'</div></div>';
   }).join(''):'<div class="empty" style="padding:20px"><div class="eic">📦</div>Sin datos</div>';
 
-  // HORARIOS
+  // HORARIOS (sólo ventas dentro del horario de atención: ver enHorario())
+  const horList=list.filter(s=>enHorario(s.ts));
   const horaMap=Array(24).fill(0).map((_,h)=>({hora:h,ventas:0,total:0}));
-  list.forEach(s=>{const h=new Date(s.ts).getHours();horaMap[h].ventas++;horaMap[h].total+=s.total;});
+  horList.forEach(s=>{const h=new Date(s.ts).getHours();horaMap[h].ventas++;horaMap[h].total+=s.total;});
   const horasConVentas=horaMap.filter(h=>h.ventas>0).sort((a,b)=>b.ventas-a.ventas);
   const maxV=horasConVentas[0]?horasConVentas[0].ventas:1;
   const horas8a22=horaMap.filter(h=>h.hora>=7&&h.hora<=22);
@@ -4937,7 +4982,7 @@ function exportReporte(){
   const tp=[['Producto','Unidades vendidas','Total recaudado'],...Object.values(prodMap).sort((a,b)=>b.units-a.units).map(p=>[p.name,Number(fqty(p.units)),r2(p.total)])];
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(tp),'Top Productos');
   // Horarios
-  const hMap=Array(24).fill(0).map((_,h)=>({h,v:0,t:0}));list.forEach(s=>{const h=new Date(s.ts).getHours();hMap[h].v++;hMap[h].t+=s.total;});
+  const hMap=Array(24).fill(0).map((_,h)=>({h,v:0,t:0}));list.filter(s=>enHorario(s.ts)).forEach(s=>{const h=new Date(s.ts).getHours();hMap[h].v++;hMap[h].t+=s.total;});
   const th=[['Hora','Ventas','Total'],...hMap.map(h=>[h.h+'hs',h.v,h.t])];
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(th),'Horarios');
   XLSX.writeFile(wb,'Reporte_StockPro_'+new Date().toLocaleDateString('es-AR').replace(/\//g,'-')+'.xlsx');
@@ -6822,6 +6867,10 @@ function renderProvEgresosList(){
   }catch(err){console.warn('renderProvEgresosList:',err);}
 }
 function renderEgresos(){renderEgresosList('eg');renderProvEgresosList();}
+</script>
+
+</body></html>
+n renderEgresos(){renderEgresosList('eg');renderProvEgresosList();}
 </script>
 
 </body></html>
