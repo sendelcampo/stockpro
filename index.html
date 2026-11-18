@@ -1884,7 +1884,11 @@ let provTomb=JSON.parse(localStorage.getItem('prov_tombs')||'[]');
 if(!Array.isArray(provTomb))provTomb=[];
 function provTombSave(){try{localStorage.setItem('prov_tombs',JSON.stringify(provTomb.slice(0,200)));}catch(e){}}
 function provTombPush(table,row){
-  if(!row||!row.id||!cloudMode||!sb)return;
+  /* Sin early-return por falta de conexión: si se borró sin nube (equipo sin
+     internet o `sb` aún nulo), la tumba quedaba descartada y el borrado
+     existía sólo en este navegador — en los demás seguía apareciendo. Ahora
+     se encola igual y provCloudSync() la sube apenas vuelva la conexión. */
+  if(!row||!row.id)return;
   provTomb=provTomb.filter(t=>!(t&&t.t===table&&t.id===row.id));
   provTomb.push({t:table,id:row.id,r:row});
   provTombSave();
@@ -1933,11 +1937,19 @@ let histFullAt=0;
 function histFullDue(){return Date.now()-histFullAt>=HIST_FULL_MS;}
 /* `x` llega como array (fetchAllRows) o como {data} (sb.from). */
 function histRows(x){return Array.isArray(x)?x:(x&&Array.isArray(x.data)?x.data:null);}
-function mergeHist(cur,cloud,full){
+function mergeHist(cur,cloud,full,table){
   const rows=histRows(cloud);
   if(!Array.isArray(rows)||!rows.length)return null;   /* null = sin cambios */
-  const out=[],seen={};
-  rows.forEach(function(r){const d=r&&r.data;if(!d)return;out.push(d);if(d.id)seen[d.id]=1;});
+  const out=[],seen={},loc={};
+  (Array.isArray(cur)?cur:[]).forEach(function(x){if(x&&x.id)loc[x.id]=x;});
+  rows.forEach(function(r){
+    const d=r&&r.data;if(!d)return;
+    /* La nube puede traer la copia ANTERIOR (su lectura empezó antes de que
+       subieras el cambio): si esto se editó acá hace poco, gana lo local. */
+    const l=(table&&d.id)?loc[d.id]:null;
+    out.push(l&&edFresh(table,d.id)?l:d);
+    if(d.id)seen[d.id]=1;
+  });
   const grace=Date.now()-HIST_GRACE_MS;
   (Array.isArray(cur)?cur:[]).forEach(function(s){
     if(!s||!s.id||seen[s.id])return;
@@ -1989,6 +2001,88 @@ function retombDeleted(table,rows){
     if(a.indexOf(d.id)>=0)up.push({id:d.id,deleted:true,ts:d.ts});});
   if(up.length)cloudUpsert(table,up).catch(function(){});
 }
+/* ══ EDS: ediciones locales recientes ══
+   loadFromCloud() puede traer la copia VIEJA de un registro: el SELECT de la
+   nube empezó ANTES de que subieras tu cambio (o el cambio todavía no subió).
+   El merge la daba por buena y encima persist() la volvía a subir, así que el
+   precio recién cambiado "revertía" al refresco y recién a la tercera vez
+   quedaba (cuando por fin la nube tenía tu dato). Lo mismo se veía en el
+   carrito: la línea nueva toma el precio de la ficha y la ficha estaba en la
+   versión anterior. Mismo criterio que delIds: cada guardado deja su ID en
+   LocalStorage (síncrono, sobrevive al cierre) y durante una ventana el merge
+   se queda con LO LOCAL en vez de pisarlo. */
+const ED_MAX=400,ED_MS=10*60*1000;
+let edIds=JSON.parse(localStorage.getItem('ed_ids')||'{}');
+if(!edIds||typeof edIds!=='object'||Array.isArray(edIds))edIds={};
+function edIdsSave(){try{localStorage.setItem('ed_ids',JSON.stringify(edIds));}catch(e){}}
+function markEdited(table,id){
+  if(!table||!id)return;
+  const o=edIds[table]||(edIds[table]={});
+  o[id]=Date.now();
+  const ks=Object.keys(o);
+  if(ks.length>ED_MAX){ks.sort(function(a,b){return o[a]-o[b];}).slice(0,ks.length-ED_MAX).forEach(function(k){delete o[k];});}
+  edIdsSave();
+}
+/* true = se editó (o se creó) acá hace poco: el merge conserva lo local.
+   Vencida la ventana vuelve a mandar la nube (sincronización normal). */
+function edFresh(table,id){
+  const o=edIds[table];if(!o)return false;
+  const t=o[id];if(!t)return false;
+  if(Date.now()-t>ED_MS){delete o[id];edIdsSave();return false;}
+  return true;
+}
+/* Nube → local, fila por fila. Gana lo local SÓLO si se editó acá hace poco;
+   lo que la nube no trae se conserva únicamente si también está fresco (puede
+   no haberse subido todavía): lo viejo ausante = lo borraron en otro equipo. */
+function mergeCloudArr(table,cloud,local){
+  const rows=histRows(cloud);
+  if(!Array.isArray(rows)||!rows.length)return local;
+  const out=[],seen={},loc={};
+  (Array.isArray(local)?local:[]).forEach(function(x){if(x&&x.id)loc[x.id]=x;});
+  rows.forEach(function(r){
+    const c=r&&r.data?r.data:null;
+    if(!c)return;
+    if(!c.id){out.push(c);return;}
+    const l=loc[c.id];
+    out.push(l&&edFresh(table,c.id)?l:c);
+    seen[c.id]=1;
+  });
+  (Array.isArray(local)?local:[]).forEach(function(l){
+    if(l&&l.id&&!seen[l.id]&&edFresh(table,l.id))out.push(l);
+  });
+  return out;
+}
+/* ══ OTRA PESTAÑA: los marcadores viajan por LocalStorage ══
+   delIds y provDeleted se leen UNA sola vez al abrir. Si esta pestaña seguía
+   abierta desde antes del borrado no veía la marca puesta por la otra y
+   volvía a subir (y a mostrar) lo recién eliminado. El evento `storage` trae
+   la marca nueva y se SUMA a la local: unión, nunca se pisa lo de acá. */
+window.addEventListener('storage',function(e){
+  if(!e||!e.key||e.newValue==null)return;
+  try{
+    if(e.key==='del_ids'){
+      const o=JSON.parse(e.newValue);if(!o||typeof o!=='object')return;
+      let ch=false;
+      Object.keys(o).forEach(function(t){
+        const a=o[t];if(!Array.isArray(a))return;
+        const b=delIds[t]||(delIds[t]=[]);
+        a.forEach(function(id){if(id&&b.indexOf(id)<0){b.push(id);if(b.length>DEL_MAX)b.splice(0,b.length-DEL_MAX);ch=true;}});
+      });
+      if(ch)delIdsSave();
+    }else if(e.key==='prov_deleted'){
+      const o=JSON.parse(e.newValue);if(!o)return;
+      let ch=false;
+      ['orders','payments'].forEach(function(k){
+        const a=Array.isArray(o[k])?o[k]:[];
+        const b=Array.isArray(provDeleted[k])?provDeleted[k]:[];
+        const u=b.slice();
+        a.forEach(function(id){if(id&&u.indexOf(id)<0)u.push(id);});
+        if(u.length!==b.length){provDeleted[k]=u.slice(-PROV_DEL_MAX);ch=true;}
+      });
+      if(ch)provSaveDeleted();
+    }
+  }catch(err){}
+});
 async function loadFromCloud(full){
   if(!sb)return;
   try{
@@ -2003,15 +2097,18 @@ async function loadFromCloud(full){
     ]);
     /* Si la nube viene vacia o con error, NO se pisa lo local: persist() sube lo local y lo repone. */
     /* Nada borrado en este equipo vuelve: se quitan las tumbas (deleted:true)
-       y los IDs de nuestra lista de borrados (delIds). */
-    if(rp&&rp.length)products=cleanRows('products',rp.map(r=>r.data));if(rc&&rc.length)categories=rc.map(r=>r.data);if(ru&&ru.length)users=cleanRows('users',ru.map(r=>r.data));if(rct&&rct.length)contacts=cleanRows('contacts',rct.map(r=>r.data));
+       y los IDs de nuestra lista de borrados (delIds). mergeCloudArr() en vez
+       de reemplazar la lista: si el registro se editó acá hace poco (ed_ids)
+       gana lo local, así un refresco que vino con la copia anterior no devuelve
+       el precio que acababas de cambiar. */
+    if(rp&&rp.length)products=cleanRows('products',mergeCloudArr('products',rp,products));if(rc&&rc.length)categories=mergeCloudArr('categories',rc,categories);if(ru&&ru.length)users=cleanRows('users',mergeCloudArr('users',ru,users));if(rct&&rct.length)contacts=cleanRows('contacts',mergeCloudArr('contacts',rct,contacts));
     /* Fusionar (nunca pisar): mergeHist() devuelve null si no vino nada, así
        que una nube vacía o caída deja lo local intacto. El orden queda
        descendente por ts, que es lo que esperan renderMov/renderSales. */
-    const mrgMv=mergeHist(movements,rm,full);if(mrgMv)movements=cleanRows('movements',mrgMv);
-    const mrgS=mergeHist(sales,rs,full);if(mrgS)sales=cleanRows('sales',mrgS);
-    const mrgCm=mergeHist(ctaMovs,rcm,true);if(mrgCm)ctaMovs=cleanRows('cta_movs',mrgCm);
-    const rowsEg=histRows(reg);if(rowsEg&&rowsEg.length){const allEg=mergeHist(egresos.concat(egresosDC),rowsEg,true)||[];const egOk=cleanRows('egresos',allEg);egresos=egOk.filter(e=>e.mod!=='dc');egresosDC=egOk.filter(e=>e.mod==='dc');}
+    const mrgMv=mergeHist(movements,rm,full,'movements');if(mrgMv)movements=cleanRows('movements',mrgMv);
+    const mrgS=mergeHist(sales,rs,full,'sales');if(mrgS)sales=cleanRows('sales',mrgS);
+    const mrgCm=mergeHist(ctaMovs,rcm,true,'cta_movs');if(mrgCm)ctaMovs=cleanRows('cta_movs',mrgCm);
+    const rowsEg=histRows(reg);if(rowsEg&&rowsEg.length){const allEg=mergeHist(egresos.concat(egresosDC),rowsEg,true,'egresos')||[];const egOk=cleanRows('egresos',allEg);egresos=egOk.filter(e=>e.mod!=='dc');egresosDC=egOk.filter(e=>e.mod==='dc');}
     /* RE-TUMBA: si la nube trae de vuelta algo que borramos (otra PC con la
        copia vieja lo subió de nuevo), se marca deleted:true conservando su ts
        (para no alterar el orden por fecha); así ese equipo también lo deja de
@@ -3705,13 +3802,13 @@ function confirmSale(){
   const sale={id:uid(),ts:Date.now(),items:cart.map(x=>({...x})),sub:cartSub(),disc:cartDisc()+cartDisc2(),total,pay:selectedPay1||'efectivo',pay2:selectedPay2||null,pay2amount:selectedPay2?(parseFloat($i('co-pay2-amount').value)||0):0,recv:parseFloat($i('co-recv').value)||total,note:$i('co-note').value.trim(),user:currentUser?currentUser.name:'',discVal:parseFloat($i('disc-val').value)||0,discType:$i('disc-type').value,discVal2:parseFloat($i('disc2-val').value)||0,discType2:$i('disc2-type').value,clienteId:clienteId||''};
   confirmingSale=true;
   try{
-    cart.forEach(it=>{const idx=products.findIndex(x=>x.id===it.pid);if(idx>-1){products[idx].stock=Math.max(0,products[idx].stock-it.qty);addMvt(it.pid,'venta',it.qty,'Venta #'+sale.id.slice(-4).toUpperCase());}});
+    cart.forEach(it=>{const idx=products.findIndex(x=>x.id===it.pid);if(idx>-1){products[idx].stock=Math.max(0,products[idx].stock-it.qty);markEdited('products',it.pid);addMvt(it.pid,'venta',it.qty,'Venta #'+sale.id.slice(-4).toUpperCase());}});
     if(needsCliente){
       const pay2amt=sale.pay2amount||0;
       const cargoAmt=selectedPay1==='cuenta'?(total-(selectedPay2?pay2amt:0)):pay2amt;
-      if(cargoAmt>0){ctaMovs.unshift({id:uid(),contactId:clienteId,ts:Date.now(),type:'cargo',amount:cargoAmt,note:'Venta #'+sale.id.slice(-4).toUpperCase(),ref:sale.id});}
+      if(cargoAmt>0){const ctaId=uid();ctaMovs.unshift({id:ctaId,contactId:clienteId,ts:Date.now(),type:'cargo',amount:cargoAmt,note:'Venta #'+sale.id.slice(-4).toUpperCase(),ref:sale.id});markEdited('cta_movs',ctaId);}
     }
-    sales.unshift(sale);lastSale=sale;
+    sales.unshift(sale);lastSale=sale;markEdited('sales',sale.id);
     /* La ventana se cierra y el carrito se vacía ANTES de persistir:
        un fallo de almacenamiento no puede dejar el cobro abierto. */
     closeO('m-checkout');clearCart();refreshAll();renderPosSales();
@@ -4221,7 +4318,7 @@ function bulkEditOpen(){
 function bulkEditSave(){
   const cat=$i('bk-cat').value,min=$i('bk-min').value.trim(),cost=$i('bk-cost').value.trim(),price=$i('bk-price').value.trim(),delta=$i('bk-stock-delta').value.trim();
   let changed=0;
-  products.forEach(p=>{if(!selectedIds.has(p.id))return;if(cat)p.cat=cat;if(min!=='')p.min=parseInt(min)||0;if(cost!=='')setProdCostBase(p,spNum(cost));if(price!=='')p.price=parseFloat(price)||0;if(delta!==''){if(delta.startsWith('+'))p.stock+=parseInt(delta.slice(1))||0;else if(delta.startsWith('-'))p.stock=Math.max(0,p.stock-(parseInt(delta.slice(1))||0));else{const v=parseInt(delta)||0;if(v!==p.stock){p.stock=Math.max(0,v);}}addMvt(p.id,'ajuste',p.stock,'Edición');}changed++;});
+  products.forEach(p=>{if(!selectedIds.has(p.id))return;if(cat)p.cat=cat;if(min!=='')p.min=parseInt(min)||0;if(cost!=='')setProdCostBase(p,spNum(cost));if(price!=='')p.price=parseFloat(price)||0;if(delta!==''){if(delta.startsWith('+'))p.stock+=parseInt(delta.slice(1))||0;else if(delta.startsWith('-'))p.stock=Math.max(0,p.stock-(parseInt(delta.slice(1))||0));else{const v=parseInt(delta)||0;if(v!==p.stock){p.stock=Math.max(0,v);}}addMvt(p.id,'ajuste',p.stock,'Edición');}markEdited('products',p.id);changed++;});
   persist();closeO('m-bulk');selectedIds.clear();refreshAll();toast('✅ '+changed+' producto'+(changed!==1?'s':'')+' actualizado'+(changed!==1?'s':''));
 }
 
@@ -4284,7 +4381,7 @@ function ampSave(){
   const pl=ampPlan();
   if(pl.pct===0){toast('Ingresá un porcentaje distinto de 0','err');return;}
   if(!pl.cambios.length){toast('No hay productos para actualizar en ese alcance','err');return;}
-  pl.cambios.forEach(c=>{c.p.price=c.np;});
+  pl.cambios.forEach(c=>{c.p.price=c.np;markEdited('products',c.p.id);});
   const sin=pl.skip+pl.zero;
   persist();closeO('m-amp');refreshAll();
   toast('✅ '+pl.cambios.length+' precio'+(pl.cambios.length!==1?'s':'')+' actualizado'+(pl.cambios.length!==1?'s':'')+(sin?' · '+sin+' sin precio (sin tocar)':''));
@@ -4463,7 +4560,7 @@ function saveEditedSale(){
   s.pay=$i('sd-pay').value;
   if($i('sd-split-toggle').checked){s.pay2=$i('sd-pay2').value;s.pay2amount=parseFloat($i('sd-pay2-amount').value)||0;}
   else{s.pay2=null;s.pay2amount=0;}
-  persist();persistSale(s);renderSales();renderDash();closeO('m-sale-detail');toast('✅ Venta actualizada');
+  markEdited('sales',s.id);persist();persistSale(s);renderSales();renderDash();closeO('m-sale-detail');toast('✅ Venta actualizada');
 }
 function deleteSale(){if(!editingSaleId)return;quickDeleteSale(editingSaleId,true);}
 function quickDeleteSale(id,fromModal){
@@ -4474,7 +4571,7 @@ function quickDeleteSale(id,fromModal){
 function toggleSaleEdit(){}
 
 // ══ MOVIMIENTOS ══
-function addMvt(pid,type,qty,note){const p=products.find(x=>x.id===pid);const m={id:uid(),pid,pname:p?p.name:'?',type,qty:Number(qty),note,user:currentUser?currentUser.name:'',ts:Date.now()};movements.unshift(m);if(movements.length>2000)movements=movements.slice(0,2000);persistMov(m);}
+function addMvt(pid,type,qty,note){const p=products.find(x=>x.id===pid);const m={id:uid(),pid,pname:p?p.name:'?',type,qty:Number(qty),note,user:currentUser?currentUser.name:'',ts:Date.now()};movements.unshift(m);if(movements.length>2000)movements=movements.slice(0,2000);markEdited('movements',m.id);persistMov(m);}
 function renderMov(){const q=normalizeStr(($i('mq').value||'').trim()),t=$i('mtype').value;const list=movements.filter(m=>{const mq=!q||normalizeStr(m.pname).includes(q)||normalizeStr(m.note).includes(q);return mq&&(!t||m.type===t);});const vis=list.slice(0,histShown.mov);$i('all-mv').innerHTML=list.length?vis.map(mvH).join('')+(list.length>vis.length?histMoreBtn('mov',list.length-vis.length):''):'<div class="empty"><div class="eic">📋</div>Sin movimientos</div>';}
 function openQuickStock(){
   $i('qs-search').value='';$i('qs-selected').style.display='none';$i('qs-search-results').style.display='none';
@@ -4521,6 +4618,7 @@ function saveQuickStock(){
   if(diff===0){toast('El stock no cambió','err');return;}
   const note=$i('qs-note').value.trim()||'Actualización rápida de stock';
   p.stock=val;
+  markEdited('products',id);
   addMvt(id,'ajuste',Math.abs(diff),note);
   persist();refreshAll();closeO('m-quick-stock');toast('✅ Stock actualizado');
 }
@@ -4532,6 +4630,7 @@ function saveMov(){
   const idx=products.findIndex(x=>x.id===pid);if(idx===-1){toast('Producto no encontrado','err');return;}
   if(type==='salida'&&products[idx].stock<qty){toast('Stock insuficiente ('+products[idx].stock+')','err');return;}
   if(type==='entrada')products[idx].stock+=qty;else if(type==='salida')products[idx].stock-=qty;else products[idx].stock=qty;
+  markEdited('products',pid);
   addMvt(pid,type,qty,note||type);persist();closeO('m-mov');refreshAll();toast('Movimiento registrado ✓');
 }
 
@@ -4555,7 +4654,7 @@ function selectCat(n){selCat=selCat===n?null:n;renderCats();}
 function addDC(d){if(categories.find(c=>c.name===d.name))return;categories.push({id:uid(),...d});persist();renderCats();toast(d.emoji+' '+d.name+' agregada ✓');}
 function renderCatProds(){const el=$i('cat-prods');if(!selCat){el.innerHTML='<div style="color:var(--mu);font-size:.83rem">Seleccioná una categoría.</div>';return;}const list=products.filter(p=>p.cat===selCat);if(!list.length){el.innerHTML='<div class="empty"><div class="eic">📦</div>Sin productos</div>';return;}const c=cfg();el.innerHTML='<div class="tblw"><table><thead><tr><th>Producto</th><th>Stock</th><th>Precio</th><th>Marcación</th><th>Estado</th></tr></thead><tbody>'+list.map(p=>{const m=mk(p.cost,p.price);return '<tr><td>'+p.name+'</td><td>'+fqty(p.stock)+'</td><td>'+(p.price?(c.currency||'$')+fn(p.price):'—')+'</td><td>'+(p.cost&&p.price?'<span style="color:'+(m>=0?'var(--ok)':'var(--err)')+'">'+m.toFixed(1)+'%</span>':'—')+'</td><td>'+sbdg(sst(p))+'</td></tr>';}).join('')+'</tbody></table></div>';}
 function openCatM(){$i('c-name').value='';$i('c-em').value='';$i('c-min').value=5;openO('m-cat');}
-function saveCat(){const name=$i('c-name').value.trim();if(!name){toast('Nombre obligatorio','err');return;}categories.push({id:uid(),name,emoji:$i('c-em').value.trim()||'📦',min:parseInt($i('c-min').value)||5});persist();closeO('m-cat');renderCats();toast('Categoría creada ✓');}
+function saveCat(){const name=$i('c-name').value.trim();if(!name){toast('Nombre obligatorio','err');return;}const cid=uid();categories.push({id:cid,name,emoji:$i('c-em').value.trim()||'📦',min:parseInt($i('c-min').value)||5});markEdited('categories',cid);persist();closeO('m-cat');renderCats();toast('Categoría creada ✓');}
 
 // ══ USUARIOS ══
 function renderUsers(){$i('users-tb').innerHTML=users.map(u=>'<tr><td>'+(u.avatar||'👤')+' <strong>'+u.name+'</strong></td><td><span class="ctag">'+roleL(u.role)+(u.full===true?' ⭐':'')+'</span></td><td><span style="letter-spacing:.18em">••••</span></td><td><button class="btn bg bs bic" onclick="openUserM(\''+u.id+'\')">✏️</button> <button class="btn bg bs bic" onclick="delUser(\''+u.id+'\')">🗑️</button></td></tr>').join('');renderCfgUsers();}
@@ -4582,7 +4681,7 @@ function genUserPin(){
   toast('Contraseña generada: '+p);
 }
 function openUserM(id){editUserId=id;['name','pin','av'].forEach(f=>$i('u-'+f).value='');$i('u-role').value='vendedor';$i('u-full').checked=false;const pinEl=$i('u-pin');if(pinEl)pinEl.placeholder='••••';if(id){const u=users.find(x=>x.id===id);if(u){$i('u-name').value=u.name;$i('u-role').value=u.role;$i('u-av').value=u.avatar||'';$i('u-full').checked=u.full===true;const veClave=esAdmin(currentUser)||(currentUser&&currentUser.id===u.id);if(pinEl){pinEl.value=veClave?(u.pin||''):'';pinEl.placeholder=veClave?'••••':'•••• (vacío = no cambiarla)';}}}openO('m-user');}
-function saveUser(){const name=$i('u-name').value.trim(),pin=$i('u-pin').value.trim(),full=$i('u-full').checked===true;if(!name){toast('Nombre obligatorio','err');return;}let nPin=pin;if(editUserId){const ex=users.find(x=>x.id===editUserId);if(ex&&!nPin)nPin=ex.pin||'';}if(!/^\d{4}$/.test(nPin)){toast('La contraseña debe tener 4 dígitos','err');return;}if(editUserId){const idx=users.findIndex(x=>x.id===editUserId);if(idx>-1)users[idx]={...users[idx],name,role:$i('u-role').value,pin:nPin,avatar:$i('u-av').value.trim()||'👤',full};toast('Usuario actualizado ✓');}else{users.push({id:uid(),name,role:$i('u-role').value,pin:nPin,avatar:$i('u-av').value.trim()||'👤',full});toast('Usuario creado ✓');}persist();closeO('m-user');renderUsers();if(currentUser&&editUserId&&currentUser.id===editUserId)applyPerms();}
+function saveUser(){const name=$i('u-name').value.trim(),pin=$i('u-pin').value.trim(),full=$i('u-full').checked===true;if(!name){toast('Nombre obligatorio','err');return;}let nPin=pin;if(editUserId){const ex=users.find(x=>x.id===editUserId);if(ex&&!nPin)nPin=ex.pin||'';}if(!/^\d{4}$/.test(nPin)){toast('La contraseña debe tener 4 dígitos','err');return;}if(editUserId){const idx=users.findIndex(x=>x.id===editUserId);if(idx>-1)users[idx]={...users[idx],name,role:$i('u-role').value,pin:nPin,avatar:$i('u-av').value.trim()||'👤',full};markEdited('users',editUserId);toast('Usuario actualizado ✓');}else{const nid=uid();users.push({id:nid,name,role:$i('u-role').value,pin:nPin,avatar:$i('u-av').value.trim()||'👤',full});markEdited('users',nid);toast('Usuario creado ✓');}persist();closeO('m-user');renderUsers();if(currentUser&&editUserId&&currentUser.id===editUserId)applyPerms();}
 function delUser(id){if(!esAdmin(currentUser)){toast('Sólo un administrador puede eliminar usuarios','err');return;}if(id===currentUser?.id){toast('No podés eliminarte','err');return;}$i('confirm-msg').textContent='¿Eliminar usuario?';$i('confirm-ok').onclick=function(){users=users.filter(x=>x.id!==id);persistDelUser(id);persist();renderUsers();closeO('m-confirm');toast('Eliminado','err');};openO('m-confirm');}
 
 // ══ PRODUCTOS CRUD ══
@@ -4633,6 +4732,7 @@ function setProdCostBase(p,base){
   p.costNeto=spNum(base);
   const iv=spNum(p.iva);
   p.cost=iv>0?Math.round(p.costNeto*(1+iv/100)*100)/100:p.costNeto;
+  if(p.id)markEdited('products',p.id);
 }
 /* setProdCost: el número que llega desde una compra es lo que SE PAGA (ya con
    iva si corresponde). Se deriva la base sin iva para no sumar el iva dos veces. */
@@ -4641,6 +4741,7 @@ function setProdCost(p,final){
   p.cost=spNum(final);
   const iv=spNum(p.iva);
   p.costNeto=iv>0?Math.round(p.cost/(1+iv/100)*100)/100:p.cost;
+  if(p.id)markEdited('products',p.id);
 }
 /* ══ COMPRA A PROVEEDORES → PRODUCTOS ══
    El costo del producto pasa a ser lo que se PAGA por unidad:
@@ -4671,6 +4772,7 @@ function provApplyItemsToProducts(items,includeIva,affectPrice,supplier){
        ya tiene OTRO proveedor cargado no se pisa (un producto puede comprarse
        a más de uno): sólo se completa vacío o si coincide. */
     if(sup&&(!product.proveedor||String(product.proveedor).trim()===sup))product.proveedor=sup;
+    markEdited('products',product.id);
     touched=true;
   });
   return touched;
@@ -4702,8 +4804,8 @@ function saveProd(){
   /* % de ganancia de la ficha: el carrito de Proveedores lo toma de acá para
      cargar el mismo margen. Vacío = se deriva del precio de venta. */
   const mp=$i('p-margin-pct');d.profitPct=(mp&&mp.value.trim()!=='')?spNum(mp.value):null;
-  if(editProdId){const idx=products.findIndex(x=>x.id===editProdId);if(idx>-1){const diff=sv-products[idx].stock;products[idx]={...products[idx],...d};if(diff!==0)addMvt(editProdId,'ajuste',Math.abs(sv),'Edición');}toast('Producto actualizado ✓');}
-  else{const p={id:uid(),...d,createdAt:Date.now()};products.push(p);if(sv>0)addMvt(p.id,'entrada',sv,'Stock inicial');toast('Producto agregado ✓');}
+  if(editProdId){const idx=products.findIndex(x=>x.id===editProdId);if(idx>-1){const diff=sv-products[idx].stock;products[idx]={...products[idx],...d};if(diff!==0)addMvt(editProdId,'ajuste',Math.abs(sv),'Edición');}markEdited('products',editProdId);toast('Producto actualizado ✓');}
+  else{const p={id:uid(),...d,createdAt:Date.now()};products.push(p);markEdited('products',p.id);if(sv>0)addMvt(p.id,'entrada',sv,'Stock inicial');toast('Producto agregado ✓');}
   persist();closeO('m-prod');refreshAll();
   if(window._prodBack){const b=window._prodBack;window._prodBack=null;nav(b);}
 }
@@ -4750,7 +4852,7 @@ function importExcel(input){
   r.readAsArrayBuffer(f);input.value='';
 }
 function confirmImport(){
-  let added=0,updated=0;impRows.forEach(r=>{const idx=products.findIndex(p=>p.name===r.name||(r.barcode&&p.barcode===r.barcode));if(idx>-1){const diff=r.stock-products[idx].stock;products[idx]={...products[idx],...r};if(diff!==0)addMvt(products[idx].id,'ajuste',Math.abs(r.stock),'Importación');updated++;}else{const p={id:uid(),...r,min:5,notes:'',createdAt:Date.now()};products.push(p);if(r.stock>0)addMvt(p.id,'entrada',r.stock,'Importación');if(r.cat&&!categories.find(c=>c.name===r.cat))categories.push({id:uid(),name:r.cat,emoji:'📦',min:5});added++;}});
+  let added=0,updated=0;impRows.forEach(r=>{const idx=products.findIndex(p=>p.name===r.name||(r.barcode&&p.barcode===r.barcode));if(idx>-1){const diff=r.stock-products[idx].stock;products[idx]={...products[idx],...r};markEdited('products',products[idx].id);if(diff!==0)addMvt(products[idx].id,'ajuste',Math.abs(r.stock),'Importación');updated++;}else{const p={id:uid(),...r,min:5,notes:'',createdAt:Date.now()};products.push(p);markEdited('products',p.id);if(r.stock>0)addMvt(p.id,'entrada',r.stock,'Importación');if(r.cat&&!categories.find(c=>c.name===r.cat)){const cid=uid();categories.push({id:cid,name:r.cat,emoji:'📦',min:5});markEdited('categories',cid);}added++;}});
   persist();closeO('m-import');impRows=[];refreshAll();toast('✅ '+added+' agregados, '+updated+' actualizados');
 }
 function dlTemplate(){if(typeof XLSX==='undefined'){ensureXLSX(dlTemplate);return;}const rows=[['Producto','Precio de costo','Precio de venta','Stock actual','Tipo de venta','Categoría','Código','Código secundario','Proveedor','Marca'],['Granola x500g',850,1400,20,'Unidad','Cereales y Semillas','7798000000001','CS-001','Distribuidora Sur','La Cosecha'],['Queso Cremoso',3000,5000,15,'Peso','Lacteos','7798000000002','LAC-002','Tambo San Juan','']];const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'Productos');XLSX.writeFile(wb,'plantilla_stockpro.xlsx');toast('Plantilla descargada ✓');}
@@ -5077,8 +5179,8 @@ function openContactM(id,type){
 function saveContact(){
   const name=$i('cm-name').value.trim();if(!name){toast('Nombre obligatorio','err');return;}
   const id=$i('cm-id').value;let isProv=false,oldName=null;
-  if(id){const c=contacts.find(x=>x.id===id);if(c){isProv=c.type==='proveedor';oldName=c.name;c.name=name;c.phone=$i('cm-phone').value.trim();c.notes=$i('cm-notes').value.trim();}else isProv=$i('cm-type').value==='proveedor';}
-  else{const type=$i('cm-type').value||'cliente';contacts.push({id:uid(),type,name,phone:$i('cm-phone').value.trim(),notes:$i('cm-notes').value.trim(),createdAt:Date.now()});isProv=type==='proveedor';}
+  if(id){const c=contacts.find(x=>x.id===id);if(c){isProv=c.type==='proveedor';oldName=c.name;c.name=name;c.phone=$i('cm-phone').value.trim();c.notes=$i('cm-notes').value.trim();markEdited('contacts',id);}else isProv=$i('cm-type').value==='proveedor';}
+  else{const type=$i('cm-type').value||'cliente',nid=uid();contacts.push({id:nid,type,name,phone:$i('cm-phone').value.trim(),notes:$i('cm-notes').value.trim(),createdAt:Date.now()});markEdited('contacts',nid);isProv=type==='proveedor';}
   if(isProv){
     if(oldName&&oldName!==name){const i=provSuppliers.indexOf(oldName);if(i>-1)provSuppliers.splice(i,1);}
     if(!provSuppliers.includes(name))provSuppliers.push(name);
@@ -5117,8 +5219,8 @@ function saveCtaMov(){
   const contactId=$i('ctm-contact').value,amount=parseFloat($i('ctm-amount').value)||0;
   if(!amount){toast('Ingresá un monto','err');return;}
   const editId=$i('ctm-editing-id').value;
-  if(editId){const m=ctaMovs.find(x=>x.id===editId);if(m){m.type=$i('ctm-type').value;m.amount=amount;m.note=$i('ctm-note').value.trim();}}
-  else ctaMovs.unshift({id:uid(),contactId,ts:Date.now(),type:$i('ctm-type').value,amount,note:$i('ctm-note').value.trim()});
+  if(editId){const m=ctaMovs.find(x=>x.id===editId);if(m){m.type=$i('ctm-type').value;m.amount=amount;m.note=$i('ctm-note').value.trim();markEdited('cta_movs',editId);}}
+  else{const nid=uid();ctaMovs.unshift({id:nid,contactId,ts:Date.now(),type:$i('ctm-type').value,amount,note:$i('ctm-note').value.trim()});markEdited('cta_movs',nid);}
   persist();closeO('m-ctamov');renderFichas();toast('✅ Movimiento registrado');
 }
 function fillCartClientes(){
@@ -5247,8 +5349,8 @@ function saveEgreso(){
       let productId=it.productId;
       if(it.isNew){
         const np={id:uid(),name:it.name,cat:it.cat||'',tipo:it.tipo||'unidad',stock:0,min:5,cost:it.unitCost,price:it.sellPrice||it.unitCost,createdAt:Date.now()};
-        products.push(np);productId=np.id;
-        if(np.cat&&!categories.find(c=>c.name===np.cat))categories.push({id:uid(),name:np.cat,emoji:'📦',min:5});
+        products.push(np);productId=np.id;markEdited('products',np.id);
+        if(np.cat&&!categories.find(c=>c.name===np.cat)){const cid=uid();categories.push({id:cid,name:np.cat,emoji:'📦',min:5});markEdited('categories',cid);}
       }
       if(productId)newQty[productId]=(newQty[productId]||0)+it.qty;
       return{productId,name:it.name,qty:it.qty,unitCost:it.unitCost,total:it.qty*it.unitCost};
@@ -5259,14 +5361,17 @@ function saveEgreso(){
       const delta=(newQty[pid]||0)-(origQty[pid]||0);
       if(delta!==0){products[idx].stock=Math.max(0,(products[idx].stock||0)+delta);addMvt(pid,'ajuste',Math.abs(delta),'Edición de compra a '+provider.name);}
       const matching=egCart.find(x=>x.productId===pid);
-      if(matching){setProdCost(products[idx],matching.unitCost);if(matching.sellPrice)products[idx].price=matching.sellPrice;}
+      if(matching){setProdCost(products[idx],matching.unitCost);if(matching.sellPrice)products[idx].price=matching.sellPrice;markEdited('products',pid);}
     });
     const total=items.reduce((a,x)=>a+x.total,0);
     Object.assign(orig,{providerId,providerName:provider.name,items,total,note,paid:nowPaid});
+    markEdited('egresos',orig.id);
     const existingMov=ctaMovs.find(m=>m.ref===orig.id);
     if(existingMov)ctaMovs=ctaMovs.filter(m=>m!==existingMov);
     if(!nowPaid){
-      ctaMovs.unshift({id:uid(),contactId:providerId,ts:Date.now(),type:provider.type==='cliente'?'pago':'cargo',amount:total,note:(provider.type==='cliente'?'Mercadería recibida (trueque): ':'Compra: ')+items.map(i=>i.name).join(', '),ref:orig.id});
+      const ctaId=uid();
+      ctaMovs.unshift({id:ctaId,contactId:providerId,ts:Date.now(),type:provider.type==='cliente'?'pago':'cargo',amount:total,note:(provider.type==='cliente'?'Mercadería recibida (trueque): ':'Compra: ')+items.map(i=>i.name).join(', '),ref:orig.id});
+      markEdited('cta_movs',ctaId);
     }
     persist();refreshAll();closeO('m-egreso');egEditingId=null;toast('✅ Compra actualizada');
     return;
@@ -5276,20 +5381,20 @@ function saveEgreso(){
     let productId=it.productId;
     if(it.isNew){
       const np={id:uid(),name:it.name,cat:it.cat||'',tipo:it.tipo||'unidad',stock:0,min:5,cost:it.unitCost,price:it.sellPrice||it.unitCost,createdAt:Date.now()};
-      products.push(np);productId=np.id;
-      if(np.cat&&!categories.find(c=>c.name===np.cat))categories.push({id:uid(),name:np.cat,emoji:'📦',min:5});
+      products.push(np);productId=np.id;markEdited('products',np.id);
+      if(np.cat&&!categories.find(c=>c.name===np.cat)){const cid=uid();categories.push({id:cid,name:np.cat,emoji:'📦',min:5});markEdited('categories',cid);}
     }
     const idx=products.findIndex(p=>p.id===productId);
-    if(idx>-1){products[idx].stock=(products[idx].stock||0)+it.qty;setProdCost(products[idx],it.unitCost);if(it.sellPrice)products[idx].price=it.sellPrice;addMvt(productId,'entrada',it.qty,'Compra a '+provider.name+(note?' — '+note:''));}
+    if(idx>-1){products[idx].stock=(products[idx].stock||0)+it.qty;setProdCost(products[idx],it.unitCost);if(it.sellPrice)products[idx].price=it.sellPrice;markEdited('products',productId);addMvt(productId,'entrada',it.qty,'Compra a '+provider.name+(note?' — '+note:''));}
     return{productId,name:it.name,qty:it.qty,unitCost:it.unitCost,total:it.qty*it.unitCost};
   });
   const total=items.reduce((a,x)=>a+x.total,0);
   const eg={id:uid(),ts:Date.now(),providerId,providerName:provider.name,items,total,note,paid:nowPaid,type:'compra'};
   if(egModo==='dc')eg.mod='dc';
-  egArr().unshift(eg);
+  egArr().unshift(eg);markEdited('egresos',eg.id);
   if(!nowPaid){
-    if(provider.type==='cliente')ctaMovs.unshift({id:uid(),contactId:providerId,ts:Date.now(),type:'pago',amount:total,note:'Mercadería recibida (trueque): '+items.map(i=>i.name).join(', '),ref:eg.id});
-    else ctaMovs.unshift({id:uid(),contactId:providerId,ts:Date.now(),type:'cargo',amount:total,note:'Compra: '+items.map(i=>i.name).join(', '),ref:eg.id});
+    if(provider.type==='cliente'){const ctaId=uid();ctaMovs.unshift({id:ctaId,contactId:providerId,ts:Date.now(),type:'pago',amount:total,note:'Mercadería recibida (trueque): '+items.map(i=>i.name).join(', '),ref:eg.id});markEdited('cta_movs',ctaId);}
+    else{const ctaId=uid();ctaMovs.unshift({id:ctaId,contactId:providerId,ts:Date.now(),type:'cargo',amount:total,note:'Compra: '+items.map(i=>i.name).join(', '),ref:eg.id});markEdited('cta_movs',ctaId);}
   }
   persist();refreshAll();closeO('m-egreso');toast('✅ Compra registrada');
 }
@@ -5415,9 +5520,12 @@ function saveGasto(){
        que ya estaban cargados se respetan (no se borran). */
     if(fullPaid){const rest=Math.round((amount-egPaid(g))*100)/100;if(rest>0.005)g.pays.push({id:uid(),amount:rest,date:Date.now(),detail:'Pago restante',tipo:tipoPago});}
     egPaySync(g);
+    markEdited('egresos',editId);
   } else {
     const pays=fullPaid?[{id:uid(),amount:amount,date:dt,detail:'Pago completo',tipo:tipoPago}]:[];
-    arr.unshift(Object.assign({id:uid(),ts:dt,type:'gasto',category,providerName:category,items:[],total:amount,note,tipoPago,pays,paid:pays.length>0},extra));
+    const nid=uid();
+    arr.unshift(Object.assign({id:nid,ts:dt,type:'gasto',category,providerName:category,items:[],total:amount,note,tipoPago,pays,paid:pays.length>0},extra));
+    markEdited('egresos',nid);
   }
   persist();refreshAll();closeO('m-gasto');toast('✅ Gasto registrado');
 }
