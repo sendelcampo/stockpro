@@ -2015,6 +2015,13 @@ const ED_MAX=400,ED_MS=10*60*1000;
 let edIds=JSON.parse(localStorage.getItem('ed_ids')||'{}');
 if(!edIds||typeof edIds!=='object'||Array.isArray(edIds))edIds={};
 function edIdsSave(){try{localStorage.setItem('ed_ids',JSON.stringify(edIds));}catch(e){}}
+/* ══ Gracia de RESTAURACIÓN ══
+   Tras applyBackup() manda lo local sobre la nube para TODO el conjunto un
+   rato, no fila por fila: una copia puede traer más de mil productos y
+   ed_ids sólo guarda ED_MAX (400). Sin esto, una lectura de la nube iniciada
+   justo antes de subir la copia pisaba lo recién restaurado. */
+let restoreAt=0;
+function restoreFresh(){return restoreAt>0&&Date.now()-restoreAt<ED_MS;}
 function markEdited(table,id){
   if(!table||!id)return;
   const o=edIds[table]||(edIds[table]={});
@@ -2026,6 +2033,7 @@ function markEdited(table,id){
 /* true = se editó (o se creó) acá hace poco: el merge conserva lo local.
    Vencida la ventana vuelve a mandar la nube (sincronización normal). */
 function edFresh(table,id){
+  if(restoreFresh())return true;
   const o=edIds[table];if(!o)return false;
   const t=o[id];if(!t)return false;
   if(Date.now()-t>ED_MS){delete o[id];edIdsSave();return false;}
@@ -2616,11 +2624,10 @@ function ordRender(){
       '<td style="padding:4px;text-align:center"><button class="btn bs" type="button" onclick="ordDelItem('+i+')" title="Quitar producto" style="width:26px;height:24px;padding:0">🗑</button></td>'+
     '</tr>';
   }).join(''):'<tr><td colspan="10" style="text-align:center;color:var(--mu);padding:14px">Sin productos. Elegí uno arriba y tocá «Agregar».</td></tr>';
-  const PL={efectivo:'Efectivo',transferencia:'Transferencia',debito:'Débito',credito:'Crédito',qr:'QR',cuenta:'Cuenta cte.',otro:'Otro'};
   const rs='display:flex;justify-content:space-between;gap:8px;align-items:center;border:1px solid var(--bd);border-radius:6px;padding:8px 10px;background:var(--s1);font-size:.82rem';
   let ph='';
   if(ordLegacy>0.005)ph+='<div style="'+rs+'"><span>🧾 Pago sin detalle (anterior)</span><span style="display:flex;gap:10px;align-items:center"><strong>$'+fn(ordLegacy)+'</strong><button class="btn bs" type="button" onclick="ordDropLegacy()" title="Quitar" style="padding:3px 8px">🗑</button></span></div>';
-  ph+=ordPays.map((p,i)=>'<div style="'+rs+'"><span>'+(p.date?fd(p.date):'—')+' · '+(PL[p.type]||p.type||'Otro')+'</span><span style="display:flex;gap:10px;align-items:center"><strong>$'+fn(spNum(p.amount))+'</strong><button class="btn bs" type="button" onclick="ordDelPay('+i+')" title="Quitar pago" style="padding:3px 8px">🗑</button></span></div>').join('');
+  ph+=ordPays.map((p,i)=>'<div style="'+rs+'"><span>'+(p.date?fd(p.date):'—')+' · '+(payLabel(p.type)||'Otro')+'</span><span style="display:flex;gap:10px;align-items:center"><strong>$'+fn(spNum(p.amount))+'</strong><button class="btn bs" type="button" onclick="ordDelPay('+i+')" title="Quitar pago" style="padding:3px 8px">🗑</button></span></div>').join('');
   const box=$i('ord-pays');if(box)box.innerHTML=ph||'<div style="color:var(--mu);font-size:.8rem;text-align:center;padding:6px">Sin pagos registrados.</div>';
   ordTotals();
 }
@@ -3235,6 +3242,18 @@ const DEFAULT_PAY_METHODS=[
   {id:'credito',label:'Crédito',icon:'💳',active:false},{id:'cuenta',label:'Cuenta cte.',icon:'📋',active:false},{id:'otro',label:'Otro',icon:'💰',active:false},
 ];
 const DEFAULT_DISC_PRESETS=[{label:'Efectivo',value:10,type:'pct'}];
+/* ══ Rótulos de medios de pago ══
+   Los métodos que el usuario agrega en Configuración (ej. "QR DNI",
+   "QR MP") se guardan con id = uid() → p.ej. "mwhvna3t44b". Todos los
+   mapas de rótulos (PL / PLSHORT / PAY_LABELS) traían SOLO los ids por
+   defecto, así que en Ventas, el ticket y Reportes aparecía el id crudo
+   en vez del rótulo. Estos helpers resuelven contra cfg().payMethods
+   primero y recién después contra los defaults. */
+function payMethods(){try{return (cfg().payMethods||DEFAULT_PAY_METHODS);}catch(e){return DEFAULT_PAY_METHODS;}}
+function payLabel(id){if(!id)return '';const m=payMethods().find(x=>x.id===id);if(m)return m.label;const D={efectivo:'Efectivo',qr:'QR',transferencia:'Transferencia',debito:'Débito',credito:'Crédito',cuenta:'Cuenta cte.',otro:'Otro'};return D[id]||id;}
+function payShort(id){if(!id)return '';const m=payMethods().find(x=>x.id===id);if(m)return m.label;const D={efectivo:'Efvo',qr:'QR',transferencia:'Transf.',debito:'Deb.',credito:'Cred.',cuenta:'Cta.',otro:'Otro'};return D[id]||id;}
+function payIcon(id){if(!id)return '💰';const m=payMethods().find(x=>x.id===id);if(m)return m.icon||'💰';const D={efectivo:'💵',qr:'📱',transferencia:'📲',debito:'💳',credito:'💳',cuenta:'📋',otro:'💰'};return D[id]||'💰';}
+function payFull(id){if(!id)return '';const m=payMethods().find(x=>x.id===id);if(m)return (m.icon||'💰')+' '+m.label;const D={efectivo:'💵 Efectivo',qr:'📱 QR',transferencia:'📲 Transferencia',debito:'💳 Débito',credito:'💳 Crédito',cuenta:'📋 Cuenta cte.',otro:'💰 Otro'};return D[id]||id;}
 function cfg(){const c=LS.get('cfg')||{shop:'Mi Dietética',addr:'',tel:'',foot:'¡Gracias por su compra!',cuit:'',logo:'🌿',paperW:80,fontSize:8,lineH:1.35,pad:4,showId:true,showUser:false,autoprint:true,sound:true,sellNoStock:true,splitPay:true,currency:'$',plu:true,pluFmt:'2x5p5v',pluDecimals:2,salesRankMode:'all',salesRankSince:0,combineCartItems:true,payMethods:DEFAULT_PAY_METHODS};if(!c.discPresets)c.discPresets=DEFAULT_DISC_PRESETS;if(c.pluDecimals==null)c.pluDecimals=2;if(!c.salesRankMode)c.salesRankMode='all';if(c.combineCartItems==null)c.combineCartItems=true;if(c.roundPesos==null)c.roundPesos=true;c.sellNoStock=true;return c;}
 function saveCfg(c){_roundCache=c&&c.roundPesos!==false;c.ts=Date.now();LS.set('cfg',c);cfgDirty('settings');}
 /* ═══════════════ SINCRONIZACIÓN DE CONFIGURACIÓN ═══════════════
@@ -3527,8 +3546,7 @@ function testPrint(){saveConfig();const s={id:'TEST01',ts:Date.now(),items:[{qty
 // ══ TICKET ══
 function buildTicket(sale,cfgOvr){
   const c=cfgOvr||cfg();const cur=c.currency||'$';const w=parseInt(c.paperW)||80;const charsPerLine=Math.floor((w-(parseInt(c.pad||4))*2)/2.1);
-  const PAY_LABELS={efectivo:'Efectivo',qr:'QR',transferencia:'Transferencia',debito:'Débito',credito:'Crédito',cuenta:'Cuenta cte.',otro:'Otro'};
-  const payLabel=PAY_LABELS[sale.pay]||sale.pay;const pay2Label=sale.pay2?(PAY_LABELS[sale.pay2]||sale.pay2):null;const chg=Math.max(0,(sale.recv||0)-sale.total);
+  const payLbl=payLabel(sale.pay);const pay2Lbl=sale.pay2?payLabel(sale.pay2):null;const chg=Math.max(0,(sale.recv||0)-sale.total);
   function row(left,right){const r=String(right);const l=String(left).slice(0,charsPerLine-r.length-1);return '<div class="tk-row"><span>'+l+'</span><span>'+r+'</span></div>';}
   const items=sale.items.map(it=>{
     const isKg=it.tipo==='kg';
@@ -3550,8 +3568,8 @@ function buildTicket(sale,cfgOvr){
     '<hr class="tk-sep">'+items+'<hr class="tk-sep">'+
     (sale.disc>0?row('Descuento','-'+cur+fn(sale.disc)):'')+row('Subtotal',cur+fn(sale.sub))+
     '<div class="tk-total"><span>TOTAL</span><span>'+cur+fn(sale.total)+'</span></div><hr class="tk-sep">'+
-    row(payLabel,cur+fn(sale.pay2?(sale.recv||sale.total-(sale.pay2amount||0)):(sale.recv||sale.total)))+
-    (pay2Label&&sale.pay2amount?row(pay2Label,cur+fn(sale.pay2amount)):'')+
+    row(payLbl,cur+fn(sale.pay2?(sale.recv||sale.total-(sale.pay2amount||0)):(sale.recv||sale.total)))+
+    (pay2Lbl&&sale.pay2amount?row(pay2Lbl,cur+fn(sale.pay2amount)):'')+
     (chg>0?row('Vuelto',cur+fn(chg)):'')+
     (sale.note?'<div class="tk-sub">'+sale.note+'</div>':'')+
     '<hr class="tk-sep"><div class="tk-foot">'+(c.foot||'¡Gracias por su compra!')+'</div>';
@@ -3758,8 +3776,7 @@ function renderPayButtons(){
   $i('co-pay-btns').innerHTML=payBtnHtml(1,methods,selectedPay1);
   const showSplit=c.splitPay!==false&&selectedPay1;$i('co-split-section').style.display=showSplit?'':'none';
   if(showSplit)$i('co-pay2-btns').innerHTML=methods.filter(m=>m.active&&m.id!==selectedPay1).map(m=>'<button class="btn '+(selectedPay2===m.id?'bp':'bg')+' bs" onclick="selectPay(2,\''+m.id+'\')" style="flex:1;min-width:70px">'+m.icon+' '+m.label+'</button>').join('');
-  const PL={efectivo:'efectivo',qr:'QR',transferencia:'transferencia',debito:'débito',credito:'crédito',cuenta:'cuenta cte.',otro:'otro'};
-  $i('co-recv-label').textContent=selectedPay1?'('+( PL[selectedPay1]||selectedPay1)+')':'';
+  $i('co-recv-label').textContent=selectedPay1?'('+payLabel(selectedPay1)+')':'';
   const needsCliente=selectedPay1==='cuenta'||selectedPay2==='cuenta';
   $i('co-cliente-section').style.display=needsCliente?'':'none';
   if(needsCliente){fillCartClientes();const cc=$i('cart-cliente');if(cc&&cc.value)$i('co-cliente').value=cc.value;}
@@ -3776,9 +3793,8 @@ function calcChange(){
   if(bd){
     if(selectedPay2&&pay2>0){
       const d2=cartDisc2();const pay2final=Math.max(0,pay2-d2);const pay1final=Math.max(0,total-pay2final);
-      const PL={efectivo:'Efectivo',qr:'QR',transferencia:'Transferencia',debito:'Débito',credito:'Crédito',cuenta:'Cuenta cte.',otro:'Otro'};
-      bd.innerHTML='<div style="display:flex;justify-content:space-between"><span>'+(PL[selectedPay1]||selectedPay1)+':</span><strong>$'+fn(pay1final)+'</strong></div>'+
-        '<div style="display:flex;justify-content:space-between"><span>'+(PL[selectedPay2]||selectedPay2)+(d2>0?' (−$'+fn(d2)+' desc.)':'')+':</span><strong>$'+fn(pay2final)+'</strong></div>';
+      bd.innerHTML='<div style="display:flex;justify-content:space-between"><span>'+payLabel(selectedPay1)+':</span><strong>$'+fn(pay1final)+'</strong></div>'+
+        '<div style="display:flex;justify-content:space-between"><span>'+payLabel(selectedPay2)+(d2>0?' (−$'+fn(d2)+' desc.)':'')+':</span><strong>$'+fn(pay2final)+'</strong></div>';
     } else bd.innerHTML='';
   }
 }
@@ -4082,12 +4098,11 @@ function renderPosSales(){
   const totalHoy=todaySales.reduce((a,s)=>a+s.total,0);
   if(totEl)totEl.textContent=todaySales.length+' ventas — Total: $'+fn(totalHoy);
   if(!todaySales.length){el.innerHTML='<div style="text-align:center;padding:16px;color:var(--mu);font-size:.82rem">Sin ventas hoy todavía</div>';return;}
-  const PLSHORT={efectivo:'💵',qr:'📱',transferencia:'📲',debito:'💳',credito:'💳',cuenta:'📋',otro:'💰'};
   el.innerHTML=todaySales.map(function(s){
     var sid=s.id.slice(-4).toUpperCase();
     var hora=new Date(s.ts).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
     var names=s.items.map(function(i){return fqty(i.qty)+'x '+i.name;}).join(', ');
-    var payIco=PLSHORT[s.pay]||'💰';
+    var payIco=payIcon(s.pay);
     var sid2=s.id;
     return '<div style="background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:9px 12px;display:flex;align-items:center;gap:8px">'
       +'<div style="flex:1;min-width:0">'
@@ -4422,10 +4437,9 @@ function renderSales(){
   });
   $i('vs-count').textContent=list.length;$i('vs-total').textContent='$'+fn(list.reduce((a,s)=>a+s.total,0));$i('vs-units').textContent=fqty(list.reduce((a,s)=>a+s.items.reduce((b,i)=>b+i.qty,0),0));const avg=list.length?list.reduce((a,s)=>a+s.total,0)/list.length:0;$i('vs-avg').textContent='$'+fn(avg);
   const el=$i('sales-list');if(!list.length){el.innerHTML='<div class="empty"><div class="eic">🧾</div>Sin ventas</div>';return;}
-  const PLSHORT={efectivo:'Efvo',qr:'QR',transferencia:'Transf.',debito:'Deb.',credito:'Cred.',cuenta:'Cta.',otro:'Otro'};
   const vis=list.slice(0,histShown.sales);
   el.innerHTML=vis.map(function(s){
-    var payTxt=PLSHORT[s.pay]||s.pay;var pay2Txt=s.pay2?(PLSHORT[s.pay2]||s.pay2):'';
+    var payTxt=payShort(s.pay);var pay2Txt=s.pay2?payShort(s.pay2):'';
     var prods=s.items.length+' producto'+(s.items.length!==1?'s':'');var names=s.items.map(function(i){return fqty(i.qty)+'x '+i.name;}).join(', ');
     var payStr=payTxt+(pay2Txt?' + '+pay2Txt:'');var detail=prods+': '+names+' - '+payStr;
     var sid=s.id.slice(-6).toUpperCase();var dateStr=fd(s.ts)+(s.user?' - '+s.user:'');
@@ -4436,17 +4450,22 @@ function renderSales(){
 function showSaleDetail(id){
   const s=sales.find(x=>x.id===id);if(!s)return;editingSaleId=id;lastSale=s;
   saleOpening=true;saleEditDirty=false;
-  const PL={efectivo:'💵 Efectivo',qr:'📱 QR',transferencia:'📲 Transf.',debito:'💳 Débito',credito:'💳 Crédito',cuenta:'📋 Cuenta cte.',otro:'Otro'};
   const chg=Math.max(0,(s.recv||0)-s.total);
   $i('sd-header').textContent='🧾 Venta #'+s.id.slice(-6).toUpperCase()+' — '+fd(s.ts);
-  $i('sd-meta').innerHTML=(s.user?'Vendedor: <strong>'+s.user+'</strong> &nbsp;·&nbsp; ':'')+(s.pay2?'Pago original: '+( PL[s.pay]||s.pay)+' + '+(PL[s.pay2]||s.pay2)+' $'+fn(s.pay2amount||0):'')+(chg>0?' &nbsp;·&nbsp; Vuelto: $'+fn(chg):'')+(s.note?' &nbsp;·&nbsp; 📝 '+s.note:'');
+  $i('sd-meta').innerHTML=(s.user?'Vendedor: <strong>'+s.user+'</strong> &nbsp;·&nbsp; ':'')+(s.pay2?'Pago original: '+payFull(s.pay)+' + '+payFull(s.pay2)+' $'+fn(s.pay2amount||0):'')+(chg>0?' &nbsp;·&nbsp; Vuelto: $'+fn(chg):'')+(s.note?' &nbsp;·&nbsp; 📝 '+s.note:'');
   sdFillCats();if($i('sd-search'))$i('sd-search').value='';if($i('sd-cat'))$i('sd-cat').value='';
   const methods=(cfg().payMethods||DEFAULT_PAY_METHODS).filter(m=>m.active);
+  /* Si el medio guardado en la venta quedó inactivo o fue borrado de
+     Configuración, sin esta línea el <select> quedaba vacío y al guardar
+     se pisaba s.pay con ''. Se re-agrega la opción con su rótulo. */
+  function ensureOpt(sel,id){if(!id)return;const o=document.createElement('option');o.value=id;o.textContent=payFull(id);sel.appendChild(o);}
   $i('sd-pay').innerHTML=methods.map(m=>'<option value="'+m.id+'">'+m.icon+' '+m.label+'</option>').join('');
   $i('sd-pay').value=s.pay||'efectivo';
+  if(s.pay&&$i('sd-pay').value!==s.pay){ensureOpt($i('sd-pay'),s.pay);$i('sd-pay').value=s.pay;}
   $i('sd-pay2').innerHTML=methods.map(m=>'<option value="'+m.id+'">'+m.icon+' '+m.label+'</option>').join('');
   $i('sd-split-toggle').checked=!!s.pay2;
   $i('sd-pay2').value=s.pay2||(methods[0]?methods[0].id:'');
+  if(s.pay2&&$i('sd-pay2').value!==s.pay2){ensureOpt($i('sd-pay2'),s.pay2);$i('sd-pay2').value=s.pay2;}
   $i('sd-pay2-amount').value=s.pay2amount||'';
   sdTogglePay2();
   /* Descuento guardado sólo como importe (ventas viejas sin `discVal`): se muestra
@@ -4832,18 +4851,19 @@ function importExcel(input){
       price:findCol(['precio de venta','precio venta','pvp','venta'],['costo','tipo']),
       stock:findCol(['stock','cantidad']),
       tipo:findCol(['tipo']),
+      min:findCol(['stock min','stock minimo','minimo','minima']),
       cat:findCol(['categoria']),
       proveedor:findCol(['proveedor']),
       marca:findCol(['marca'])
     };
-    if(!isH){col.name=0;col.cost=1;col.price=2;col.stock=3;col.tipo=4;col.cat=5;col.barcode=6;col.sku=7;col.proveedor=8;col.marca=9;}
+    if(!isH){col.name=0;col.cost=1;col.price=2;col.stock=3;col.tipo=4;col.cat=5;col.barcode=6;col.sku=7;col.proveedor=8;col.marca=9;col.min=-1;}
     const g=(r,i)=>i>-1?r[i]:'';
     const parseTipo=v=>{const t=String(v||'').trim().toLowerCase();return(t.includes('kg')||t.includes('kilo')||t.includes('peso')||t.includes('granel')||t.includes('pesable')||t.includes('balanza')||t.includes('suelto')||t.includes('fraccionad')||/\bgr\b|\bgramo/.test(t))?'kg':'unidad';};
-    impRows=data.filter(r=>g(r,col.name)&&String(g(r,col.name)).trim()).map(r=>({name:String(g(r,col.name)||'').trim(),cost:parseFloat(g(r,col.cost))||0,price:parseFloat(g(r,col.price))||0,stock:parseInt(g(r,col.stock))||0,tipo:parseTipo(g(r,col.tipo)),cat:String(g(r,col.cat)||'').trim(),barcode:String(g(r,col.barcode)||'').trim(),sku:String(g(r,col.sku)||'').trim(),proveedor:String(g(r,col.proveedor)||'').trim(),marca:String(g(r,col.marca)||'').trim()}));
+    impRows=data.filter(r=>g(r,col.name)&&String(g(r,col.name)).trim()).map(r=>{const o={name:String(g(r,col.name)||'').trim(),cost:parseFloat(g(r,col.cost))||0,price:parseFloat(g(r,col.price))||0,stock:parseInt(g(r,col.stock))||0,cat:String(g(r,col.cat)||'').trim(),barcode:String(g(r,col.barcode)||'').trim(),sku:String(g(r,col.sku)||'').trim(),proveedor:String(g(r,col.proveedor)||'').trim(),marca:String(g(r,col.marca)||'').trim()};/* Si el archivo NO trae la columna no se inventa valor: reimportar una planilla sin «Tipo de venta» ya no convertía los productos de kilo en unidades ni ponía el stock mínimo en 0. */if(col.tipo>-1)o.tipo=parseTipo(g(r,col.tipo));if(col.min>-1){const mv=parseInt(g(r,col.min),10);if(!isNaN(mv))o.min=mv;}return o;});
     if(!impRows.length){toast('Sin productos válidos','err');return;}
     const nu=impRows.filter(r=>!products.find(p=>p.name===r.name||(r.barcode&&p.barcode===r.barcode))).length;const up=impRows.length-nu;
     $i('imp-cnt').textContent=impRows.length+' productos';
-    const colMsg=isH?'Columnas detectadas por encabezado.':'Sin encabezados: se usó el orden estándar de columnas.';
+    const colMsg=isH?('Columnas detectadas por encabezado.'+(col.tipo<0?' Sin «Tipo de venta»: se conserva el actual.':'')):'Sin encabezados: se usó el orden estándar de columnas.';
     $i('imp-sum').innerHTML='<span style="color:var(--ok)">✅ '+nu+' nuevos</span> &nbsp; <span style="color:var(--ac2)">🔄 '+up+' a actualizar</span> &nbsp; <span style="color:var(--mu);font-size:.75rem">'+colMsg+'</span>';
     const showN=Math.min(impRows.length,150);
     $i('imp-tb').innerHTML=impRows.slice(0,showN).map(r=>{const ex=products.find(p=>p.name===r.name||(r.barcode&&p.barcode===r.barcode));return '<tr><td>'+r.name+'</td><td>'+(r.cat||'—')+'</td><td>'+(r.tipo==='kg'?'⚖️ Peso':'📦 Unidad')+'</td><td>'+r.stock+'</td><td>'+(r.price?'$'+fn(r.price):'—')+'</td><td>'+(r.barcode||'—')+'</td><td>'+(r.sku||'—')+'</td><td>'+(r.proveedor||'—')+'</td><td>'+(ex?'<span class="bdg blow">Actualizar</span>':'<span class="bdg bok">Nuevo</span>')+'</td></tr>';}).join('')+(impRows.length>showN?'<tr><td colspan="9" style="text-align:center;color:var(--mu);padding:8px">… y '+(impRows.length-showN)+' más</td></tr>':'');
@@ -4852,14 +4872,14 @@ function importExcel(input){
   r.readAsArrayBuffer(f);input.value='';
 }
 function confirmImport(){
-  let added=0,updated=0;impRows.forEach(r=>{const idx=products.findIndex(p=>p.name===r.name||(r.barcode&&p.barcode===r.barcode));if(idx>-1){const diff=r.stock-products[idx].stock;products[idx]={...products[idx],...r};markEdited('products',products[idx].id);if(diff!==0)addMvt(products[idx].id,'ajuste',Math.abs(r.stock),'Importación');updated++;}else{const p={id:uid(),...r,min:5,notes:'',createdAt:Date.now()};products.push(p);markEdited('products',p.id);if(r.stock>0)addMvt(p.id,'entrada',r.stock,'Importación');if(r.cat&&!categories.find(c=>c.name===r.cat)){const cid=uid();categories.push({id:cid,name:r.cat,emoji:'📦',min:5});markEdited('categories',cid);}added++;}});
+  let added=0,updated=0;impRows.forEach(r=>{const idx=products.findIndex(p=>p.name===r.name||(r.barcode&&p.barcode===r.barcode));if(idx>-1){const diff=r.stock-products[idx].stock;products[idx]={...products[idx],...r};markEdited('products',products[idx].id);if(diff!==0)addMvt(products[idx].id,'ajuste',Math.abs(r.stock),'Importación');updated++;}else{const p={id:uid(),...r,tipo:(r.tipo||'unidad'),min:(r.min!=null?r.min:5),notes:'',createdAt:Date.now()};products.push(p);markEdited('products',p.id);if(r.stock>0)addMvt(p.id,'entrada',r.stock,'Importación');if(r.cat&&!categories.find(c=>c.name===r.cat)){const cid=uid();categories.push({id:cid,name:r.cat,emoji:'📦',min:5});markEdited('categories',cid);}added++;}});
   persist();closeO('m-import');impRows=[];refreshAll();toast('✅ '+added+' agregados, '+updated+' actualizados');
 }
 function dlTemplate(){if(typeof XLSX==='undefined'){ensureXLSX(dlTemplate);return;}const rows=[['Producto','Precio de costo','Precio de venta','Stock actual','Tipo de venta','Categoría','Código','Código secundario','Proveedor','Marca'],['Granola x500g',850,1400,20,'Unidad','Cereales y Semillas','7798000000001','CS-001','Distribuidora Sur','La Cosecha'],['Queso Cremoso',3000,5000,15,'Peso','Lacteos','7798000000002','LAC-002','Tambo San Juan','']];const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'Productos');XLSX.writeFile(wb,'plantilla_stockpro.xlsx');toast('Plantilla descargada ✓');}
 
 // ══ EXPORT EXCEL ══
 function exportExcel(){
-  if(typeof XLSX==='undefined'){ensureXLSX(exportExcel);return;}const wb=XLSX.utils.book_new();const c=cfg();const inv=[['Nombre','Código barras','SKU','Categoría','Marca','Proveedor','Stock','Stock mín','Precio costo','Precio venta','Marcación %','Valor stock','Estado']];products.forEach(p=>{const s={ok:'En stock',low:'Stock bajo',out:'Sin stock'}[sst(p)];inv.push([p.name,p.barcode||'',p.sku||'',p.cat||'',p.marca||'',p.proveedor||'',p.stock,p.min||5,p.cost||0,p.price||0,mk(p.cost,p.price).toFixed(1)+'%',(p.cost||0)*p.stock,s]);});XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(inv),'Inventario');const PL={efectivo:'Efectivo',qr:'QR',transferencia:'Transferencia',debito:'Débito',credito:'Crédito',cuenta:'Cuenta cte.',otro:'Otro'};const vsht=[['Fecha','ID Venta','Productos','Total','Descuento','Pago 1','Pago 2','Monto 2','Usuario']];sales.forEach(s=>vsht.push([fd(s.ts),'#'+s.id.slice(-6).toUpperCase(),s.items.map(i=>fqty(i.qty)+'x '+i.name).join(', '),s.total,s.disc||0,PL[s.pay]||s.pay,s.pay2?(PL[s.pay2]||s.pay2):'',s.pay2amount||0,s.user||'']));XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(vsht),'Ventas');const msht=[['Fecha','Producto','Tipo','Cantidad','Nota','Usuario']];movements.forEach(m=>msht.push([fd(m.ts),m.pname,m.type,m.qty,m.note||'',m.user||'']));XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(msht),'Movimientos');const asht=[['Producto','Stock','Stock mín','Estado']];products.filter(p=>sst(p)!=='ok').forEach(p=>asht.push([p.name,p.stock,p.min||5,{low:'Stock bajo',out:'Sin stock'}[sst(p)]]));XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(asht),'Alertas');XLSX.writeFile(wb,'StockPro_'+new Date().toLocaleDateString('es-AR').replace(/\//g,'-')+'.xlsx');toast('Excel exportado ✓');}
+  if(typeof XLSX==='undefined'){ensureXLSX(exportExcel);return;}const wb=XLSX.utils.book_new();const c=cfg();const inv=[['Nombre','Código barras','SKU','Categoría','Marca','Proveedor','Stock','Stock mín','Precio costo','Precio venta','Marcación %','Valor stock','Estado','Tipo de venta']];products.forEach(p=>{const s={ok:'En stock',low:'Stock bajo',out:'Sin stock'}[sst(p)];inv.push([p.name,p.barcode||'',p.sku||'',p.cat||'',p.marca||'',p.proveedor||'',p.stock,p.min||5,p.cost||0,p.price||0,mk(p.cost,p.price).toFixed(1)+'%',(p.cost||0)*p.stock,s,p.tipo==='kg'?'Peso':'Unidad']);});XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(inv),'Inventario');const vsht=[['Fecha','ID Venta','Productos','Total','Descuento','Pago 1','Pago 2','Monto 2','Usuario']];sales.forEach(s=>vsht.push([fd(s.ts),'#'+s.id.slice(-6).toUpperCase(),s.items.map(i=>fqty(i.qty)+'x '+i.name).join(', '),s.total,s.disc||0,payLabel(s.pay),s.pay2?payLabel(s.pay2):'',s.pay2amount||0,s.user||'']));XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(vsht),'Ventas');const msht=[['Fecha','Producto','Tipo','Cantidad','Nota','Usuario']];movements.forEach(m=>msht.push([fd(m.ts),m.pname,m.type,m.qty,m.note||'',m.user||'']));XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(msht),'Movimientos');const asht=[['Producto','Stock','Stock mín','Estado']];products.filter(p=>sst(p)!=='ok').forEach(p=>asht.push([p.name,p.stock,p.min||5,{low:'Stock bajo',out:'Sin stock'}[sst(p)]]));XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(asht),'Alertas');XLSX.writeFile(wb,'StockPro_'+new Date().toLocaleDateString('es-AR').replace(/\//g,'-')+'.xlsx');toast('Excel exportado ✓');}
 
 // ══ BACKUP ══
 function autoBackup(){
@@ -4897,36 +4917,64 @@ function backupNow(){
     contacts:contacts,ctaMovs:ctaMovs,cfg:cfg()};
   localBackups.unshift(bk);
   if(localBackups.length>10)localBackups=localBackups.slice(0,10);
-  LS.set('bk',localBackups);
-  const blob=new Blob([JSON.stringify(bk,null,2)],{type:'application/json'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download='stockpro_backup_'+new Date().toLocaleDateString('es-AR').replace(/\//g,'-')+'.json';
-  a.click();renderBackup();toast('✅ Backup descargado (productos, compras, egresos y configuración)');
+  /* Guardar la copia en el dispositivo NUNCA debe impedir descargarla: si no
+     entra en localStorage se descartan las más viejas (igual que autoBackup)
+     y, si aun así no entra, la descarga sale igual. */
+  try{
+    while(localBackups.length>1&&!LS.set('bk',localBackups))localBackups.pop();
+    LS.set('bk',localBackups);
+  }catch(e){console.warn('backupNow',e);}
+  try{
+    const blob=new Blob([JSON.stringify(bk,null,2)],{type:'application/json'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download='stockpro_backup_'+new Date().toLocaleDateString('es-AR').replace(/\//g,'-')+'.json';
+    document.body.appendChild(a);a.click();a.remove();
+  }catch(e){toast('No se pudo generar el archivo: '+e.message,'err');return;}
+  renderBackup();toast('✅ Backup descargado (productos, compras, egresos y configuración)');
 }
-function restoreBackup(input){const f=input.files[0];if(!f)return;pendingRestoreFile=f;input.value='';$i('confirm-msg').textContent='¿Restaurar desde este backup? Se reemplazarán TODOS los datos actuales.';$i('confirm-ok').onclick=function(){const r=new FileReader();r.onload=e=>{try{applyBackup(JSON.parse(e.target.result));closeO('m-confirm');toast('✅ Backup restaurado: productos, compras, egresos y configuración');}catch(err){toast('Error: '+err.message,'err');}};r.readAsText(pendingRestoreFile);};openO('m-confirm');}
+function restoreBackup(input){const f=input.files[0];if(!f)return;pendingRestoreFile=f;input.value='';$i('confirm-msg').textContent='¿Restaurar desde este backup? Se reemplazarán TODOS los datos actuales.';$i('confirm-ok').onclick=function(){const r=new FileReader();r.onload=e=>{try{applyBackup(JSON.parse(e.target.result));closeO('m-confirm');toast('✅ Backup restaurado: productos, compras, egresos y configuración');}catch(err){closeO('m-confirm');toast('Error: '+err.message,'err');}};r.onerror=function(){closeO('m-confirm');toast('No se pudo leer el archivo','err');};r.readAsText(pendingRestoreFile);};openO('m-confirm');}
 /* Restaura una copia —la que esté en el dispositivo o la de un archivo .json—.
    Es el único camino de restauración: antes había dos y sólo una traía los
    campos nuevos. Copias anteriores a esta versión no traen compras/egresos/
    configuración: en ese caso se conserva lo que hay ahora, campo por campo. */
 function applyBackup(bk){
-  if(!bk||typeof bk!=='object')throw new Error('copia inválida');
-  products=bk.products||[];movements=bk.movements||[];categories=bk.categories||[];users=bk.users||[];sales=bk.sales||[];
+  if(!bk||typeof bk!=='object'||Array.isArray(bk))throw new Error('copia inválida');
+  /* Un .json cualquiera (o un array) no debe poder vaciar el sistema: la copia
+     tiene que traer al menos una de las colecciones principales. */
+  if(!['products','sales','movements','categories','users'].some(k=>Array.isArray(bk[k])))throw new Error('el archivo no parece una copia de StockPro');
+  restoreAt=Date.now();
+  /* Cada colección se reemplaza sólo si la copia la trae (mismo criterio que
+     los campos nuevos): un archivo incompleto no vacía usuarios ni ventas. */
+  products=Array.isArray(bk.products)?bk.products:products;
+  movements=Array.isArray(bk.movements)?bk.movements:movements;
+  categories=Array.isArray(bk.categories)?bk.categories:categories;
+  users=Array.isArray(bk.users)?bk.users:users;
+  sales=Array.isArray(bk.sales)?bk.sales:sales;
   const has=o=>Array.isArray(o);
-  if(has(bk.provOrders)){
+  const liveOf=arr=>{const m={};(arr||[]).forEach(x=>{if(x&&x.id)m[x.id]=1;});return m;};
+  const liveOrd=has(bk.provOrders)?liveOf(bk.provOrders):null;
+  const livePay=has(bk.provPayments)?liveOf(bk.provPayments):null;
+  if(liveOrd){
     provOrders=bk.provOrders;
     /* Si la copia trae una compra que este equipo había borrado, hay que
        sacarle el marcador: si no, loadFromCloud() la volvería a ocultar. */
-    const live={};provOrders.forEach(o=>{if(o&&o.id)live[o.id]=1;});
-    provDeleted.orders=provDeleted.orders.filter(id=>!live[id]);
-    provPending.orders=provPending.orders.filter(id=>!live[id]);
+    provDeleted.orders=provDeleted.orders.filter(id=>!liveOrd[id]);
+    provPending.orders=provPending.orders.filter(id=>!liveOrd[id]);
     provSaveDeleted();
   }
-  if(has(bk.provPayments)){
+  if(livePay){
     provPayments=bk.provPayments;
-    const liveP={};provPayments.forEach(p=>{if(p&&p.id)liveP[p.id]=1;});
+    const liveP=livePay;
     provDeleted.payments=provDeleted.payments.filter(id=>!liveP[id]);
     provPending.payments=provPending.payments.filter(id=>!liveP[id]);
     provSaveDeleted();
+  }
+  /* Lo mismo para las tumbas aún NO enviadas a la nube: si quedaba un
+     provTomb pendiente de una compra restaurada, provCloudSync() la borraría
+     recién subida. */
+  if(provTomb.length&&(liveOrd||livePay)){
+    const nT=provTomb.filter(t=>!(t&&t.id&&((t.t==='prov_orders'&&liveOrd&&liveOrd[t.id])||(t.t==='prov_payments'&&livePay&&livePay[t.id]))));
+    if(nT.length!==provTomb.length){provTomb=nT;provTombSave();}
   }
   if(has(bk.provSuppliers))provSuppliers=bk.provSuppliers;
   if(has(bk.provEgresos)){provEgresos=bk.provEgresos;cfgDirty('prov_egresos');}
@@ -4935,6 +4983,22 @@ function applyBackup(bk){
   if(has(bk.egresoCats)&&bk.egresoCats.length){egresoCats=bk.egresoCats;LS.set('egcats',egresoCats);cfgDirty('egreso_cats');}
   if(has(bk.contacts))contacts=bk.contacts;
   if(has(bk.ctaMovs))ctaMovs=bk.ctaMovs;
+  /* ══ Tumbas locales (del_ids) ══
+     Si este equipo había borrado un producto/usuario/contacto/venta/movimiento
+     de caja/egreso que la copia trae de vuelta, hay que sacarle el marcador:
+     si no, cleanRows() lo vuelve a ocultar en el próximo sync y
+     retombDeleted() lo re-tumba en la nube — es decir, lo restaurado
+     desaparecía otra vez. Los IDs que la copia NO trae siguen borrados. */
+  const clearTomb=function(table,arr){
+    const a=delIds[table];
+    if(!Array.isArray(a)||!a.length||!Array.isArray(arr))return;
+    const live=liveOf(arr);
+    const n=a.filter(id=>!live[id]);
+    if(n.length!==a.length){delIds[table]=n;delIdsSave();}
+  };
+  clearTomb('products',products);clearTomb('users',users);clearTomb('contacts',contacts);
+  clearTomb('sales',sales);clearTomb('cta_movs',ctaMovs);
+  clearTomb('egresos',(egresos||[]).concat(Array.isArray(egresosDC)?egresosDC:[]));
   if(bk.cfg&&typeof bk.cfg==='object'){
     /* Se marca con la hora actual para que esta copia "gane" sobre lo que haya
        en la nube: si no, el próximo sync pisaría lo recién restaurado. */
@@ -4942,14 +5006,39 @@ function applyBackup(bk){
     LS.set('cfg',rc);_roundCache=rc.roundPesos!==false;cfgDirty('settings');
     try{if(typeof updateTicketPreview==='function')updateTicketPreview();}catch(e){}
   }
-  persist();refreshAll();renderBackup();
+  /* El usuario que quedó logueado puede no existir en la copia restaurada
+     (u otra puede traer otro rol): se vuelve a resolver contra la lista nueva. */
+  try{if(currentUser){const cu=users.find(x=>x&&x.id===currentUser.id);if(cu)currentUser=cu;}}catch(e){}
+  /* El carrito apuntaba a productos de antes de restaurar: se vacía para no
+     facturar filas que ya no existen. */
+  try{if(cart.length){cart=[];selectedIds.clear();renderCart();}}catch(e){}
+  persist();
+  /* ══ Historial restaurado ⇒ nube ══
+     persist() sube productos/categorías/usuarios/contactos/egresos, pero las
+     VENTAS y MOVIMIENTOS van de a uno (persistSale/persistMov). Sin subirlos
+     acá, el próximo sync completo (mergeHist con full=true) descarta lo local
+     que no esté en la nube y el historial restaurado se perdía en <10 min. */
+  if(cloudMode&&sb){
+    const chunkPush=function(table,arr){
+      if(!Array.isArray(arr)||!arr.length)return;
+      const rows=arr.filter(x=>x&&x.id);
+      for(let i=0;i<rows.length;i+=300){
+        (function(part){cloudUpsert(table,part).catch(e=>console.warn('applyBackup push '+table,e));})(rows.slice(i,i+300));
+      }
+    };
+    try{chunkPush('sales',sales);chunkPush('movements',movements);}catch(e){console.warn('applyBackup push',e);}
+    /* Se posterga un sync COMPLETO para que el subido anterior llegue antes:
+       mientras tanto el sync parcial de 30s sigue funcionando. */
+    histFullAt=Date.now();
+  }
+  refreshAll();renderBackup();
   return true;
 }
 function restoreLocal(idx){$i('confirm-msg').textContent='¿Restaurar esta copia? Se reemplazarán los datos actuales.';$i('confirm-ok').onclick=function(){
   try{
     applyBackup(localBackups[idx]);
     closeO('m-confirm');toast('✅ Restaurado: productos, compras, egresos y configuración');
-  }catch(err){toast('Error: '+err.message,'err');}
+  }catch(err){closeO('m-confirm');toast('Error: '+err.message,'err');}
 };openO('m-confirm');}
 function renderBackup(){const desc=$i('cloud-status-desc');if(desc){if(cloudMode&&sb)desc.innerHTML='<span style="color:var(--ok)">☁️ Conectado — sync automático cada 30 seg</span>';else desc.innerHTML='<span style="color:var(--warn)">⚠️ Modo local — datos solo en este dispositivo</span>';}const el=$i('bk-list');if(!localBackups.length){el.innerHTML='<div style="font-size:.78rem;color:var(--mu)">Sin copias guardadas.</div>';return;}el.innerHTML=localBackups.map((b,i)=>'<div class="bk-item"><div><div class="bk-name">'+(b.label||'Backup')+' · '+(b.products?.length||0)+' productos'+(b.provOrders&&b.provOrders.length?' · '+b.provOrders.length+' compras':'')+(b.egresos&&b.egresos.length?' · '+b.egresos.length+' egresos':'')+(b.cfg?' · ⚙️ config':'')+'</div><div class="bk-date">'+fd(b.ts)+'</div></div><button class="btn bg bs" onclick="restoreLocal('+i+')">↩ Restaurar</button></div>').join('');}
 
@@ -5067,8 +5156,8 @@ function renderReportes(){
   }).join(''):'<div class="empty" style="padding:20px"><div class="eic">🏷️</div>Sin datos</div>';
 
   // MEDIOS DE PAGO
-  const pagoMap={};const PL={efectivo:'💵 Efectivo',qr:'📱 QR',transferencia:'📲 Transferencia',debito:'💳 Débito',credito:'💳 Crédito',cuenta:'📋 Cuenta cte.',otro:'💰 Otro'};
-  list.forEach(s=>{const k=PL[s.pay]||s.pay;if(!pagoMap[k])pagoMap[k]={ventas:0,total:0};pagoMap[k].ventas++;pagoMap[k].total+=s.pay2?(s.total-(s.pay2amount||0)):s.total;if(s.pay2){const k2=PL[s.pay2]||s.pay2;if(!pagoMap[k2])pagoMap[k2]={ventas:0,total:0};pagoMap[k2].total+=s.pay2amount||0;}});
+  const pagoMap={};
+  list.forEach(s=>{const k=payFull(s.pay);if(!pagoMap[k])pagoMap[k]={ventas:0,total:0};pagoMap[k].ventas++;pagoMap[k].total+=s.pay2?(s.total-(s.pay2amount||0)):s.total;if(s.pay2){const k2=payFull(s.pay2);if(!pagoMap[k2])pagoMap[k2]={ventas:0,total:0};pagoMap[k2].total+=s.pay2amount||0;}});
   const pagos=Object.entries(pagoMap).sort((a,b)=>b[1].total-a[1].total);const maxPT=pagos[0]?pagos[0][1].total:1;
   $i('rep-pagos').innerHTML=pagos.length?pagos.map(([pago,v])=>{
     const pct=Math.round(v.total/maxPT*100);
@@ -5811,10 +5900,13 @@ async function exportSalesReportPDF(dateStr) {
 // ══ 2. EXPORTAR EXCEL INVENTARIO ══
 function exportInventoryExcel(){
   if(!window.XLSX){ensureXLSX(exportInventoryExcel);return;}
-  
-  const data=products.map(p=>({'Nombre':p.name||'','SKU':p.sku||'','Código Barras':p.barcode||'','Categoría':p.category||'','Marca':p.brand||'','Proveedor':p.provider||'','Precio Costo':p.costPrice||0,'Precio Venta':p.price||0,'Stock Actual':p.stock||0,'Stock Mínimo':p.minStock||0,'Vencimiento':p.expiry||'','Valor Total':((p.stock||0)*(p.price||0)).toFixed(2)}));
+  if(!products.length){toast('No hay productos para exportar','err');return;}
+  /* Los nombres reales de los campos son cat/marca/proveedor/cost/min: con
+     category/brand/provider/costPrice/minStock salía todo vacío y el costo en
+     0 — al reimportarlo se pisaban los costos de toda la mercadería. */
+  const data=products.map(p=>({'Nombre':p.name||'','SKU':p.sku||'','Código Barras':p.barcode||'','Categoría':p.cat||'','Marca':p.marca||'','Proveedor':p.proveedor||'','Precio Costo':p.cost||0,'Precio Venta':p.price||0,'Stock Actual':p.stock||0,'Stock Mínimo':p.min||5,'Vencimiento':p.expiry||'','Valor Total':((p.stock||0)*(p.price||0)).toFixed(2),'Tipo de venta':p.tipo==='kg'?'Peso':'Unidad'}));
   const ws=XLSX.utils.json_to_sheet(data);
-  ws['!cols']=[{wch:20},{wch:10},{wch:15},{wch:15},{wch:15},{wch:15},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12}];
+  ws['!cols']=[{wch:20},{wch:10},{wch:15},{wch:15},{wch:15},{wch:15},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:14}];
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'Inventario');
   XLSX.writeFile(wb,'inventario-'+new Date().toISOString().split('T')[0]+'.xlsx');
@@ -6975,10 +7067,6 @@ function renderProvEgresosList(){
   }catch(err){console.warn('renderProvEgresosList:',err);}
 }
 function renderEgresos(){renderEgresosList('eg');renderProvEgresosList();}
-</script>
-
-</body></html>
-n renderEgresos(){renderEgresosList('eg');renderProvEgresosList();}
 </script>
 
 </body></html>
