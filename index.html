@@ -356,8 +356,8 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
             </div>
             <div class="discount-row" style="margin-bottom:5px">
               <input type="number" id="disc-val" data-noscan="1" placeholder="Desc." min="0" oninput="renderCartTotals()" style="width:62px;text-align:center;padding:6px 4px;font-size:.8rem">
-              <select id="disc-type" onchange="renderCartTotals()" style="flex:1;padding:6px 9px;font-size:.8rem"><option value="pct">% Descuento</option><option value="fixed">$ Fijo</option></select>
-              <select id="disc-preset" onchange="applyDiscPreset()" style="width:98px;padding:6px 6px;font-size:.8rem"><option value="">Desc. rápido</option></select>
+              <select id="disc-type" data-noscan="1" onchange="renderCartTotals()" style="flex:1;padding:6px 9px;font-size:.8rem"><option value="pct">% Descuento</option><option value="fixed">$ Fijo</option></select>
+              <select id="disc-preset" data-noscan="1" onchange="applyDiscPreset()" style="width:98px;padding:6px 6px;font-size:.8rem"><option value="">Desc. rápido</option></select>
             </div>
             <div style="display:flex;justify-content:space-between;font-size:.76rem;color:var(--mu)"><span>Subtotal</span><span id="ct-sub">$0</span></div>
             <div style="display:flex;justify-content:space-between;font-size:.76rem;color:var(--ok)"><span>Descuento</span><span id="ct-disc">-$0</span></div>
@@ -3594,12 +3594,17 @@ function cartSub(){return cart.reduce((a,x)=>a+itTot(x),0);}
 function cartDisc(){const v=parseFloat($i('disc-val').value)||0,t=$i('disc-type').value;return amt(t==='pct'?cartSub()*v/100:Math.min(v,cartSub()));}
 function cartDisc2(){const el2=$i('disc2-val');if(!el2)return 0;const v=parseFloat(el2.value)||0,t=$i('disc2-type').value,pay2amt=parseFloat(($i('co-pay2-amount')||{}).value)||0;if(!v||!pay2amt)return 0;return amt(t==='pct'?pay2amt*v/100:Math.min(v,pay2amt));}
 function cartTotal(){return Math.max(0,cartSub()-cartDisc()-cartDisc2());}
-function renderCartTotals(){$i('ct-sub').textContent='$'+fn(cartSub());if($i('ct-iva'))$i('ct-iva').style.display='none';$i('ct-disc').textContent='-$'+fn(cartDisc());$i('ct-total').textContent='$'+fn(cartTotal());}
+function renderCartTotals(){
+  /* Si el descuento quedó vacío a mano, el atajo «Desc. rápido» vuelve a su
+     punto de partida para no mostrar un atajo ya aplicado que ya no existe. */
+  const dv=$i('disc-val');if(dv&&dv.value===''){const sp=$i('disc-preset');if(sp&&sp.value!=='')sp.value='';}
+  $i('ct-sub').textContent='$'+fn(cartSub());if($i('ct-iva'))$i('ct-iva').style.display='none';$i('ct-disc').textContent='-$'+fn(cartDisc());$i('ct-total').textContent='$'+fn(cartTotal());}
 
 
 
 function addToCart(pid){
   hidePosSearch();  // Cerrar búsqueda cuando se agrega producto
+  if(!cart.length)syncCartDiscount();/* venta nueva: nunca arranca heredando descuento */
   const p=products.find(x=>x.id===pid);
   const allowNoStock=cfg().sellNoStock;
   if(!p){toast('Producto no encontrado','err');return;}
@@ -3724,6 +3729,7 @@ function setUnitTotalPrice(idx,val){
 }
 function renderCart(resetScroll){
   cartNormalize();/* la fila imita a la ficha: unidad ⇒ enteros, kilo ⇒ 0,1 */
+  syncCartDiscount();/* carrito vacío ⇒ sin descuento arrastrado */
   const c=cfg();const cur=c.currency||'$';
   const ciEl=$i('cart-items');
   if(cartQtyEditing){renderCartTotals();return;}
@@ -3764,7 +3770,20 @@ function renderCart(resetScroll){
   renderCartTotals();
 }
 
-function clearCart(){cart=[];$i('disc-val').value='';if($i('cart-cliente'))$i('cart-cliente').value='';renderCart();renderPosGrid();}
+/* ══ EL DESCUENTO ES DEL CARRITO EN CURSO ══
+   Si el carrito queda vacío (se borró la fila, se bajó la cantidad a 0 o se
+   limpió con 🗑) el descuento NO puede seguir guardado. Si se queda, la próxima
+   carga arranca con un descuento fantasma: suman algo de $2.500 y el TOTAL da
+   $2.300 sin que nadie haya pedido nada. Se llama en cada redibujo del carrito,
+   que es por donde pasan TODAS las formas de vaciarlo. */
+function syncCartDiscount(){
+  const d=$i('disc-val');if(!d||cart.length)return;
+  const t=$i('disc-type'),s=$i('disc-preset');
+  if(d.value!==''||(t&&t.value!=='pct')||(s&&s.value!=='')){
+    d.value='';if(t)t.value='pct';if(s)s.value='';
+  }
+}
+function clearCart(){cart=[];$i('disc-val').value='';syncCartDiscount();if($i('cart-cliente'))$i('cart-cliente').value='';renderCart();renderPosGrid();}
 
 // ══ CHECKOUT ══
 function payBtnHtml(num,methods,selId){return methods.filter(m=>m.active).map(m=>'<button class="btn '+(selId===m.id?'bp':'bg')+' bs" onclick="selectPay('+num+',\''+m.id+'\')" style="flex:1;min-width:70px;padding:7px 6px;font-size:.78rem;justify-content:center;white-space:nowrap;overflow:hidden">'+m.icon+' '+m.label+'</button>').join('');}
