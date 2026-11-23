@@ -560,18 +560,14 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
       <div id="alerts-list"></div>
     </div>
 
-    <!-- FICHAS (CUENTA CORRIENTE) -->
+    <!-- FICHAS (CUENTA CORRIENTE) — sólo clientes: la cuenta de un proveedor
+         se ve en 🏭 Proveedores → tab 👤 Ficha -->
     <div class="view" id="view-fichas">
       <div class="sec-hdr">
         <div class="sec-t">Fichas — Cuenta corriente</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn bg bs" onclick="openContactM(null,'cliente')">+ Cliente</button>
-          <button class="btn bg bs" onclick="openContactM(null,'proveedor')">+ Proveedor</button>
         </div>
-      </div>
-      <div style="display:flex;gap:6px;margin-bottom:12px">
-        <button class="btn bp bs" id="fc-tab-cliente" onclick="setFichaTab('cliente')">👤 Clientes</button>
-        <button class="btn bg bs" id="fc-tab-proveedor" onclick="setFichaTab('proveedor')">🚚 Proveedores</button>
       </div>
       <div class="tblw"><table><thead><tr><th>Nombre</th><th>Teléfono</th><th>Saldo</th><th>Acciones</th></tr></thead><tbody id="fichas-tb"></tbody></table></div>
       <div id="ficha-detail" style="margin-top:18px"></div>
@@ -1495,10 +1491,10 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
 </div>
 
 <!-- MODAL COBRO -->
-<div class="overlay" id="m-checkout">
-  <div class="modal" style="max-width:480px;max-height:94vh;overflow-y:auto">
+<div class="overlay" id="m-checkout" style="overflow-y:auto">
+  <div class="modal" style="max-width:440px;max-height:92vh;overflow-y:auto;padding:16px 18px 0">
     <div class="mt" style="margin-bottom:8px">💳 Confirmar cobro</div>
-    <div style="background:var(--s2);border-radius:10px;padding:10px 14px;margin-bottom:10px">
+    <div style="background:var(--s2);border-radius:10px;padding:8px 12px;margin-bottom:8px">
       <div id="co-items-count" style="font-size:.76rem;color:var(--mu);margin-bottom:6px"></div>
       <div id="co-items" style="display:none"></div>
       <div style="border-top:1px dashed var(--bd);padding-top:6px">
@@ -1509,7 +1505,7 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
     </div>
     <div style="margin-bottom:8px">
       <div style="font-size:.7rem;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">Medio de pago</div>
-      <div id="co-pay-btns" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      <div id="co-pay-btns" style="display:flex;gap:5px;flex-wrap:wrap"></div>
     </div>
     <div id="co-cliente-section" style="display:none;margin-bottom:8px">
       <div style="font-size:.7rem;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">Cliente (cuenta corriente) *</div>
@@ -1517,18 +1513,17 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
     </div>
     <div id="co-split-section" style="display:none;margin-bottom:8px">
       <div style="font-size:.7rem;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">Segundo medio de pago</div>
-      <div id="co-pay2-btns" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px"></div>
+      <div id="co-pay2-btns" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px"></div>
       <div style="display:flex;gap:8px;align-items:center">
         <label style="font-size:.78rem;color:var(--mu);white-space:nowrap">Monto 2do pago:</label>
         <input type="number" id="co-pay2-amount" placeholder="0" min="0" step="0.01" oninput="calcChange()" style="flex:1">
-        <span id="co-pay1-remainder" style="font-size:.72rem;color:var(--mu);white-space:nowrap"></span>
       </div>
       <div style="display:flex;gap:6px;align-items:center;margin-top:5px">
         <label style="font-size:.76rem;color:var(--mu);white-space:nowrap">Desc. 2do pago:</label>
         <input type="number" id="disc2-val" data-noscan="1" placeholder="0" min="0" step="0.5" oninput="calcChange()" style="width:65px;text-align:center">
         <select id="disc2-type" onchange="calcChange()" style="flex:1"><option value="pct">% Descuento</option><option value="fixed">$ Fijo</option></select>
       </div>
-      <div id="co-pay-breakdown" style="margin-top:6px;background:var(--s3);border-radius:8px;padding:6px 10px;font-size:.78rem;display:flex;flex-direction:column;gap:2px"></div>
+      <div id="co-pay-breakdown" style="display:none;flex-direction:column;gap:3px;margin-top:7px;background:var(--s3);border:1px solid var(--bd);border-radius:8px;padding:7px 10px"></div>
     </div>
     <div class="fgrid" style="gap:8px">
       <div class="fg"><label class="fl">Recibido ($) <span id="co-recv-label" style="color:var(--mu);font-weight:400"></span></label><input type="number" id="co-recv" placeholder="0" oninput="calcChange()"></div>
@@ -1537,7 +1532,7 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
         <div style="font-family:var(--fh);font-size:1.05rem;font-weight:700;color:var(--ok)" id="co-change">$0</div></div></div>
       <div class="fg full"><label class="fl">Nota (opcional)</label><input type="text" id="co-note" placeholder="Ej: Cliente frecuente"></div>
     </div>
-    <div class="mfoot" style="margin-top:8px"><button class="btn bg" onclick="closeO(&#39;m-checkout&#39;)">Cancelar</button><button class="btn bp" onclick="confirmSale()">✅ Confirmar venta</button></div>
+    <div class="mfoot" style="position:sticky;bottom:0;background:var(--s2);margin-top:12px;padding:9px 0 14px;border-top:1px solid var(--bd)"><button class="btn bg" onclick="closeO(&#39;m-checkout&#39;)">Cancelar</button><button class="btn bp" onclick="confirmSale()">✅ Confirmar venta</button></div>
   </div>
 </div>
 
@@ -1782,6 +1777,9 @@ let egresosDC=LS.get('egdc')||[];   // Módulo "Egresos Doña Cocina" (solo admi
 let egModo='eg';                    // 'eg' = Egresos normal · 'dc' = Doña Cocina
 let egresoCats=LS.get('egcats')||null; // Categorías de gasto guardadas por el usuario
 let fichaTab='cliente';
+/* Cuenta corriente de un proveedor visible/oculta dentro de su ficha
+   (🏭 Proveedores → tab 👤 Ficha), ya que Fichas es sólo de clientes. */
+let provCtaOpen=false;
 let selectedFichaId=null;
 let localBackups=LS.get('bk')||[];
 /* Estado de la sincronización de configuración (bloque completo junto a saveCfg()).
@@ -3769,13 +3767,13 @@ function renderCart(resetScroll){
 function clearCart(){cart=[];$i('disc-val').value='';if($i('cart-cliente'))$i('cart-cliente').value='';renderCart();renderPosGrid();}
 
 // ══ CHECKOUT ══
-function payBtnHtml(num,methods,selId){return methods.filter(m=>m.active).map(m=>'<button class="btn '+(selId===m.id?'bp':'bg')+' bs" onclick="selectPay('+num+',\''+m.id+'\')" style="flex:1;min-width:80px">'+m.icon+' '+m.label+'</button>').join('');}
+function payBtnHtml(num,methods,selId){return methods.filter(m=>m.active).map(m=>'<button class="btn '+(selId===m.id?'bp':'bg')+' bs" onclick="selectPay('+num+',\''+m.id+'\')" style="flex:1;min-width:70px;padding:7px 6px;font-size:.78rem;justify-content:center;white-space:nowrap;overflow:hidden">'+m.icon+' '+m.label+'</button>').join('');}
 function selectPay(num,id){if(num===1){selectedPay1=id;if(selectedPay2===id)selectedPay2=null;}else{selectedPay2=selectedPay2===id?null:id;}renderPayButtons();calcChange();}
 function renderPayButtons(){
   const c=cfg();const methods=c.payMethods||DEFAULT_PAY_METHODS;
   $i('co-pay-btns').innerHTML=payBtnHtml(1,methods,selectedPay1);
   const showSplit=c.splitPay!==false&&selectedPay1;$i('co-split-section').style.display=showSplit?'':'none';
-  if(showSplit)$i('co-pay2-btns').innerHTML=methods.filter(m=>m.active&&m.id!==selectedPay1).map(m=>'<button class="btn '+(selectedPay2===m.id?'bp':'bg')+' bs" onclick="selectPay(2,\''+m.id+'\')" style="flex:1;min-width:70px">'+m.icon+' '+m.label+'</button>').join('');
+  if(showSplit)$i('co-pay2-btns').innerHTML=methods.filter(m=>m.active&&m.id!==selectedPay1).map(m=>'<button class="btn '+(selectedPay2===m.id?'bp':'bg')+' bs" onclick="selectPay(2,\''+m.id+'\')" style="flex:1;min-width:62px;padding:7px 5px;font-size:.76rem;justify-content:center;white-space:nowrap;overflow:hidden">'+m.icon+' '+m.label+'</button>').join('');
   $i('co-recv-label').textContent=selectedPay1?'('+payLabel(selectedPay1)+')':'';
   const needsCliente=selectedPay1==='cuenta'||selectedPay2==='cuenta';
   $i('co-cliente-section').style.display=needsCliente?'':'none';
@@ -3790,12 +3788,32 @@ function calcChange(){
   const recv=parseFloat($i('co-recv').value)||0,pay2=parseFloat($i('co-pay2-amount').value)||0;
   $i('co-change').textContent='$'+fn(Math.max(0,recv+pay2-total));
   const bd=$i('co-pay-breakdown');
+  /* ══ Doble medio de pago ══
+     El desglose se muestra ENCUANTO se elige el segundo medio (antes había que
+     cargar un monto para ver nada): cuánto hay que cobrar en el primero (ej.
+     QR) y cuánto en el segundo (ej. efectivo), ya con el descuento del 2do
+     pago aplicado. */
   if(bd){
-    if(selectedPay2&&pay2>0){
-      const d2=cartDisc2();const pay2final=Math.max(0,pay2-d2);const pay1final=Math.max(0,total-pay2final);
-      bd.innerHTML='<div style="display:flex;justify-content:space-between"><span>'+payLabel(selectedPay1)+':</span><strong>$'+fn(pay1final)+'</strong></div>'+
-        '<div style="display:flex;justify-content:space-between"><span>'+payLabel(selectedPay2)+(d2>0?' (−$'+fn(d2)+' desc.)':'')+':</span><strong>$'+fn(pay2final)+'</strong></div>';
-    } else bd.innerHTML='';
+    if(!selectedPay2){bd.style.display='none';bd.innerHTML='';}
+    else{
+      bd.style.display='flex';
+      const d2=cartDisc2();
+      const pay2final=Math.max(0,pay2-d2);
+      const pay1final=Math.max(0,total-pay2final);
+      const cur=c.currency||'$';
+      const row=function(ic,lab,val){
+        return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:.8rem;padding:2px 0">'
+          +'<span style="display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden">'+ic
+          +'<b style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+lab+'</b></span>'
+          +'<strong style="font-family:var(--fh);font-size:.96rem;white-space:nowrap">'+val+'</strong></div>';
+      };
+      let h='<div style="font-size:.66rem;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px">A cobrar</div>';
+      h+=row(payIcon(selectedPay1),payLabel(selectedPay1),cur+fn(pay1final));
+      h+=row(payIcon(selectedPay2),payLabel(selectedPay2),cur+fn(pay2final));
+      if(d2>0)h+='<div style="font-size:.7rem;color:var(--ok);padding-top:1px">− '+cur+fn(d2)+' de descuento en '+payLabel(selectedPay2)+'</div>';
+      if(!(pay2>0))h+='<div style="font-size:.7rem;color:var(--mu);padding-top:1px">Ingresá el monto del 2do pago</div>';
+      bd.innerHTML=h;
+    }
   }
 }
 function openCheckout(){
@@ -4859,14 +4877,14 @@ function importExcel(input){
     if(!isH){col.name=0;col.cost=1;col.price=2;col.stock=3;col.tipo=4;col.cat=5;col.barcode=6;col.sku=7;col.proveedor=8;col.marca=9;col.min=-1;}
     const g=(r,i)=>i>-1?r[i]:'';
     const parseTipo=v=>{const t=String(v||'').trim().toLowerCase();return(t.includes('kg')||t.includes('kilo')||t.includes('peso')||t.includes('granel')||t.includes('pesable')||t.includes('balanza')||t.includes('suelto')||t.includes('fraccionad')||/\bgr\b|\bgramo/.test(t))?'kg':'unidad';};
-    impRows=data.filter(r=>g(r,col.name)&&String(g(r,col.name)).trim()).map(r=>{const o={name:String(g(r,col.name)||'').trim(),cost:parseFloat(g(r,col.cost))||0,price:parseFloat(g(r,col.price))||0,stock:parseInt(g(r,col.stock))||0,cat:String(g(r,col.cat)||'').trim(),barcode:String(g(r,col.barcode)||'').trim(),sku:String(g(r,col.sku)||'').trim(),proveedor:String(g(r,col.proveedor)||'').trim(),marca:String(g(r,col.marca)||'').trim()};/* Si el archivo NO trae la columna no se inventa valor: reimportar una planilla sin «Tipo de venta» ya no convertía los productos de kilo en unidades ni ponía el stock mínimo en 0. */if(col.tipo>-1)o.tipo=parseTipo(g(r,col.tipo));if(col.min>-1){const mv=parseInt(g(r,col.min),10);if(!isNaN(mv))o.min=mv;}return o;});
+    impRows=data.filter(r=>g(r,col.name)&&String(g(r,col.name)).trim()).map(r=>{const o={name:String(g(r,col.name)||'').trim(),cost:parseFloat(g(r,col.cost))||0,price:parseFloat(g(r,col.price))||0,cat:String(g(r,col.cat)||'').trim(),barcode:String(g(r,col.barcode)||'').trim(),sku:String(g(r,col.sku)||'').trim(),proveedor:String(g(r,col.proveedor)||'').trim(),marca:String(g(r,col.marca)||'').trim()};/* Stock con decimales (balanza): parseInt() truncaba 7,5 kg a 7 al reimportar. */const sv=parseFloat(g(r,col.stock));o.stock=isNaN(sv)?0:sv;/* Si el archivo NO trae la columna no se inventa valor: reimportar una planilla sin «Tipo de venta» ya no convertía los productos de kilo en unidades ni ponía el stock mínimo en 0. */if(col.tipo>-1)o.tipo=parseTipo(g(r,col.tipo));if(col.min>-1){const mv=parseInt(g(r,col.min),10);if(!isNaN(mv))o.min=mv;}return o;});
     if(!impRows.length){toast('Sin productos válidos','err');return;}
     const nu=impRows.filter(r=>!products.find(p=>p.name===r.name||(r.barcode&&p.barcode===r.barcode))).length;const up=impRows.length-nu;
     $i('imp-cnt').textContent=impRows.length+' productos';
     const colMsg=isH?('Columnas detectadas por encabezado.'+(col.tipo<0?' Sin «Tipo de venta»: se conserva el actual.':'')):'Sin encabezados: se usó el orden estándar de columnas.';
     $i('imp-sum').innerHTML='<span style="color:var(--ok)">✅ '+nu+' nuevos</span> &nbsp; <span style="color:var(--ac2)">🔄 '+up+' a actualizar</span> &nbsp; <span style="color:var(--mu);font-size:.75rem">'+colMsg+'</span>';
     const showN=Math.min(impRows.length,150);
-    $i('imp-tb').innerHTML=impRows.slice(0,showN).map(r=>{const ex=products.find(p=>p.name===r.name||(r.barcode&&p.barcode===r.barcode));return '<tr><td>'+r.name+'</td><td>'+(r.cat||'—')+'</td><td>'+(r.tipo==='kg'?'⚖️ Peso':'📦 Unidad')+'</td><td>'+r.stock+'</td><td>'+(r.price?'$'+fn(r.price):'—')+'</td><td>'+(r.barcode||'—')+'</td><td>'+(r.sku||'—')+'</td><td>'+(r.proveedor||'—')+'</td><td>'+(ex?'<span class="bdg blow">Actualizar</span>':'<span class="bdg bok">Nuevo</span>')+'</td></tr>';}).join('')+(impRows.length>showN?'<tr><td colspan="9" style="text-align:center;color:var(--mu);padding:8px">… y '+(impRows.length-showN)+' más</td></tr>':'');
+    $i('imp-tb').innerHTML=impRows.slice(0,showN).map(r=>{const ex=products.find(p=>p.name===r.name||(r.barcode&&p.barcode===r.barcode));return '<tr><td>'+r.name+'</td><td>'+(r.cat||'—')+'</td><td>'+(r.tipo===undefined?'—':(r.tipo==='kg'?'⚖️ Peso':'📦 Unidad'))+'</td><td>'+r.stock+'</td><td>'+(r.price?'$'+fn(r.price):'—')+'</td><td>'+(r.barcode||'—')+'</td><td>'+(r.sku||'—')+'</td><td>'+(r.proveedor||'—')+'</td><td>'+(ex?'<span class="bdg blow">Actualizar</span>':'<span class="bdg bok">Nuevo</span>')+'</td></tr>';}).join('')+(impRows.length>showN?'<tr><td colspan="9" style="text-align:center;color:var(--mu);padding:8px">… y '+(impRows.length-showN)+' más</td></tr>':'');
     $i('imp-prev').style.display='block';$i('imp-ok').style.display='';openO('m-import');
   }catch(err){toast('Error: '+err.message,'err');}};
   r.readAsArrayBuffer(f);input.value='';
@@ -5245,20 +5263,41 @@ function resetDemo(){$i('confirm-msg').textContent='Cargar inventario de ejemplo
 
 // ══ FICHAS / CUENTA CORRIENTE ══
 function ctaBalance(contactId){return ctaMovs.filter(m=>m.contactId===contactId).reduce((a,m)=>a+(m.type==='cargo'?m.amount:-m.amount),0);}
-function setFichaTab(t){fichaTab=t;selectedFichaId=null;$i('fc-tab-cliente').className='btn '+(t==='cliente'?'bp':'bg')+' bs';$i('fc-tab-proveedor').className='btn '+(t==='proveedor'?'bp':'bg')+' bs';renderFichas();}
 function fmtCtaBalance(bal,type){
   if(Math.abs(bal)<0.005)return{txt:'Sin saldo',cls:'var(--mu)'};
   if(type==='proveedor')return bal>0?{txt:'Le debés $'+fn(bal),cls:'var(--warn)'}:{txt:'A tu favor $'+fn(-bal),cls:'var(--ok)'};
   return bal>0?{txt:'Te debe $'+fn(bal),cls:'var(--warn)'}:{txt:'A favor $'+fn(-bal),cls:'var(--ok)'};
 }
 function renderFichas(){
-  if(!$i('fc-tab-cliente'))return;
-  $i('fc-tab-cliente').className='btn '+(fichaTab==='cliente'?'bp':'bg')+' bs';$i('fc-tab-proveedor').className='btn '+(fichaTab==='proveedor'?'bp':'bg')+' bs';
-  const list=contacts.filter(c=>c.type===fichaTab);
-  $i('fichas-tb').innerHTML=list.length?list.map(c=>{const bal=ctaBalance(c.id);const b=fmtCtaBalance(bal,c.type);return '<tr><td><strong>'+c.name+'</strong>'+(c.notes?'<br><small style="color:var(--mu)">'+c.notes+'</small>':'')+'</td><td>'+(c.phone||'—')+'</td><td style="color:'+b.cls+';font-weight:700">'+b.txt+'</td><td style="white-space:nowrap"><button class="btn bg bs bic" onclick="viewFichaDetail(\''+c.id+'\')" title="Ver cuenta">📒</button><button class="btn bg bs bic" onclick="openContactM(\''+c.id+'\')" title="Editar">✏️</button><button class="btn bg bs bic" onclick="delContact(\''+c.id+'\')" title="Eliminar">🗑️</button></td></tr>';}).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--mu);padding:16px">Sin fichas todavía</td></tr>';
+  if(!$i('fichas-tb'))return;
+  /* Esta pantalla es SÓLO de clientes: la pestaña de proveedores se quitó
+     (su cuenta corriente vive en 🏭 Proveedores → tab 👤 Ficha). */
+  fichaTab='cliente';
+  const list=contacts.filter(c=>c.type==='cliente');
+  $i('fichas-tb').innerHTML=list.length?list.map(c=>{const bal=ctaBalance(c.id);const b=fmtCtaBalance(bal,c.type);const abierto=selectedFichaId===c.id;return '<tr'+(abierto?' style="background:var(--s3)"':'')+'><td><strong>'+c.name+'</strong>'+(c.notes?'<br><small style="color:var(--mu)">'+c.notes+'</small>':'')+'</td><td>'+(c.phone||'—')+'</td><td style="color:'+b.cls+';font-weight:700">'+b.txt+'</td><td style="white-space:nowrap"><button class="btn '+(abierto?'bp':'bg')+' bs bic" onclick="viewFichaDetail(\''+c.id+'\')" title="'+(abierto?'Ocultar cuenta':'Ver cuenta')+'">'+(abierto?'🙈':'👁️')+'</button><button class="btn bg bs bic" onclick="openContactM(\''+c.id+'\')" title="Editar">✏️</button><button class="btn bg bs bic" onclick="delContact(\''+c.id+'\')" title="Eliminar">🗑️</button></td></tr>';}).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--mu);padding:16px">Sin fichas todavía</td></tr>';
   fillCartClientes();
-  if(selectedFichaId)viewFichaDetail(selectedFichaId);else $i('ficha-detail').innerHTML='';
+  if(selectedFichaId)viewFichaDetail(selectedFichaId,true);else $i('ficha-detail').innerHTML='';
 }
+/* Cabecera del detalle: saldo + botones (cobrar, trueque, movimiento, cerrar). */
+function ctaDetailHead(c){
+  const bal=ctaBalance(c.id);const b=fmtCtaBalance(bal,c.type);
+  const extraBtn=c.type==='cliente'?'<button class="btn bg bs" onclick="startCompraForContact(\''+c.id+'\')">📦 + Mercadería (trueque)</button>':'';
+  const cobrarBtn=bal>0?'<button class="btn bp bs" onclick="quickPayMov(\''+c.id+'\','+bal+')">💰 Cobrar saldo</button>':'';
+  return '<div class="sec-hdr"><div class="sec-t">📒 '+c.name+' — <span style="color:'+b.cls+'">'+b.txt+'</span></div>'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap">'+cobrarBtn+extraBtn
+    +'<button class="btn bp bs" onclick="openCtaMovM(\''+c.id+'\')">+ Movimiento</button>'
+    +'<button class="btn bg bs" onclick="closeFichaDetail()" title="Quitar la visualización de esta cuenta">✕ Cerrar</button>'
+    +'</div></div>';
+}
+/* Tabla de movimientos: la misma para un cliente (Fichas) y para un proveedor
+   (ficha de 🏭 Proveedores), así no hay dos versiones que se pisen. */
+function ctaDetailTable(c){
+  const movs=ctaMovs.filter(m=>m.contactId===c.id).sort((a,b)=>b.ts-a.ts);
+  return '<div class="tblw"><table><thead><tr><th>Fecha</th><th>Movimiento</th><th>Nota</th><th></th></tr></thead><tbody>'
+    +(movs.length?movs.map(m=>{const isCargo=m.type==='cargo';const label=(c.type==='proveedor'?(isCargo?'Debés':'Pagaste'):(isCargo?'Debe':'Pagó'));return '<tr><td>'+fd(m.ts)+'</td><td style="color:'+(isCargo?'var(--warn)':'var(--ok)')+'">'+label+' $'+fn(m.amount)+'</td><td>'+(m.note||'—')+'</td><td style="white-space:nowrap"><button class="btn bg bs bic" onclick="editCtaMov(\''+m.id+'\')" title="Editar">✏️</button> <button class="btn bg bs bic" onclick="delCtaMov(\''+m.id+'\')" title="Eliminar">🗑️</button></td></tr>';}).join(''):'<tr><td colspan="4" style="text-align:center;color:var(--mu);padding:12px">Sin movimientos</td></tr>')
+    +'</tbody></table></div>';
+}
+function closeFichaDetail(){selectedFichaId=null;const box=$i('ficha-detail');if(box)box.innerHTML='';renderFichas();}
 function openContactM(id,type){
   $i('cm-id').value=id||'';$i('cm-type').value=type||fichaTab;
   if(id){const c=contacts.find(x=>x.id===id);$i('cm-title').textContent='Editar ficha';$i('cm-name').value=c.name;$i('cm-phone').value=c.phone||'';$i('cm-notes').value=c.notes||'';}
@@ -5284,16 +5323,16 @@ function saveContact(){
   toast('✅ Ficha guardada');
 }
 function delContact(id){$i('confirm-msg').textContent='¿Eliminar esta ficha y su historial de cuenta corriente?';$i('confirm-ok').onclick=function(){const movIds=ctaMovs.filter(m=>m.contactId===id).map(m=>m.id);contacts=contacts.filter(c=>c.id!==id);ctaMovs=ctaMovs.filter(m=>m.contactId!==id);selectedFichaId=null;persistDelContact(id,movIds);persist();closeO('m-confirm');renderFichas();toast('Eliminado','err');};openO('m-confirm');}
-function viewFichaDetail(id){
-  selectedFichaId=id;const c=contacts.find(x=>x.id===id);if(!c){$i('ficha-detail').innerHTML='';return;}
-  const movs=ctaMovs.filter(m=>m.contactId===id).sort((a,b)=>b.ts-a.ts);
-  const bal=ctaBalance(id);const b=fmtCtaBalance(bal,c.type);
-  const extraBtn=c.type==='cliente'?'<button class="btn bg bs" onclick="startCompraForContact(\''+id+'\')">📦 + Mercadería (trueque)</button>':'';
-  const cobrarBtn=bal>0?'<button class="btn bp bs" onclick="quickPayMov(\''+id+'\','+bal+')">💰 Cobrar saldo</button>':'';
-  $i('ficha-detail').innerHTML='<div class="sec-hdr"><div class="sec-t">📒 '+c.name+' — <span style="color:'+b.cls+'">'+b.txt+'</span></div><div style="display:flex;gap:6px;flex-wrap:wrap">'+cobrarBtn+extraBtn+'<button class="btn bp bs" onclick="openCtaMovM(\''+id+'\')">+ Movimiento</button></div></div>'+
-    '<div class="tblw"><table><thead><tr><th>Fecha</th><th>Movimiento</th><th>Nota</th><th></th></tr></thead><tbody>'+
-    (movs.length?movs.map(m=>{const isCargo=m.type==='cargo';const label=(c.type==='proveedor'?(isCargo?'Debés':'Pagaste'):(isCargo?'Debe':'Pagó'));return '<tr><td>'+fd(m.ts)+'</td><td style="color:'+(isCargo?'var(--warn)':'var(--ok)')+'">'+label+' $'+fn(m.amount)+'</td><td>'+(m.note||'—')+'</td><td style="white-space:nowrap"><button class="btn bg bs bic" onclick="editCtaMov(\''+m.id+'\')" title="Editar">✏️</button><button class="btn bg bs bic" onclick="delCtaMov(\''+m.id+'\')" title="Eliminar">🗑️</button></td></tr>';}).join(''):'<tr><td colspan="4" style="text-align:center;color:var(--mu);padding:12px">Sin movimientos</td></tr>')+
-    '</tbody></table></div>';
+function viewFichaDetail(id,keep){
+  const box=$i('ficha-detail');if(!box)return;
+  /* El mismo botón 👁️ de la fila sirve para ver la cuenta y para quitarla
+     de la vista; ✕ Cerrar hace lo mismo desde el detalle. */
+  if(!keep&&selectedFichaId===id){closeFichaDetail();return;}
+  selectedFichaId=id;
+  if(!keep){renderFichas();return;}
+  const c=contacts.find(x=>x.id===id);
+  if(!c){box.innerHTML='';return;}
+  box.innerHTML=ctaDetailHead(c)+ctaDetailTable(c);
 }
 function openCtaMovM(contactId){$i('ctm-contact').value=contactId;$i('ctm-type').value='pago';$i('ctm-amount').value='';$i('ctm-note').value='';$i('ctm-editing-id').value='';$i('ctm-title').textContent='Registrar movimiento';openO('m-ctamov');}
 function quickPayMov(contactId,amount){openCtaMovM(contactId);$i('ctm-amount').value=amount;$i('ctm-title').textContent='💰 Cobrar';}
@@ -5303,14 +5342,14 @@ function editCtaMov(id){
   $i('ctm-contact').value=m.contactId;$i('ctm-type').value=m.type;$i('ctm-amount').value=m.amount;$i('ctm-note').value=m.note||'';$i('ctm-editing-id').value=id;
   $i('ctm-title').textContent='Editar movimiento';openO('m-ctamov');
 }
-function delCtaMov(id){$i('confirm-msg').textContent='¿Eliminar este movimiento de cuenta corriente?';$i('confirm-ok').onclick=function(){ctaMovs=ctaMovs.filter(m=>m.id!==id);persistDelCtaMov(id);persist();closeO('m-confirm');renderFichas();toast('Eliminado','err');};openO('m-confirm');}
+function delCtaMov(id){$i('confirm-msg').textContent='¿Eliminar este movimiento de cuenta corriente?';$i('confirm-ok').onclick=function(){ctaMovs=ctaMovs.filter(m=>m.id!==id);persistDelCtaMov(id);persist();closeO('m-confirm');renderFichas();refreshCtaProv();toast('Eliminado','err');};openO('m-confirm');}
 function saveCtaMov(){
   const contactId=$i('ctm-contact').value,amount=parseFloat($i('ctm-amount').value)||0;
   if(!amount){toast('Ingresá un monto','err');return;}
   const editId=$i('ctm-editing-id').value;
   if(editId){const m=ctaMovs.find(x=>x.id===editId);if(m){m.type=$i('ctm-type').value;m.amount=amount;m.note=$i('ctm-note').value.trim();markEdited('cta_movs',editId);}}
   else{const nid=uid();ctaMovs.unshift({id:nid,contactId,ts:Date.now(),type:$i('ctm-type').value,amount,note:$i('ctm-note').value.trim()});markEdited('cta_movs',nid);}
-  persist();closeO('m-ctamov');renderFichas();toast('✅ Movimiento registrado');
+  persist();closeO('m-ctamov');renderFichas();refreshCtaProv();toast('✅ Movimiento registrado');
 }
 function fillCartClientes(){
   const sel=$i('cart-cliente');if(!sel)return;const cv=sel.value;
@@ -6425,6 +6464,10 @@ function showProvTab(tabName){
 }
 function provFichaCrear(){openContactM(null,'proveedor');const s=$i('prov-ficha-sel');if(s&&s.value)$i('cm-name').value=s.value;}
 
+function provCtaToggle(){provCtaOpen=!provCtaOpen;renderProvFicha();}
+/* Tras tocar un movimiento hay que refrescar también la ficha del proveedor
+   si su cuenta corriente está abierta (Fichas se refresca sola). */
+function refreshCtaProv(){if(provCtaOpen&&document.getElementById('prov-cta-box')){try{renderProvFicha();}catch(e){}}}
 function renderProvFicha(forceName){
   const box=$i('prov-ficha-body');if(!box)return;
   const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -6453,7 +6496,7 @@ function renderProvFicha(forceName){
   let h='<div class="sec-hdr"><div class="sec-t">👤 '+esc(name)+'</div><div style="display:flex;gap:6px;flex-wrap:wrap">';
   if(c){
     h+='<button class="btn bg bs" onclick="openContactM(\''+c.id+'\',\'proveedor\')">✏️ Editar ficha</button>';
-    h+='<button class="btn bp bs" onclick="nav(\'fichas\');setFichaTab(\'proveedor\');viewFichaDetail(\''+c.id+'\')">📒 Ver cuenta corriente</button>';
+    h+='<button class="btn bp bs" onclick="provCtaOpen=true;renderProvFicha();var e=document.getElementById(\'prov-cta-box\');if(e)e.scrollIntoView({block:\'center\'});">📒 Ver cuenta corriente</button>';
   }else{
     h+='<button class="btn bp bs" onclick="provFichaCrear()">➕ Crear ficha</button>';
   }
@@ -6468,6 +6511,18 @@ function renderProvFicha(forceName){
   h+=card('⏳ Pendiente','$'+fn(deuda),deuda>0.005?'var(--err)':'var(--ok)');
   h+=card('📅 Última compra',orders[0]&&orders[0].date?fd(orders[0].date):'—');
   h+='</div>';
+  /* ══ CUENTA CORRIENTE DEL PROVEEDOR ══
+     Fichas quedó sólo para clientes: la cuenta de cada proveedor se ve ACÁ,
+     con 👁️ para mostrarla y 🙈 para quitarla de la vista. */
+  if(c){
+    h+='<div id="prov-cta-box" style="background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-bottom:16px">';
+    h+='<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap">';
+    h+='<div style="font-size:.72rem;color:var(--ac);text-transform:uppercase;letter-spacing:.05em">📒 Cuenta corriente — <span style="color:'+cb.cls+';text-transform:none;letter-spacing:0;font-weight:700">'+esc(cb.txt)+'</span></div>';
+    h+='<button class="btn '+(provCtaOpen?'bg':'bp')+' bs" type="button" onclick="provCtaToggle()" title="'+(provCtaOpen?'Quitar la visualización de esta cuenta':'Ver la cuenta')+'">'+(provCtaOpen?'🙈 Ocultar cuenta':'👁️ Ver cuenta')+'</button>';
+    h+='</div>';
+    if(provCtaOpen)h+='<div style="margin-top:10px">'+ctaDetailTable(c)+'</div>';
+    h+='</div>';
+  }
   /* ══ PAGOS (parcial o total) ══
      Mismo camino que el pago que se hace al crear la compra y desde el tab
      "💳 Pagos": al registrarlo se actualiza la orden y provPayments, así que
