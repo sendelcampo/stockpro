@@ -417,6 +417,7 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
         <div class="stat" data-i="🧾"><div class="sl">Ventas hoy</div><div class="sv cy" id="s-vhoy">$0</div></div>
         <div class="stat" data-i="📅"><div class="sl">Ventas del mes</div><div class="sv cg" id="s-vmes">$0</div></div>
         <div class="stat" data-i="🗓️"><div class="sl">Ventas del período</div><div class="sv cy" id="s-vper" style="font-size:1rem">$0</div></div>
+        <div class="stat" data-i="🎯" title="Remarcación REAL de lo vendido en el período filtrado: ganancia total ÷ costo total (ponderado por monto). Mira las ventas, no el listado de productos."><div class="sl">Remarcación real</div><div class="sv cg" id="s-mkper" style="font-size:1rem">0.0%</div></div>
         <div class="stat" data-i="🛒"><div class="sl">Compras del período</div><div class="sv cb" id="s-cper" style="font-size:1rem">$0</div></div>
         <div class="stat" data-i="💳"><div class="sl">Compras pagadas</div><div class="sv cg" id="s-cpag" style="font-size:1rem">$0</div></div>
         <div class="stat" data-i="⏳"><div class="sl">Compras a pagar</div><div class="sv cr" id="s-cpen" style="font-size:1rem">$0</div></div>
@@ -814,7 +815,7 @@ if((/^\d{12,13}$/.test(code)&&code[0]==='2')||/^\d{13}$/.test(code)||(code.lengt
 
           <div class="mnl-h">8 · Dashboard y Reportes</div>
           <ul class="mnl-ul">
-            <li class="mnl-li"><b>📊 Dashboard</b>: resumen del negocio (stock, valor, ventas de hoy, del mes y del período). La tarjeta <b>Marcación promedio</b> promedia sólo los productos con precio y costo cargados y con marcación de 30% a 300%.</li>
+            <li class="mnl-li"><b>📊 Dashboard</b>: resumen del negocio (stock, valor, ventas de hoy, del mes y del período). La tarjeta <b>Marcación promedio</b> promedia sólo los productos con precio y costo cargados y con marcación de 30% a 300%. La tarjeta <b>Remarcación real</b> es otra cosa: mira lo que se <b>vendió</b> dentro del período filtrado y divide la ganancia total por el costo total (<i>ponderado por monto</i>, no un simple promedio de porcentajes), así un producto caro pesa más que uno barato; sólo entran los renglones con costo y precio cargados y respeta además el filtro de vendedor y de horas.</li>
             <li class="mnl-li">En el Dashboard, los botones <b>☀️ Hoy · 🌙 Ayer · 📆 Semana · 🗓️ Mes</b> (junto al rango libre desde/hasta) filtran rápido las tarjetas «del período» y la tabla de compras. Los campos <b>🕐 de … a …</b> acotan las ventas por horario (vacío = todo el día; si el «desde» es mayor que el «hasta» el rango pasa por la medianoche).</li>
             <li class="mnl-li">El selector <b>👤 Vendedor</b> muestra sólo las ventas de una persona; la etiqueta de la derecha indica el período y el vendedor elegidos.</li>
             <li class="mnl-li"><b>📊 Reportes</b>: ventas por día, semana o mes, con top de productos, <b>🕐 horarios de más ventas</b> (cuenta sólo las ventas hechas dentro del horario de atención: lun a vie de 9:30 a 20:30, sáb de 9:30 a 13:30 y de 16:30 a 20:30, dom de 9:30 a 13:30), medios de pago y exportación a Excel.</li>
@@ -2173,7 +2174,33 @@ async function loadFromCloud(full){
     persist();
   }catch(e){console.error('loadFromCloud:',e);}
 }
-async function cloudUpsert(table,items){if(!sb||!cloudMode||!items.length)return;const rows=items.map(i=>({id:i.id,data:i}));await sb.from(table).upsert(rows,{onConflict:'id'});}
+/* ══ ERRORES DE SUBIDA: QUE SE PUEDAN LEER Y NO SPAMEN ══
+   El cartel rojo duraba 2,8 s con un texto largo: no alcanzaba a leerse y
+   repetía en cada ciclo de 30 s. Ahora avisa QUÉ no se pudo subir, lo deja
+   7 s, repite como mínimo cada 60 s (y cada tema, cada 5 min) y el detalle
+   completo (tabla + código HTTP) queda en la consola del navegador. */
+let _cloudErrAt={},_cloudErrG=0,_cloudFail=false;
+function cloudErr(que,det,de){
+  const k=String(que||'datos');
+  /* El detalle también legible: pasarlo como objeto al console.error daba
+     "[object Object]" y no servía para diagnosticar nada. */
+  try{console.error('[nube] '+(de||'')+' | '+k+' | '+(det?((det.code?det.code+' ':'')+(det.message||JSON.stringify(det))):'sin detalle'));}catch(_){}
+  const now=Date.now();
+  if(_cloudErrAt[k]&&now-_cloudErrAt[k]<300000)return;   /* mismo tema: 5 min */
+  if(_cloudErrG&&now-_cloudErrG<60000)return;            /* cualquier tema: 1 min */
+  _cloudErrAt[k]=now;_cloudErrG=now;
+  const code=(det&&(det.code||det.message))||'sin detalle';
+  toast('⚠️ Guardado local: no se pudo subir '+k+' ('+code+')','err',7000);
+}
+const TABLA_ES={products:'productos',categories:'categorías',users:'usuarios',contacts:'fichas',cta_movs:'cuentas corrientes',egresos:'egresos',sales:'ventas',movements:'movimientos',prov_orders:'compras',prov_payments:'pagos',prov_suppliers:'proveedores'};
+async function cloudUpsert(table,items){
+  if(!sb||!cloudMode||!items.length)return;
+  const rows=items.map(i=>({id:i.id,data:i}));
+  /* Supabase NO lanza excepción ante un 4xx: devuelve {error}. Sin revisarlo,
+     la cabecera mostraba "☁️ Guardado" aunque la subida hubiera fallado. */
+  const r=await sb.from(table).upsert(rows,{onConflict:'id'});
+  if(r&&r.error){_cloudFail=true;cloudErr(TABLA_ES[table]||table,r.error,'cloudUpsert');}
+}
 async function cloudDelete(table,id){if(!sb||!cloudMode)return;await sb.from(table).delete().eq('id',id);}
 function ensureKgPluCodes(){
   const kgProds=products.filter(p=>p.tipo==='kg');
@@ -2197,11 +2224,12 @@ async function persist(){
   saveProvData();
   if(!cloudMode||!sb)return;
   showSync('⏳ Guardando...',true);
-  try{await Promise.all([cloudUpsert('products',products),cloudUpsert('categories',categories),cloudUpsert('users',users),cloudUpsert('contacts',contacts),cloudUpsert('cta_movs',ctaMovs),cloudUpsert('egresos',egresos.concat(egresosDC))]);showSync('☁️ Guardado',true);}
+  _cloudFail=false;
+  try{await Promise.all([cloudUpsert('products',products),cloudUpsert('categories',categories),cloudUpsert('users',users),cloudUpsert('contacts',contacts),cloudUpsert('cta_movs',ctaMovs),cloudUpsert('egresos',egresos.concat(egresosDC))]);showSync(_cloudFail?'⚠️ Error al guardar':'☁️ Guardado',!_cloudFail);}
   catch(e){showSync('⚠️ Error al guardar',false);}
 }
 async function persistMov(m){LS.set('m',movements);if(cloudMode&&sb)await cloudUpsert('movements',[m]);}
-async function persistSale(s){LS.set('s',sales);if(!cloudMode||!sb)return;showSync('⏳ Guardando...',true);await cloudUpsert('sales',[s]);showSync('☁️ Guardado',true);}
+async function persistSale(s){LS.set('s',sales);if(!cloudMode||!sb)return;showSync('⏳ Guardando...',true);_cloudFail=false;await cloudUpsert('sales',[s]);showSync(_cloudFail?'⚠️ Error al guardar':'☁️ Guardado',!_cloudFail);}
 async function persistDelProd(id){LS.set('p',products);markDeleted('products',id);if(cloudMode&&sb)await cloudDelete('products',id);}
 async function persistDelSale(id){LS.set('s',sales);markDeleted('sales',id);if(cloudMode&&sb)await cloudDelete('sales',id);}
 async function persistDelUser(id){LS.set('u',users);markDeleted('users',id);if(cloudMode&&sb)await cloudDelete('users',id);}
@@ -2285,20 +2313,18 @@ async function provCloudSync(){
        dejarlo en memoria antes de que este navegador lo borrara). */
     const ord=provOrders.filter(o=>o&&o.deleted!==true&&dOrd.indexOf(o.id)<0);
     const pay=provPayments.filter(p=>p&&p.deleted!==true&&dPay.indexOf(p.id)<0);
-    const reqs=[];
-    if(ord.length)reqs.push(sb.from('prov_orders').upsert(ord.map(o=>({id:o.id,data:o})),{onConflict:'id'}));
-    if(pay.length)reqs.push(sb.from('prov_payments').upsert(pay.map(p=>({id:p.id,data:p})),{onConflict:'id'}));
-    if(provSuppliers.length)reqs.push(sb.from('prov_suppliers').upsert(provSuppliers.map(s=>({id:s,data:s})),{onConflict:'id'}));
+    const reqs=[],quienes=[];
+    if(ord.length){quienes.push('compras');reqs.push(sb.from('prov_orders').upsert(ord.map(o=>({id:o.id,data:o})),{onConflict:'id'}));}
+    if(pay.length){quienes.push('pagos');reqs.push(sb.from('prov_payments').upsert(pay.map(p=>({id:p.id,data:p})),{onConflict:'id'}));}
+    if(provSuppliers.length){quienes.push('proveedores');reqs.push(sb.from('prov_suppliers').upsert(provSuppliers.map(s=>({id:s,data:s})),{onConflict:'id'}));}
     /* Tumbas (borrado lógico) junto con el resto de las subidas. */
-    provTomb.forEach(t=>{if(t&&t.r&&t.t)reqs.push(sb.from(t.t).upsert({id:t.id,data:t.r},{onConflict:'id'}));});
+    provTomb.forEach(t=>{if(t&&t.r&&t.t){quienes.push('borrados');reqs.push(sb.from(t.t).upsert({id:t.id,data:t.r},{onConflict:'id'}));}});
     const rs=await Promise.all(reqs);
     /* Supabase no lanza excepcion ante un 4xx: el error viene devuelto en {error}.
        Antes eso quedaba silenciado y las subidas fallaban sin ningun aviso. */
-    const mal=rs.find(r=>r&&r.error);
-    if(mal){
-      console.error('provCloudSync:',mal.error);
-      toast('⚠️ Guardado local: no se pudo subir a la nube ('+(mal.error.code||mal.error.message)+')','err');
-    }else{provTomb=[];provTombSave();}
+    const iMal=rs.findIndex(r=>r&&r.error);
+    if(iMal>-1)cloudErr(quienes[iMal]||'datos de Proveedores',rs[iMal].error,'provCloudSync');
+    else{provTomb=[];provTombSave();}
   }catch(e){console.error('provCloudSync:',e);}
   /* El DELETE recién DESPUÉS de subir las tumbas: si corría primero podía borrar
      la fila y el upsert dejarla limpia otra vez. */
@@ -2836,7 +2862,7 @@ function mk(c,p){if(!c||c<=0||!p||p<=0)return 0;return(p-c)/c*100;}
    porcentaje) no ensucia el promedio. */
 const MK_MIN=30,MK_MAX=300;
 function catEm(n){const c=categories.find(x=>x.name===n);return c?c.emoji:'';}
-function toast(msg,type){const el=$i('toast');el.textContent=msg;el.className='toast show '+(type||'ok');clearTimeout(el._t);el._t=setTimeout(()=>{el.className='toast';},2800);}
+function toast(msg,type,ms){const el=$i('toast');el.textContent=msg;el.className='toast show '+(type||'ok');clearTimeout(el._t);el._t=setTimeout(()=>{el.className='toast';},ms||2800);}
 
 // ══ AUTH ══
 function initUsers(){if(!users||!users.length){localStorage.removeItem('stockpro_users');users=[{id:'u1',name:'Administrador',role:'admin',pin:'1234',avatar:'A'},{id:'u2',name:'Vendedor',role:'vendedor',pin:'0000',avatar:'V'}];localStorage.setItem('stockpro_users',JSON.stringify(users));$i('pin-err').textContent='';}}
@@ -4254,6 +4280,33 @@ function renderDash(){
   if(lbl)lbl.textContent=(r.has?('Período: '+fd(r.from||0)+(r.to?' → '+fd(r.to):' → hoy')):'Sin filtro: todas las fechas')+vendLbl+horaLbl;
   const vPer=sales.filter(s=>enR(s.ts)&&enV(s)&&enH(s));
   $i('s-vper').textContent='$'+fn(vPer.reduce((a,s)=>a+(s.total||0),0));
+  /* ══ REMARCACIÓN REAL DEL PERÍODO (lo que se VENDIÓ, ponderada por monto) ══
+     Ganancia total ÷ costo total de los renglones vendidos dentro del filtro:
+     un producto caro pesa más que uno barato. Con el promedio simple, vender
+     $1.000 al 300% y $100.000 al 50% daba 175% en vez de ~50,4%.
+     Sólo entran renglones con costo y precio cargados (sin costo no hay forma
+     de saber cuánto se ganó); NO se recorta en 30–300% como la tarjeta
+     "Marcación promedio", porque acá se busca el número real del período.
+     vPer ya viene filtrado por fechas, vendedor y horas. */
+  let mkGan=0,mkCos=0,mkN=0,mkSin=0;
+  vPer.forEach(s=>{const its=(s&&s.items)||[];its.forEach(it=>{
+    const q=spNum(it&&it.qty)||0;
+    const p=(it&&it.pid)?products.find(x=>x.id===it.pid):null;
+    /* Invariante de cartNormalize(): en "kg" price es el TOTAL de la línea y
+       pricePerKg el unitario; en "unidad" price es el unitario. */
+    const tot=(it&&it.tipo==='kg')?spNum(it.price):spNum(it.price)*q;
+    if(!p||!(p.cost>0)||!(q>0)||!(tot>0)){mkSin++;return;}
+    const cos=spNum(p.cost)*q;mkCos+=cos;mkGan+=tot-cos;mkN++;
+  });});
+  const mkEl=$i('s-mkper');
+  if(mkEl){
+    const mkPer=mkCos>0?(mkGan/mkCos*100):0;
+    mkEl.textContent=mkPer.toFixed(1)+'%';
+    mkEl.style.color=(mkCos<=0)?'var(--mu)':(mkPer<0?'var(--err)':'');
+    mkEl.title=mkCos>0
+      ?('Ganancia $'+fn(mkGan)+' sobre costo $'+fn(mkCos)+' · '+mkN+' renglón(es) con costo cargado'+(mkSin?' · '+mkSin+' sin costo o sin precio (fuera del promedio)':''))
+      :'Sin ventas con costo cargado en el período seleccionado';
+  }
   const compras=provOrders.filter(o=>o&&o.deleted!==true&&o.status!=='anulado'&&enR(spNum(o.date)));
   const cTot=compras.reduce((a,o)=>a+spNum(o.totalCost),0);
   const cPag=compras.reduce((a,o)=>a+spNum(o.paid),0);
